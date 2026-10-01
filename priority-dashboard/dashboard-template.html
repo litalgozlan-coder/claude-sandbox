@@ -1,102 +1,120 @@
 <title>דשבורד פרויקטים</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Rubik:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&family=Suez+One&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: deep petrol masthead (title, summary, manager filter, tabs with amber marker) over a quiet grey page;
-   each tab = one joined figures strip, then charts, then detail tables */
+/* Layout: an architectural drawing set. Title block masthead, one sheet per tab (A-01..A-08),
+   each section a "detail" with a callout bubble. Light = concrete paper with drafting grid, dark = blueprint. */
 :root{
-  --bg:#edf0ef; --surface:#ffffff; --sunken:#f5f7f6; --line:#d9dfdd; --line2:#e8ecea;
-  --fg:#16211f; --fg2:#4b5a57; --muted:#7c8a87;
-  --band:#17383b; --band-fg:#f1f5f4; --band-muted:#a9bfbd; --band-line:#2c5054; --amber:#f0b429;
-  --accent:#1d6a72; --accent-fg:#ffffff; --accent-soft:#e0eeee;
-  --planned:#8a96a3; --actual:#2a78d6; --earned:#1baf7a; --out:#eb6834; --grid:#e6eae8;
+  --bg:#dcddd8; --gridl:rgba(31,35,38,.055); --surface:#f6f6f2; --sunken:#ececE7; --line:#b4b7b0; --line2:#dcdeda;
+  --fg:#1d2124; --fg2:#4a5156; --muted:#767d80; --ink:#1d2124;
+  --accent:#d9561a; --accent-fg:#ffffff; --accent-soft:#f8e3d8;
+  --planned:#8a9297; --actual:#2a78d6; --earned:#1baf7a; --out:#eb6834; --grid:#e3e4df;
   --good:#0ca30c; --warn:#eda100; --serious:#ec835a; --crit:#d03b3b;
-  --good-bg:#e5f4e5; --warn-bg:#fcf1d7; --crit-bg:#fae5e5; --info-bg:#e4edf8; --hl:#fdf0cc;
+  --good-bg:#e3f1e1; --warn-bg:#f8edd2; --crit-bg:#f6e0dd; --info-bg:#e1e9f3; --hl:#f8e3d8;
   --f:"Assistant",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
-  --fd:"Rubik","Assistant",system-ui,sans-serif;
+  --fd:"Suez One","Assistant",Georgia,serif;
+  --fm:"IBM Plex Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0f1414; --surface:#182120; --sunken:#141b1a; --line:#283533; --line2:#202b2a;
-  --fg:#e8efed; --fg2:#a9b8b5; --muted:#7c8b88;
-  --band:#0f2427; --band-fg:#eef4f3; --band-muted:#8fa9a6; --band-line:#22413f; --amber:#f0b429;
-  --accent:#62b5bd; --accent-fg:#0f1a1c; --accent-soft:#1b3032;
-  --planned:#8a96a3; --actual:#3987e5; --earned:#199e70; --out:#d95926; --grid:#232e2d;
-  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#e66767;
-  --good-bg:#1a2c1c; --warn-bg:#33290f; --crit-bg:#3a1d1e; --info-bg:#1b2738; --hl:#3a3013;
+  --bg:#0e2a4b; --gridl:rgba(200,225,255,.07); --surface:#123359; --sunken:#0f2e52; --line:#3a6593; --line2:#1f4670;
+  --fg:#eaf2ff; --fg2:#b4c8e2; --muted:#87a2c4; --ink:#eaf2ff;
+  --accent:#ff8a4c; --accent-fg:#14233a; --accent-soft:#2b3a55;
+  --planned:#9fb3cc; --actual:#5aa2f0; --earned:#2fc08c; --out:#ff8a4c; --grid:#1d4269;
+  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#ff7a7a;
+  --good-bg:#16402f; --warn-bg:#3b3a22; --crit-bg:#4a2633; --info-bg:#1a3d66; --hl:#3a3a3a;
   color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0f1414; --surface:#182120; --sunken:#141b1a; --line:#283533; --line2:#202b2a;
-  --fg:#e8efed; --fg2:#a9b8b5; --muted:#7c8b88;
-  --band:#0f2427; --band-fg:#eef4f3; --band-muted:#8fa9a6; --band-line:#22413f; --amber:#f0b429;
-  --accent:#62b5bd; --accent-fg:#0f1a1c; --accent-soft:#1b3032;
-  --planned:#8a96a3; --actual:#3987e5; --earned:#199e70; --out:#d95926; --grid:#232e2d;
-  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#e66767;
-  --good-bg:#1a2c1c; --warn-bg:#33290f; --crit-bg:#3a1d1e; --info-bg:#1b2738; --hl:#3a3013;
+  --bg:#0e2a4b; --gridl:rgba(200,225,255,.07); --surface:#123359; --sunken:#0f2e52; --line:#3a6593; --line2:#1f4670;
+  --fg:#eaf2ff; --fg2:#b4c8e2; --muted:#87a2c4; --ink:#eaf2ff;
+  --accent:#ff8a4c; --accent-fg:#14233a; --accent-soft:#2b3a55;
+  --planned:#9fb3cc; --actual:#5aa2f0; --earned:#2fc08c; --out:#ff8a4c; --grid:#1d4269;
+  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#ff7a7a;
+  --good-bg:#16402f; --warn-bg:#3b3a22; --crit-bg:#4a2633; --info-bg:#1a3d66; --hl:#3a3a3a;
   color-scheme:dark}
 
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:15px;line-height:1.5;direction:rtl}
-h1,h2,h3{margin:0;font-weight:600;text-wrap:balance;font-family:var(--fd)}
-h1{font-size:24px} h2{font-size:16.5px} h3{font-size:15px}
-.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+body{background-color:var(--bg);background-image:linear-gradient(var(--gridl) 1px,transparent 1px),linear-gradient(90deg,var(--gridl) 1px,transparent 1px);background-size:24px 24px;color:var(--fg);font-family:var(--f);font-size:15px;line-height:1.5;direction:rtl}
+h1,h2,h3{margin:0;font-weight:400;text-wrap:balance;font-family:var(--fd)}
+h1{font-size:30px;line-height:1.1} h2{font-size:17px} h3{font-size:15px}
+.num{font-family:var(--fm);font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;font-size:.93em}
 .muted{color:var(--muted)} .fg2{color:var(--fg2)}
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* masthead */
-.top{background:var(--band);color:var(--band-fg)}
-.top-in{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:18px 0;display:grid;gap:14px}
-.top-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 20px}
-.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-.badge-sample{font-size:12px;font-weight:600;color:var(--band);background:var(--amber);padding:1px 9px;border-radius:4px}
-.top .muted{color:var(--band-muted)}
+/* masthead = drawing title block */
+.top{padding-block:20px 0}
+.top-in{max-width:1280px;margin:0 auto;padding-inline:20px;display:grid;gap:0}
+.titleblock{display:grid;grid-template-columns:minmax(260px,2fr) repeat(4,minmax(130px,1fr));border:2px solid var(--ink);background:var(--surface)}
+.tb{padding:9px 14px;border-inline-start:1px solid var(--ink);display:grid;align-content:space-between;gap:4px;min-width:0}
+.tb:first-child{border-inline-start:0}
+.tb-k{font-family:var(--fm);font-size:10.5px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.tb-v{font-weight:600;font-size:14.5px}
+.tb.sample .tb-v{color:var(--accent)}
+.tb select{font:inherit;font-weight:600;font-size:14.5px;color:var(--fg);background:transparent;border:0;border-bottom:1px dashed var(--line);border-radius:0;padding:0 0 2px;width:100%;cursor:pointer}
+@media (max-width:820px){.titleblock{grid-template-columns:1fr 1fr}.tb:first-child{grid-column:1/-1}.tb{border-inline-start:0;border-top:1px solid var(--ink)}.tb:first-child{border-top:0}.tb:nth-child(odd):not(:first-child){border-inline-start:1px solid var(--ink)}}
+.tabs{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border:2px solid var(--ink);border-top:0;background:var(--surface)}
+.tab{background:none;border:0;border-inline-start:1px solid var(--line);padding:8px 14px 9px;font-size:14.5px;font-weight:600;color:var(--fg2);cursor:pointer;white-space:nowrap;display:flex;gap:8px;align-items:center;position:relative}
+.tab:first-child{border-inline-start:0}
+.tab .code{font-family:var(--fm);font-size:11px;font-weight:500;color:var(--muted)}
+.tab:hover{color:var(--fg);background:var(--sunken)}
+.tab[aria-selected="true"]{color:var(--fg);background:var(--bg)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;inset-inline:0;bottom:0;height:3px;background:var(--accent)}
+.tab[aria-selected="true"] .code{color:var(--accent)}
+.count{font-family:var(--fm);font-size:11px;font-weight:600;min-width:20px;padding:0 5px;background:var(--crit);color:#fff;line-height:17px;text-align:center}
 .ctrl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--fg2)}
-.top .ctrl{color:var(--band-muted)}
-select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0;max-width:100%}
-.top select{background:var(--band-line);color:var(--band-fg);border-color:var(--band-line)}
-.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
-.tab{background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px 10px;font-size:15px;font-weight:600;color:var(--band-muted);cursor:pointer;white-space:nowrap;display:flex;gap:6px;align-items:center}
-.tab:hover{color:var(--band-fg)}
-.tab[aria-selected="true"]{color:var(--band-fg);border-bottom-color:var(--amber)}
-.top :focus-visible{outline-color:var(--amber)}
-.count{font-size:12px;font-weight:700;min-width:20px;padding:0 6px;border-radius:10px;background:var(--crit);color:#fff;line-height:18px;text-align:center}
+select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:6px 10px;min-width:0;max-width:100%}
 
 main{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:22px 48px}
-.panel-tab{display:grid;gap:18px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
-.card-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px;margin-bottom:12px}
-.card-h p{margin:3px 0 0;font-size:13px;color:var(--fg2)}
+.panel-tab{display:grid;gap:18px;counter-reset:det}
+.card{background:var(--surface);border:1px solid var(--ink);border-radius:0;padding:16px 18px;min-width:0;position:relative}
+.card-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--line2)}
+.card-h > div:first-child{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center}
+.card-h > div:first-child > p{grid-column:2}
+.card-h > h2{display:flex;align-items:center;gap:12px}
+.card-h h2::before{counter-increment:det;content:counter(det) "\A" attr(data-sheet);white-space:pre;font-family:var(--fm);font-size:10px;line-height:15px;font-weight:600;width:38px;height:38px;border:1.5px solid var(--ink);border-radius:50%;display:inline-grid;place-content:center;text-align:center;flex:none;grid-row:span 2;background:linear-gradient(transparent calc(50% - .75px),var(--ink) calc(50% - .75px),var(--ink) calc(50% + .75px),transparent calc(50% + .75px))}
+.card-h > div:first-child > h2::before{margin-inline-end:0}
+.card-h > div:first-child > h2{display:contents}
+.card-h p{margin:2px 0 0;font-size:13px;color:var(--fg2)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:18px;align-items:start}
 .cols-2-1{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:900px){.cols-2-1{grid-template-columns:1fr}}
 
-/* summary sentence */
-.summary{font-family:var(--fd);font-weight:500;font-size:clamp(19px,2.3vw,25px);line-height:1.45;margin:0;max-width:60ch;text-wrap:pretty}
-.summary mark{background:var(--hl);color:var(--fg);padding:0 .25em;border-radius:4px}
+/* summary note, like a general note on a drawing */
+.summary{font-family:var(--f);font-weight:600;font-size:clamp(18px,2.1vw,22px);line-height:1.55;margin:0;max-width:66ch;padding-inline-start:16px;border-inline-start:3px solid var(--accent);text-wrap:pretty}
+.summary mark{background:var(--hl);color:var(--fg);padding:0 .25em}
 .summary mark.bad{background:var(--crit-bg);color:var(--crit)}
 
-/* figures: one joined strip */
-.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.fig{background:var(--surface);padding:14px 18px;display:grid;align-content:start}
-.fig .l{font-size:13px;color:var(--fg2);font-weight:600}
-.fig .v{font-family:var(--fd);font-size:26px;font-weight:600;line-height:1.25;margin-top:3px}
-.fig .s{font-size:12.5px;color:var(--muted)}
+/* figures: a schedule table */
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:1px;background:var(--ink);border:2px solid var(--ink)}
+.fig{background:var(--surface);padding:12px 16px;display:grid;align-content:start}
+.fig .l{font-family:var(--fm);font-size:11px;letter-spacing:.03em;color:var(--muted);font-weight:500}
+.fig .v{font-family:var(--fd);font-size:27px;line-height:1.25;margin-top:4px}
+.fig .v .num{font-family:var(--fd);font-size:1em}
+.fig .s{font-size:12.5px;color:var(--fg2)}
 .fig .s b{font-weight:600}
 .up{color:var(--crit)} .ok{color:var(--good)}
 
-/* horizontal bars (resources) */
+/* horizontal bars */
 .hb{display:grid;gap:8px}
 .hb-row{display:grid;grid-template-columns:150px 1fr 54px;gap:10px;align-items:center;font-size:13.5px}
 .hb-row small{display:block;color:var(--muted);font-size:12px;line-height:1.2}
-.hb-track{position:relative;height:14px;background:var(--line2);border-radius:0 4px 4px 0}
-.hb-fill{position:absolute;inset-block:0;inset-inline-start:0;border-radius:0 4px 4px 0;background:var(--actual)}
+.hb-track{position:relative;height:14px;background:var(--line2)}
+.hb-fill{position:absolute;inset-block:0;inset-inline-start:0;background:var(--actual)}
 .hb-fill.over{background:var(--crit)} .hb-fill.low{background:var(--planned)}
-.hb-ref{position:absolute;inset-block:-4px;width:2px;background:var(--fg)}
+.hb-ref{position:absolute;inset-block:-5px;width:2px;background:var(--ink)}
+.hb-ref::before,.hb-ref::after{content:"";position:absolute;left:-3px;width:8px;height:1.5px;background:var(--ink)}
+.hb-ref::before{top:0} .hb-ref::after{bottom:0}
 @media (max-width:560px){.hb-row{grid-template-columns:100px 1fr 46px}}
 
 /* chips & status */
+.st,.chip,.meter,.meter i,.mark,.aging,.badge-sample{border-radius:2px!important}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+.g-bar,.g-bar i{border-radius:0!important}
+.al .ic{border-radius:2px!important}
+th{font-family:var(--fm);font-size:11px!important;letter-spacing:.03em;font-weight:500!important;color:var(--muted)!important}
+
 .st{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap}
 .st::before{font-size:10px}
 .st.good{background:var(--good-bg)} .st.good::before{content:"●";color:var(--good)}
@@ -189,32 +207,29 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
 
 <div class="top">
   <div class="top-in">
-    <div class="top-row">
-      <div class="brand">
-        <h1>דשבורד פרויקטים</h1>
-        <span class="badge-sample">נתוני דמה</span>
-        <span class="muted" style="font-size:13px" id="updated"></span>
-      </div>
-      <label class="ctrl" for="pmSel">מנהל פרויקט
-        <select id="pmSel"></select>
-      </label>
+    <div class="titleblock">
+      <div class="tb"><span class="tb-k">לוח בקרה · פרויקטי בנייה</span><h1>דשבורד פרויקטים</h1></div>
+      <div class="tb"><label class="tb-k" for="pmSel">מנהל פרויקט</label><select id="pmSel"></select></div>
+      <div class="tb"><span class="tb-k">נכון לתאריך</span><span class="tb-v num" id="updated"></span></div>
+      <div class="tb"><span class="tb-k">גיליון</span><span class="tb-v" id="sheetNo"></span></div>
+      <div class="tb sample"><span class="tb-k">מקור הנתונים</span><span class="tb-v">נתוני דמה</span></div>
     </div>
-    <nav class="tabs" role="tablist" aria-label="לשוניות" id="tabs">
-      <button class="tab" role="tab" id="t-overview" data-tab="overview" aria-controls="p-overview">סקירה</button>
-      <button class="tab" role="tab" id="t-budget" data-tab="budget" aria-controls="p-budget">תקציב מול ביצוע</button>
-      <button class="tab" role="tab" id="t-schedule" data-tab="schedule" aria-controls="p-schedule">לוחות זמנים</button>
-      <button class="tab" role="tab" id="t-billing" data-tab="billing" aria-controls="p-billing">חיוב וגבייה</button>
-      <button class="tab" role="tab" id="t-cash" data-tab="cash" aria-controls="p-cash">תזרים צפוי</button>
-      <button class="tab" role="tab" id="t-purchase" data-tab="purchase" aria-controls="p-purchase">רכש</button>
-      <button class="tab" role="tab" id="t-resources" data-tab="resources" aria-controls="p-resources">שעות ומשאבים</button>
-      <button class="tab" role="tab" id="t-alerts" data-tab="alerts" aria-controls="p-alerts">התראות <span class="count" id="alertCount" hidden></span></button>
+    <nav class="tabs" role="tablist" aria-label="גיליונות" id="tabs">
+      <button class="tab" role="tab" id="t-overview" data-tab="overview" aria-controls="p-overview"><span class="code">A-01</span>סקירה</button>
+      <button class="tab" role="tab" id="t-budget" data-tab="budget" aria-controls="p-budget"><span class="code">A-02</span>תקציב מול ביצוע</button>
+      <button class="tab" role="tab" id="t-schedule" data-tab="schedule" aria-controls="p-schedule"><span class="code">A-03</span>לוחות זמנים</button>
+      <button class="tab" role="tab" id="t-billing" data-tab="billing" aria-controls="p-billing"><span class="code">A-04</span>חיוב וגבייה</button>
+      <button class="tab" role="tab" id="t-cash" data-tab="cash" aria-controls="p-cash"><span class="code">A-05</span>תזרים צפוי</button>
+      <button class="tab" role="tab" id="t-purchase" data-tab="purchase" aria-controls="p-purchase"><span class="code">A-06</span>רכש</button>
+      <button class="tab" role="tab" id="t-resources" data-tab="resources" aria-controls="p-resources"><span class="code">A-07</span>שעות ומשאבים</button>
+      <button class="tab" role="tab" id="t-alerts" data-tab="alerts" aria-controls="p-alerts"><span class="code">A-08</span>התראות <span class="count" id="alertCount" hidden></span></button>
     </nav>
   </div>
 </div>
 
 <main>
   <!-- סקירה -->
-  <section class="panel-tab" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
+  <section class="panel-tab" id="p-overview" data-sheet="A-01" role="tabpanel" aria-labelledby="t-overview">
     <p class="summary" id="ovSummary"></p>
     <div class="figs" id="ovFigs"></div>
     <div class="cols-2-1">
@@ -231,7 +246,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- תקציב -->
-  <section class="panel-tab" id="p-budget" role="tabpanel" aria-labelledby="t-budget" hidden>
+  <section class="panel-tab" id="p-budget" data-sheet="A-02" role="tabpanel" aria-labelledby="t-budget" hidden>
     <div class="toolbar">
       <label class="ctrl" for="projSel">פרויקט
         <select id="projSel"></select>
@@ -257,7 +272,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- לוחות זמנים -->
-  <section class="panel-tab" id="p-schedule" role="tabpanel" aria-labelledby="t-schedule" hidden>
+  <section class="panel-tab" id="p-schedule" data-sheet="A-03" role="tabpanel" aria-labelledby="t-schedule" hidden>
     <div class="figs" id="sFigs"></div>
     <div class="card">
       <div class="card-h">
@@ -278,7 +293,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- חיוב -->
-  <section class="panel-tab" id="p-billing" role="tabpanel" aria-labelledby="t-billing" hidden>
+  <section class="panel-tab" id="p-billing" data-sheet="A-04" role="tabpanel" aria-labelledby="t-billing" hidden>
     <div class="figs" id="iFigs"></div>
     <div class="card">
       <div class="card-h"><div><h2>גיול חובות פתוחים</h2><p>חשבוניות שעדיין לא שולמו, לפי ימים מתאריך הפירעון.</p></div></div>
@@ -295,7 +310,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- תזרים -->
-  <section class="panel-tab" id="p-cash" role="tabpanel" aria-labelledby="t-cash" hidden>
+  <section class="panel-tab" id="p-cash" data-sheet="A-05" role="tabpanel" aria-labelledby="t-cash" hidden>
     <div class="figs" id="cFigs"></div>
     <div class="card">
       <div class="card-h">
@@ -316,7 +331,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- רכש -->
-  <section class="panel-tab" id="p-purchase" role="tabpanel" aria-labelledby="t-purchase" hidden>
+  <section class="panel-tab" id="p-purchase" data-sheet="A-06" role="tabpanel" aria-labelledby="t-purchase" hidden>
     <div class="figs" id="rFigs"></div>
     <div class="card">
       <div class="card-h"><div><h2>עלות מחויבת לפי פרויקט</h2><p>עלות בפועל ועוד הזמנות רכש פתוחות. זה הסכום שכבר "סגור", גם אם החשבונית עוד לא הגיעה.</p></div>
@@ -334,7 +349,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- משאבים -->
-  <section class="panel-tab" id="p-resources" role="tabpanel" aria-labelledby="t-resources" hidden>
+  <section class="panel-tab" id="p-resources" data-sheet="A-07" role="tabpanel" aria-labelledby="t-resources" hidden>
     <div class="toolbar">
       <div class="chips" id="hMonths" role="group" aria-label="חודש"></div>
     </div>
@@ -357,7 +372,7 @@ svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
   </section>
 
   <!-- התראות -->
-  <section class="panel-tab" id="p-alerts" role="tabpanel" aria-labelledby="t-alerts" hidden>
+  <section class="panel-tab" id="p-alerts" data-sheet="A-08" role="tabpanel" aria-labelledby="t-alerts" hidden>
     <div class="card">
       <div class="toolbar">
         <div class="chips" id="aCats" role="group" aria-label="סוג התראה"></div>
@@ -448,12 +463,14 @@ const pmSel=document.getElementById("pmSel");
 pmSel.innerHTML=`<option value="all">כל המנהלים</option>`+PMS.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
 pmSel.value=pm;
 pmSel.addEventListener("change",()=>{ pm=pmSel.value; proj="all"; try{localStorage.setItem("dash-pm2",pm)}catch(e){} renderAll(); });
-document.getElementById("updated").textContent="עודכן "+new Date(DATA.updated).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+document.getElementById("updated").textContent=new Date(DATA.updated).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+document.querySelectorAll(".panel-tab").forEach(s=>s.querySelectorAll(".card-h h2").forEach(h=>h.dataset.sheet=s.dataset.sheet));
 
 function setTab(t,push=true){
   tab=t;
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   document.querySelectorAll(".panel-tab").forEach(s=>s.hidden=s.id!=="p-"+t);
+  { const s=document.getElementById("p-"+t), b=document.getElementById("t-"+t); document.getElementById("sheetNo").textContent=`${s.dataset.sheet} · ${b.childNodes[1].textContent.trim()}`; }
   if(push){ try{ history.replaceState(null,"","#"+t); }catch(e){} }
   renderTab();
 }
