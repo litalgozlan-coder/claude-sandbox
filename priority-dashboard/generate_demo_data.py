@@ -1,4 +1,5 @@
-import json, random, math, datetime as dt
+import json, random, math, os, datetime as dt
+HERE = os.path.dirname(os.path.abspath(__file__))
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 random.seed(42)
@@ -86,8 +87,38 @@ for i,(name,cust,typ) in enumerate(PROJ):
                 invoiced+=amt
     projects.append({"id":pid,"name":name,"customer":cust,"type":typ,"pm":pm,"status":"הושלם" if prog>=1 else "פעיל","start":start.isoformat(),"end":end.isoformat(),
         "contract":contract,"budget":budget,"actual":actual,"progress":round(prog,2),"invoiced":invoiced})
-data={"updated":"2026-10-01T08:00","today":TODAY.isoformat(),"projects":projects,"activities":acts_rows,"monthly":monthly,"milestones":miles,"invoices":invs}
-json.dump(data,open("data.json","w"),ensure_ascii=False)
+
+# ---- employees & timesheets ----
+EMPS=[("עומר בן דוד","הנדסה"),("שירן גולן","הנדסה"),("נועם פרץ","הנדסה"),("טל ביטון","פיקוח"),("עדי רוזן","פיקוח"),
+      ("אלון חדד","טכנאות"),("מאיה כץ","טכנאות"),("רועי אוחיון","טכנאות"),("יעל דהן","תכנון"),("איתי שגיא","תכנון"),
+      ("הדר לנדאו","רכש"),("גיא סעדה","טכנאות"),("ליאור נחום","הנדסה"),("שקד אורן","פיקוח")]
+CAP=176
+employees=[{"name":n,"dept":dp,"capacity":CAP} for n,dp in EMPS]
+hours=[]
+HMONTHS=["2026-07","2026-08","2026-09"]
+assign={n:random.sample([p["id"] for p in projects],random.choice([1,2,2,3])) for n,_ in EMPS}
+util_base={n:random.uniform(.55,1.18) for n,_ in EMPS}
+for n,_ in EMPS:
+    for m in HMONTHS:
+        y,mo=map(int,m.split("-")); ms=dt.date(y,mo,1)
+        act=[pid for pid in assign[n] if dt.date.fromisoformat(next(p for p in projects if p["id"]==pid)["start"])<=ms+dt.timedelta(days=27) and dt.date.fromisoformat(next(p for p in projects if p["id"]==pid)["end"])>=ms]
+        if not act: continue
+        tot=CAP*util_base[n]*random.uniform(.9,1.08); w=[random.uniform(.5,1.5) for _ in act]; ws=sum(w)
+        for pid,wi in zip(act,w): hours.append({"employee":n,"project":pid,"month":m,"hours":round(tot*wi/ws)})
+# ---- purchase orders ----
+SUPP=["חשמל ותאורה בע\"מ","מתכת הצפון","אינסטלציה מקצועית","ציוד מיזוג ישיר","מחשוב ורשתות","בטון ובנייה","קבלן משנה – גמרים","אנרגיה ירוקה"]
+pos=[]
+for p in projects:
+    s=dt.date.fromisoformat(p["start"]); 
+    if s>TODAY: continue
+    for j in range(random.randint(2,5)):
+        od=s+dt.timedelta(days=random.randint(0,max(1,(TODAY-s).days)))
+        amt=round(p["budget"]*random.uniform(.04,.16),-2); exp=od+dt.timedelta(days=random.randint(14,90))
+        age=(TODAY-od).days
+        rf=1.0 if exp<TODAY and random.random()<.7 else (random.choice([0,.3,.5,.7]) if exp<TODAY else random.choice([0,0,.2,.4]))
+        pos.append({"po":f"PO26{len(pos)+201:04d}","project":p["id"],"supplier":random.choice(SUPP),"date":od.isoformat(),"expected":exp.isoformat(),"amount":amt,"received":round(amt*rf,-2)})
+data={"updated":"2026-10-01T08:00","today":TODAY.isoformat(),"projects":projects,"activities":acts_rows,"monthly":monthly,"milestones":miles,"invoices":invs,"employees":employees,"hours":hours,"purchase_orders":pos}
+json.dump(data,open(os.path.join(HERE,"demo-data.json"),"w"),ensure_ascii=False)
 # Excel
 wb=Workbook(); hdr=Font(bold=True,color="FFFFFF"); fill=PatternFill("solid",fgColor="1F4E79")
 def sheet(title,cols,rows,first=False):
@@ -104,13 +135,16 @@ sheet("פעילויות",[("מספר פרויקט",lambda r:r["project"]),("פע
 sheet("עלויות חודשיות",[("מספר פרויקט",lambda r:r["project"]),("חודש",lambda r:r["month"]),("עלות מתוכננת",lambda r:r["planned"]),("עלות בפועל",lambda r:r.get("actual"))],monthly)
 sheet("אבני דרך",[("מספר פרויקט",lambda r:r["project"]),("אבן דרך",lambda r:r["milestone"]),("תאריך יעד",lambda r:D(r["due"])),("תאריך השלמה",lambda r:D(r["done"])),("סכום לחיוב",lambda r:r["amount"])],miles)
 sheet("חשבוניות",[("מספר חשבונית",lambda r:r["invoice"]),("מספר פרויקט",lambda r:r["project"]),("תאריך",lambda r:D(r["date"])),("תאריך פירעון",lambda r:D(r["due"])),("סכום",lambda r:r["amount"]),("תאריך תשלום",lambda r:D(r["paid"]))],invs)
+sheet("עובדים",[("עובד",lambda r:r["name"]),("מחלקה",lambda r:r["dept"]),("שעות תקן לחודש",lambda r:r["capacity"])],employees)
+sheet("דיווחי שעות",[("עובד",lambda r:r["employee"]),("מספר פרויקט",lambda r:r["project"]),("חודש",lambda r:r["month"]),("שעות",lambda r:r["hours"])],hours)
+sheet("הזמנות רכש",[("מספר הזמנה",lambda r:r["po"]),("מספר פרויקט",lambda r:r["project"]),("ספק",lambda r:r["supplier"]),("תאריך הזמנה",lambda r:D(r["date"])),("תאריך אספקה צפוי",lambda r:D(r["expected"])),("סכום",lambda r:r["amount"]),("סופק / התקבל",lambda r:r["received"])],pos)
 for ws in wb.worksheets:
     for row in ws.iter_rows(min_row=2):
         for c in row:
             if isinstance(c.value,(dt.date,)): c.number_format="DD/MM/YYYY"
             elif isinstance(c.value,float) and c.value<=1 and ws.cell(1,c.column).value.startswith("%"): c.number_format="0%"
             elif isinstance(c.value,(int,float)): c.number_format="#,##0"
-wb.save("priority-dashboard/נתוני-דמה-פרויקטים.xlsx")
+wb.save(os.path.join(HERE,"נתוני-דמה-פרויקטים.xlsx"))
 for p in projects:
     eac=p["actual"]/p["progress"] if p["progress"] else p["budget"]
     print(p["id"],p["pm"],p["start"],p["end"],int(p["contract"]),int(p["budget"]),int(p["actual"]),p["progress"],int(p["invoiced"]),f'eac/b={eac/p["budget"]:.2f}',f'm={(p["contract"]-eac)/p["contract"]:.2f}')
