@@ -1,0 +1,582 @@
+<title>דשבורד פרויקטים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: app header (title, manager filter) + tab bar; each tab = summary figures first, then charts, then detail tables */
+:root{
+  --bg:#f2f4f6; --surface:#ffffff; --sunken:#f7f8fa; --line:#dfe3e8; --line2:#eceff2;
+  --fg:#18212b; --fg2:#4f5b68; --muted:#808b97;
+  --accent:#1d6a72; --accent-fg:#ffffff; --accent-soft:#e1eff0;
+  --planned:#8a96a3; --actual:#2a78d6; --earned:#1baf7a; --grid:#e8ebee;
+  --good:#0ca30c; --warn:#eda100; --serious:#ec835a; --crit:#d03b3b;
+  --good-bg:#e7f5e7; --warn-bg:#fdf3dc; --crit-bg:#fbe7e7; --info-bg:#e6eef9;
+  --f:"Assistant",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --surface:#192028; --sunken:#151b22; --line:#2a333d; --line2:#222a33;
+  --fg:#e9eef3; --fg2:#adb7c2; --muted:#7f8a96;
+  --accent:#62b5bd; --accent-fg:#0f1a1c; --accent-soft:#1c3033;
+  --planned:#8a96a3; --actual:#3987e5; --earned:#199e70; --grid:#262e37;
+  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#e66767;
+  --good-bg:#1a2c1c; --warn-bg:#33290f; --crit-bg:#3a1d1e; --info-bg:#1b2738;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --surface:#192028; --sunken:#151b22; --line:#2a333d; --line2:#222a33;
+  --fg:#e9eef3; --fg2:#adb7c2; --muted:#7f8a96;
+  --accent:#62b5bd; --accent-fg:#0f1a1c; --accent-soft:#1c3033;
+  --planned:#8a96a3; --actual:#3987e5; --earned:#199e70; --grid:#262e37;
+  --good:#3dbb3d; --warn:#fab219; --serious:#ec835a; --crit:#e66767;
+  --good-bg:#1a2c1c; --warn-bg:#33290f; --crit-bg:#3a1d1e; --info-bg:#1b2738;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--f);font-size:15px;line-height:1.5;direction:rtl}
+h1,h2,h3{margin:0;font-weight:700;text-wrap:balance}
+h1{font-size:22px} h2{font-size:17px} h3{font-size:15px}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.muted{color:var(--muted)} .fg2{color:var(--fg2)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:14px 0;display:grid;gap:10px}
+.top-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px 20px}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.badge-sample{font-size:12px;font-weight:600;color:var(--fg2);border:1px dashed var(--muted);padding:1px 8px;border-radius:4px}
+.ctrl{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--fg2)}
+select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0;max-width:100%}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:8px 14px 9px;font-size:15px;font-weight:600;color:var(--fg2);cursor:pointer;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent)}
+.count{font-size:12px;font-weight:700;min-width:20px;padding:0 6px;border-radius:10px;background:var(--crit);color:#fff;line-height:18px;text-align:center}
+
+main{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:20px 48px}
+.panel-tab{display:grid;gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;min-width:0}
+.card-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px;margin-bottom:12px}
+.card-h p{margin:2px 0 0;font-size:13px;color:var(--fg2)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:18px;align-items:start}
+.cols-2-1{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.cols-2-1{grid-template-columns:1fr}}
+
+/* figures */
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.fig{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 16px;display:grid;align-content:start}
+.fig .l{font-size:13px;color:var(--fg2);font-weight:600}
+.fig .v{font-size:26px;font-weight:700;line-height:1.25;margin-top:2px}
+.fig .s{font-size:12.5px;color:var(--muted)}
+.fig .s b{font-weight:600}
+.up{color:var(--crit)} .ok{color:var(--good)}
+
+/* chips & status */
+.st{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.st::before{font-size:10px}
+.st.good{background:var(--good-bg)} .st.good::before{content:"●";color:var(--good)}
+.st.warn{background:var(--warn-bg)} .st.warn::before{content:"▲";color:var(--warn)}
+.st.crit{background:var(--crit-bg)} .st.crit::before{content:"■";color:var(--crit)}
+.st.info{background:var(--info-bg)} .st.info::before{content:"◆";color:var(--actual)}
+.st.done{background:var(--sunken);color:var(--fg2)} .st.done::before{content:"✓";color:var(--fg2)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13.5px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+
+/* tables */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line2);white-space:nowrap}
+th{font-size:12.5px;font-weight:600;color:var(--fg2);border-bottom-color:var(--line)}
+td.n,th.n{text-align:left}
+tbody tr:hover{background:var(--sunken)}
+.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-align:right}
+.link:hover{text-decoration:underline}
+.meter{display:inline-block;position:relative;width:72px;height:7px;border-radius:4px;background:var(--line2);vertical-align:middle;overflow:hidden}
+.meter i{position:absolute;inset-block:0;inset-inline-start:0;background:var(--actual);border-radius:4px}
+.meter i.over{background:var(--crit)}
+.mcell{display:inline-flex;align-items:center;gap:8px}
+tfoot td{font-weight:700;border-top:1px solid var(--line);border-bottom:0}
+
+/* alerts */
+.alist{display:grid;gap:0}
+.al{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:start;padding:11px 4px;border-bottom:1px solid var(--line2)}
+.al:last-child{border-bottom:0}
+.al .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;margin-top:1px}
+.al .ic.crit{background:var(--crit-bg);color:var(--crit)} .al .ic.warn{background:var(--warn-bg);color:var(--fg)} .al .ic.info{background:var(--info-bg);color:var(--actual)}
+.al .t{font-weight:600;font-size:14.5px}
+.al .d{font-size:13px;color:var(--fg2)}
+.al .meta{font-size:12px;color:var(--muted)}
+.al.read{opacity:.55}
+.al.read .t{font-weight:500}
+.mark{background:none;border:1px solid var(--line);border-radius:6px;font-size:12.5px;padding:3px 9px;cursor:pointer;color:var(--fg2);white-space:nowrap}
+.mark:hover{border-color:var(--accent);color:var(--accent)}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:6px}
+label.chk{display:inline-flex;gap:6px;align-items:center;font-size:13.5px;color:var(--fg2);cursor:pointer}
+
+/* charts */
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--fg2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.lk{width:18px;height:0;border-top:2px solid}
+.lk.planned{border-color:var(--planned);border-top-style:dashed}
+.lk.actual{border-color:var(--actual)}
+.lk.fc{border-color:var(--actual);border-top-style:dotted;border-top-width:3px}
+.lk.budget{border-color:var(--fg2);border-top-width:1px}
+svg text{fill:var(--muted);font-family:var(--f);font-size:11.5px}
+.chart{position:relative;direction:ltr}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+
+/* gantt */
+.gantt{direction:rtl;min-width:760px}
+.g-row{display:grid;grid-template-columns:190px 1fr;align-items:center;border-bottom:1px solid var(--line2);min-height:40px}
+.g-row:last-child{border-bottom:0}
+.g-name{font-size:13.5px;line-height:1.25;padding-inline-end:10px}
+.g-name small{display:block;color:var(--muted);font-size:12px}
+.g-track{position:relative;height:40px;direction:ltr}
+.g-bar{position:absolute;top:14px;height:12px;border-radius:3px;background:var(--line);overflow:hidden}
+.g-bar i{position:absolute;inset-block:0;left:0;background:var(--accent)}
+.g-late{position:absolute;top:14px;height:12px;border-radius:0 3px 3px 0;background:repeating-linear-gradient(135deg,var(--crit) 0 3px,transparent 3px 6px);border:1px solid var(--crit)}
+.g-ms{position:absolute;top:13px;width:12px;height:12px;transform:translateX(-6px) rotate(45deg);border:2px solid var(--surface);box-sizing:content-box;margin-top:-1px;margin-left:-1px}
+.g-ms.done{background:var(--fg2)} .g-ms.late{background:var(--crit)} .g-ms.next{background:var(--surface);outline:2px solid var(--actual);outline-offset:-2px} .g-ms.future{background:var(--surface);outline:2px solid var(--muted);outline-offset:-2px}
+.g-today{position:absolute;top:0;bottom:0;width:0;border-left:2px solid var(--crit);z-index:1}
+.g-axis{display:grid;grid-template-columns:190px 1fr;font-size:11.5px;color:var(--muted)}
+.g-axis .ticks{position:relative;height:20px;direction:ltr}
+.g-axis .ticks span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.g-grid{position:absolute;top:0;bottom:0;width:0;border-left:1px solid var(--line2)}
+.gk{display:inline-block;width:10px;height:10px;transform:rotate(45deg)}
+
+/* aging */
+.aging{display:flex;height:30px;border-radius:5px;overflow:hidden;gap:2px;background:var(--surface)}
+.aging div{min-width:3px}
+.agl{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}
+.agl div{display:grid;font-size:12.5px;color:var(--fg2)}
+.agl b{font-size:16px;color:var(--fg)}
+.agl i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:6px;vertical-align:middle}
+
+#tip{position:fixed;z-index:20;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12.5px;line-height:1.5;padding:8px 10px;border-radius:6px;max-width:280px;direction:rtl;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+#tip b{font-weight:700}
+.empty{color:var(--muted);padding:16px 4px;text-align:center}
+.note{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+@media (max-width:560px){ .g-row,.g-axis{grid-template-columns:120px 1fr} .fig .v{font-size:22px} }
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="top">
+  <div class="top-in">
+    <div class="top-row">
+      <div class="brand">
+        <h1>דשבורד פרויקטים</h1>
+        <span class="badge-sample">נתוני דמה</span>
+        <span class="muted" style="font-size:13px" id="updated"></span>
+      </div>
+      <label class="ctrl" for="pmSel">מנהל פרויקט
+        <select id="pmSel"></select>
+      </label>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="לשוניות" id="tabs">
+      <button class="tab" role="tab" id="t-overview" data-tab="overview" aria-controls="p-overview">סקירה</button>
+      <button class="tab" role="tab" id="t-budget" data-tab="budget" aria-controls="p-budget">תקציב מול ביצוע</button>
+      <button class="tab" role="tab" id="t-schedule" data-tab="schedule" aria-controls="p-schedule">לוחות זמנים</button>
+      <button class="tab" role="tab" id="t-billing" data-tab="billing" aria-controls="p-billing">חיוב וגבייה</button>
+      <button class="tab" role="tab" id="t-alerts" data-tab="alerts" aria-controls="p-alerts">התראות <span class="count" id="alertCount" hidden></span></button>
+    </nav>
+  </div>
+</div>
+
+<main>
+  <!-- סקירה -->
+  <section class="panel-tab" id="p-overview" role="tabpanel" aria-labelledby="t-overview">
+    <div class="figs" id="ovFigs"></div>
+    <div class="cols-2-1">
+      <div class="card">
+        <div class="card-h"><div><h2>מצב הפרויקטים</h2><p>לחיצה על שם פרויקט פותחת את התקציב שלו.</p></div></div>
+        <div class="tw"><table id="ovTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div><h2>דורש טיפול</h2><p>ההתראות החשובות ביותר שלא סומנו כטופלו.</p></div>
+          <button class="link" data-goto="alerts">לכל ההתראות</button></div>
+        <div class="alist" id="ovAlerts"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- תקציב -->
+  <section class="panel-tab" id="p-budget" role="tabpanel" aria-labelledby="t-budget" hidden>
+    <div class="toolbar">
+      <label class="ctrl" for="projSel">פרויקט
+        <select id="projSel"></select>
+      </label>
+    </div>
+    <div class="figs" id="bFigs"></div>
+    <div class="card">
+      <div class="card-h">
+        <div><h2>עלות מצטברת לאורך זמן</h2><p id="bChartSub">העלות בפועל לעומת התכנון, ותחזית עד סיום.</p></div>
+        <div class="legend">
+          <span><i class="lk planned"></i>מתוכנן</span>
+          <span><i class="lk actual"></i>בפועל</span>
+          <span><i class="lk fc"></i>תחזית</span>
+          <span><i class="lk budget"></i>תקציב</span>
+        </div>
+      </div>
+      <div class="chart" id="bChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><h2 id="bTableTitle">פירוט</h2><p id="bTableSub"></p></div></div>
+      <div class="tw"><table id="bTable"></table></div>
+    </div>
+  </section>
+
+  <!-- לוחות זמנים -->
+  <section class="panel-tab" id="p-schedule" role="tabpanel" aria-labelledby="t-schedule" hidden>
+    <div class="figs" id="sFigs"></div>
+    <div class="card">
+      <div class="card-h">
+        <div><h2>ציר זמן ואבני דרך</h2><p>הפס מראה את משך הפרויקט, והחלק הצבוע את אחוז הביצוע. הקו האדום הוא היום.</p></div>
+        <div class="legend">
+          <span><i class="gk" style="background:var(--fg2)"></i>הושלמה</span>
+          <span><i class="gk" style="background:var(--crit)"></i>באיחור</span>
+          <span><i class="gk" style="outline:2px solid var(--actual);outline-offset:-2px"></i>ב-30 הימים הקרובים</span>
+          <span><i class="gk" style="outline:2px solid var(--muted);outline-offset:-2px"></i>עתידית</span>
+        </div>
+      </div>
+      <div class="tw"><div class="gantt" id="gantt"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-h"><h2>אבני דרך באיחור</h2></div><div class="tw"><table id="sLate"></table></div></div>
+      <div class="card"><div class="card-h"><h2>אבני דרך ב-30 הימים הקרובים</h2></div><div class="tw"><table id="sNext"></table></div></div>
+    </div>
+  </section>
+
+  <!-- חיוב -->
+  <section class="panel-tab" id="p-billing" role="tabpanel" aria-labelledby="t-billing" hidden>
+    <div class="figs" id="iFigs"></div>
+    <div class="card">
+      <div class="card-h"><div><h2>גיול חובות פתוחים</h2><p>חשבוניות שעדיין לא שולמו, לפי ימים מתאריך הפירעון.</p></div></div>
+      <div id="aging"></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><h2>חיוב לפי פרויקט</h2><p>"בוצע וטרם חויב" הוא שווי העבודה שבוצעה (אחוז ביצוע × ערך חוזה) פחות מה שכבר חויב.</p></div></div>
+      <div class="tw"><table id="iProj"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div><h2>חשבוניות פתוחות</h2></div></div>
+      <div class="tw"><table id="iOpen"></table></div>
+    </div>
+  </section>
+
+  <!-- התראות -->
+  <section class="panel-tab" id="p-alerts" role="tabpanel" aria-labelledby="t-alerts" hidden>
+    <div class="card">
+      <div class="toolbar">
+        <div class="chips" id="aCats" role="group" aria-label="סוג התראה"></div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <label class="chk" for="showRead"><input type="checkbox" id="showRead"> הצג גם התראות שטופלו</label>
+          <button class="mark" id="readAll" type="button">סמן הכל כטופל</button>
+        </div>
+      </div>
+      <div class="alist" id="aList"></div>
+      <p class="note">ההתראות נוצרות אוטומטית מהנתונים לפי כללים קבועים. הסימון "טופל" נשמר רק בדפדפן שלך.</p>
+    </div>
+  </section>
+</main>
+<div id="tip" hidden></div>
+
+<script>
+const DATA = /*DATA*/;
+const TODAY = new Date(DATA.today+"T00:00:00");
+const DAY = 864e5;
+const d = s => s ? new Date(s+"T00:00:00") : null;
+const days = (a,b) => Math.round((b-a)/DAY);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const nf = new Intl.NumberFormat("he-IL",{maximumFractionDigits:0});
+const ils = v => `<span class="num">₪${nf.format(Math.round(v))}</span>`;
+const ilsC = v => { const a=Math.abs(v), s=v<0?"-":""; return `<span class="num">${s}₪${a>=1e6?(a/1e6).toFixed(2)+"M":Math.round(a/1e3)+"K"}</span>`; };
+const pct = (v,dg=0) => `<span class="num">${(v*100).toFixed(dg)}%</span>`;
+const fdate = s => { if(!s) return "—"; const x=d(s); return `<span class="num">${String(x.getDate()).padStart(2,"0")}.${String(x.getMonth()+1).padStart(2,"0")}.${String(x.getFullYear()).slice(2)}</span>`; };
+const monLbl = m => { const [y,mo]=m.split("-"); return new Date(+y,+mo-1,1).toLocaleDateString("he-IL",{month:"short"})+" "+y.slice(2); };
+
+// ---------- derived metrics ----------
+const P = DATA.projects.map(p=>{
+  const acts = DATA.activities.filter(a=>a.project===p.id);
+  const months = DATA.monthly.filter(m=>m.project===p.id);
+  const ms = DATA.milestones.filter(m=>m.project===p.id);
+  const inv = DATA.invoices.filter(i=>i.project===p.id);
+  const done = p.progress>=1;
+  const earned = p.progress*p.budget;
+  const eac = done ? p.actual : (p.progress>0 ? p.actual/p.progress : p.budget);
+  const plannedToDate = months.filter(m=>m.month < DATA.today.slice(0,7)).reduce((s,m)=>s+m.planned,0);
+  const spi = plannedToDate ? earned/plannedToDate : 1;
+  const r = eac/p.budget, margin=(p.contract-eac)/p.contract;
+  const bStatus = (r>1.10||margin<0)?"crit":r>1.03?"warn":"good";
+  const lateEnd = !done && d(p.end)<TODAY;
+  const sStatus = done?"done":(lateEnd||spi<0.8)?"crit":spi<0.92?"warn":"good";
+  const paid = inv.filter(i=>i.paid).reduce((s,i)=>s+i.amount,0);
+  const overdue = inv.filter(i=>!i.paid && d(i.due)<TODAY).reduce((s,i)=>s+i.amount,0);
+  const unbilled = Math.max(0,p.progress*p.contract - p.invoiced);
+  return {...p,acts,months,ms,inv,done,earned,eac,plannedToDate,spi,cpi:p.actual?earned/p.actual:1,margin,planMargin:(p.contract-p.budget)/p.contract,bStatus,sStatus,lateEnd,paid,overdue,unbilled};
+});
+const byId = Object.fromEntries(P.map(p=>[p.id,p]));
+const B_TXT={good:"בתקציב",warn:"במעקב",crit:"חריגה"};
+const S_TXT={good:"בזמן",warn:"מאחר מעט",crit:"באיחור",done:"הושלם"};
+
+// ---------- alerts ----------
+const ALERTS=[];
+const add=(id,sev,cat,p,title,desc,ord)=>ALERTS.push({id,sev,cat,p,title,desc,ord:ord??0});
+for(const p of P){
+  if(!p.done && p.bStatus==="crit") add(`b-${p.id}`,"crit","budget",p,`חריגה צפויה מהתקציב`,`התחזית לסיום ${ilsC(p.eac)} מול תקציב ${ilsC(p.budget)} (${pct(p.eac/p.budget-1)} מעל). רווח צפוי ${pct(p.margin,1)}.`);
+  else if(!p.done && p.bStatus==="warn") add(`b-${p.id}`,"warn","budget",p,`התחזית מעל התקציב`,`התחזית לסיום ${ilsC(p.eac)}, ${pct(p.eac/p.budget-1)} מעל התקציב.`);
+  for(const a of p.acts) if(a.actual>a.budget*1.05) add(`a-${p.id}-${a.activity}`,"warn","budget",p,`פעילות "${esc(a.activity)}" עברה את התקציב`,`הוצאו ${ilsC(a.actual)} מתוך ${ilsC(a.budget)}.`);
+  if(p.lateEnd) add(`e-${p.id}`,"crit","schedule",p,`תאריך הסיום עבר והפרויקט לא הושלם`,`יעד הסיום היה ${fdate(p.end)}. בוצע ${pct(p.progress)}.`);
+  else if(!p.done && p.spi<0.92) add(`s-${p.id}`,p.spi<0.8?"crit":"warn","schedule",p,`מאחר בלוח הזמנים`,`בוצע ${pct(p.progress)} לעומת ${pct(p.plannedToDate/p.budget)} שתוכנן עד היום.`);
+  for(const m of p.ms){
+    const due=d(m.due);
+    if(!m.done && due<TODAY) add(`m-${p.id}-${m.milestone}`,"warn","schedule",p,`אבן דרך באיחור: ${esc(m.milestone)}`,`יעד ${fdate(m.due)}, איחור של ${days(due,TODAY)} ימים. סכום לחיוב ${ilsC(m.amount)}.`);
+    else if(!m.done && days(TODAY,due)<=30) add(`n-${p.id}-${m.milestone}`,"info","schedule",p,`אבן דרך מתקרבת: ${esc(m.milestone)}`,`יעד ${fdate(m.due)}, בעוד ${days(TODAY,due)} ימים. סכום לחיוב ${ilsC(m.amount)}.`);
+  }
+  for(const i of p.inv){ if(i.paid) continue; const late=days(d(i.due),TODAY);
+    if(late>0) add(`i-${i.invoice}`,late>30?"crit":"warn","collect",p,`חשבונית ${i.invoice} לא שולמה`,`${ilsC(i.amount)}, תאריך הפירעון ${fdate(i.due)} עבר לפני ${late} ימים.`); }
+  if(p.unbilled>0.12*p.contract) add(`u-${p.id}`,"warn","billing",p,`עבודה שבוצעה וטרם חויבה`,`${ilsC(p.unbilled)} (${pct(p.unbilled/p.contract)} מערך החוזה). כדאי לבדוק אם אפשר להוציא חשבון.`);
+}
+const SEV_RANK={crit:0,warn:1,info:2};
+const CATS={all:"הכל",budget:"תקציב",schedule:"לוחות זמנים",billing:"חיוב",collect:"גבייה"};
+let readSet=new Set();
+try{ readSet=new Set(JSON.parse(localStorage.getItem("dash-read")||"[]")); }catch(e){}
+const saveRead=()=>{ try{ localStorage.setItem("dash-read",JSON.stringify([...readSet])); }catch(e){} };
+
+// ---------- state ----------
+let pm="all", tab="overview", proj="all", cat="all";
+try{ pm=localStorage.getItem("dash-pm2")||"all"; }catch(e){}
+const PMS=[...new Set(P.map(p=>p.pm))];
+if(pm!=="all"&&!PMS.includes(pm)) pm="all";
+const vis = () => P.filter(p=>pm==="all"||p.pm===pm);
+const visAlerts = () => ALERTS.filter(a=>pm==="all"||a.p.pm===pm).sort((a,b)=>SEV_RANK[a.sev]-SEV_RANK[b.sev]);
+const sum=(l,f)=>l.reduce((s,x)=>s+f(x),0);
+
+const pmSel=document.getElementById("pmSel");
+pmSel.innerHTML=`<option value="all">כל המנהלים</option>`+PMS.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+pmSel.value=pm;
+pmSel.addEventListener("change",()=>{ pm=pmSel.value; proj="all"; try{localStorage.setItem("dash-pm2",pm)}catch(e){} renderAll(); });
+document.getElementById("updated").textContent="עודכן "+new Date(DATA.updated).toLocaleString("he-IL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+
+function setTab(t,push=true){
+  tab=t;
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
+  document.querySelectorAll(".panel-tab").forEach(s=>s.hidden=s.id!=="p-"+t);
+  if(push){ try{ history.replaceState(null,"","#"+t); }catch(e){} }
+  renderTab();
+}
+document.getElementById("tabs").addEventListener("click",e=>{ const b=e.target.closest("[data-tab]"); if(b) setTab(b.dataset.tab); });
+document.addEventListener("click",e=>{
+  const g=e.target.closest("[data-goto]"); if(g){ setTab(g.dataset.goto); scrollTo({top:0}); return; }
+  const o=e.target.closest("[data-proj]"); if(o){ proj=o.dataset.proj; setTab("budget"); scrollTo({top:0}); }
+});
+
+const fig=(l,v,s="")=>`<div class="fig"><span class="l">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
+const st=(cls,txt)=>`<span class="st ${cls}">${txt}</span>`;
+const meter=(v,over)=>`<span class="mcell"><span class="meter"><i class="${over?"over":""}" style="width:${Math.min(1,Math.max(0,v))*100}%"></i></span>${pct(v)}</span>`;
+const projCell=p=>`<button class="link" data-proj="${p.id}">${esc(p.name)}</button><div class="muted" style="font-size:12px">${p.id} · ${esc(p.customer)}</div>`;
+
+// ---------- overview ----------
+function renderOverview(){
+  const L=vis(), act=L.filter(p=>!p.done);
+  const contract=sum(act,p=>p.contract), budget=sum(L,p=>p.budget), actual=sum(L,p=>p.actual), eac=sum(L,p=>p.eac), c=sum(L,p=>p.contract);
+  const m=(c-eac)/c, pmg=(c-budget)/c;
+  const od=sum(L,p=>p.overdue), unb=sum(L,p=>p.unbilled);
+  const atRisk=L.filter(p=>p.bStatus==="crit"||p.sStatus==="crit").length;
+  document.getElementById("ovFigs").innerHTML=
+    fig("ערך חוזים פעילים",ilsC(contract),`${act.length} פרויקטים פעילים${L.length>act.length?` · ${L.length-act.length} הושלמו`:""}`)+
+    fig("עלות בפועל",ilsC(actual),`${pct(actual/budget)} מתקציב של ${ilsC(budget)}`)+
+    fig("רווח צפוי בסיום",pct(m,1),`מתוכנן ${pct(pmg,1)} · <b class="${m<pmg-0.01?"up":"ok"}">${m<pmg?"":"+"}${((m-pmg)*100).toFixed(1)} נק'</b>`)+
+    fig("פרויקטים בסיכון",`<span class="num">${atRisk}</span>`,`חריגה בתקציב או איחור משמעותי`)+
+    fig("חובות באיחור",ilsC(od),`בוצע וטרם חויב: ${ilsC(unb)}`);
+  const rows=[...L].sort((a,b)=>{const r=x=>Math.min(SEV_RANK[x.bStatus==="good"?"info":x.bStatus],SEV_RANK[x.sStatus==="good"||x.sStatus==="done"?"info":x.sStatus]); return r(a)-r(b)||a.margin-b.margin;});
+  document.getElementById("ovTable").innerHTML=`<thead><tr><th>פרויקט</th><th>מנהל</th><th>תקציב</th><th>לו"ז</th><th>ביצוע</th><th class="n">רווח צפוי</th><th>סיום</th></tr></thead><tbody>`+
+    rows.map(p=>`<tr><td>${projCell(p)}</td><td>${esc(p.pm)}</td><td>${st(p.done&&p.bStatus==="good"?"good":p.bStatus,B_TXT[p.bStatus])}</td><td>${st(p.sStatus,S_TXT[p.sStatus])}</td><td>${meter(p.progress)}</td><td class="n" style="${p.margin<0?"color:var(--crit);font-weight:700":""}">${pct(p.margin,1)}</td><td>${fdate(p.end)}</td></tr>`).join("")+`</tbody>`;
+  const top=visAlerts().filter(a=>!readSet.has(a.id)&&a.sev!=="info").slice(0,6);
+  document.getElementById("ovAlerts").innerHTML=top.length?top.map(a=>alertRow(a,false)).join(""):`<div class="empty">אין התראות פתוחות</div>`;
+}
+
+// ---------- budget ----------
+const projSel=document.getElementById("projSel");
+projSel.addEventListener("change",()=>{ proj=projSel.value; renderBudget(); });
+function renderBudget(){
+  const L=vis();
+  if(proj!=="all"&&!L.find(p=>p.id===proj)) proj="all";
+  projSel.innerHTML=`<option value="all">כל הפרויקטים${pm==="all"?"":" של "+esc(pm)}</option>`+L.map(p=>`<option value="${p.id}">${p.id} · ${esc(p.name)}</option>`).join("");
+  projSel.value=proj;
+  const S = proj==="all"?L:[byId[proj]];
+  const budget=sum(S,p=>p.budget), actual=sum(S,p=>p.actual), earned=sum(S,p=>p.earned), eac=sum(S,p=>p.eac), ptd=sum(S,p=>p.plannedToDate);
+  const cpi=earned/actual, vac=budget-eac;
+  document.getElementById("bFigs").innerHTML=
+    fig("תקציב",ilsC(budget),`מתוכנן עד היום ${ilsC(ptd)}`)+
+    fig("עלות בפועל",ilsC(actual),`${pct(actual/budget)} מהתקציב`)+
+    fig("שווי העבודה שבוצעה",ilsC(earned),`${pct(earned/budget)} מהתקציב`)+
+    fig("יעילות עלות",`<span class="num">${cpi.toFixed(2)}</span>`,cpi>=1?`<b class="ok">כל ₪1 מייצר ${cpi.toFixed(2)} ₪ עבודה</b>`:`<b class="up">כל ₪1 מייצר רק ${cpi.toFixed(2)} ₪ עבודה</b>`)+
+    fig("תחזית לסיום",ilsC(eac),vac<0?`<b class="up">${ilsC(-vac)} מעל התקציב</b>`:`<b class="ok">${ilsC(vac)} מתחת לתקציב</b>`);
+  document.getElementById("bChartSub").innerHTML = proj==="all" ? `סכום כל הפרויקטים${pm==="all"?"":" של "+esc(pm)}, לפי חודש.` : `${esc(byId[proj].name)}, לפי חודש.`;
+  drawCurve(S,budget,eac);
+  const T=document.getElementById("bTable");
+  if(proj==="all"){
+    document.getElementById("bTableTitle").textContent="תקציב מול ביצוע לפי פרויקט";
+    document.getElementById("bTableSub").textContent="לחיצה על פרויקט מציגה את הפירוט שלו לפי פעילות.";
+    const rows=[...S].sort((a,b)=>(b.eac/b.budget)-(a.eac/a.budget));
+    T.innerHTML=`<thead><tr><th>פרויקט</th><th>סטטוס</th><th class="n">תקציב</th><th class="n">בפועל</th><th>ביצוע</th><th class="n">יעילות עלות</th><th class="n">תחזית לסיום</th><th class="n">סטייה צפויה</th></tr></thead><tbody>`+
+      rows.map(p=>`<tr><td>${projCell(p)}</td><td>${st(p.bStatus,B_TXT[p.bStatus])}</td><td class="n">${ils(p.budget)}</td><td class="n">${ils(p.actual)}</td><td>${meter(p.progress)}</td><td class="n"><span class="num">${p.cpi.toFixed(2)}</span></td><td class="n">${ils(p.eac)}</td><td class="n" style="color:${p.eac>p.budget?"var(--crit)":"var(--fg)"}">${ils(p.budget-p.eac)}</td></tr>`).join("")+
+      `</tbody><tfoot><tr><td>סה"כ</td><td></td><td class="n">${ils(budget)}</td><td class="n">${ils(actual)}</td><td>${meter(earned/budget)}</td><td class="n"><span class="num">${cpi.toFixed(2)}</span></td><td class="n">${ils(eac)}</td><td class="n">${ils(vac)}</td></tr></tfoot>`;
+  } else {
+    const p=byId[proj];
+    document.getElementById("bTableTitle").textContent="פירוט לפי פעילות";
+    document.getElementById("bTableSub").innerHTML=`${esc(p.name)} · ${esc(p.customer)} · מנהל: ${esc(p.pm)}`;
+    T.innerHTML=`<thead><tr><th>פעילות</th><th class="n">תקציב</th><th class="n">בפועל</th><th>ניצול תקציב</th><th>ביצוע</th><th class="n">יתרה</th></tr></thead><tbody>`+
+      p.acts.map(a=>`<tr><td>${esc(a.activity)}</td><td class="n">${ils(a.budget)}</td><td class="n">${ils(a.actual)}</td><td>${meter(a.budget?a.actual/a.budget:0,a.actual>a.budget)}</td><td>${meter(a.progress)}</td><td class="n" style="color:${a.actual>a.budget?"var(--crit)":"var(--fg)"}">${ils(a.budget-a.actual)}</td></tr>`).join("")+
+      `</tbody><tfoot><tr><td>סה"כ</td><td class="n">${ils(p.budget)}</td><td class="n">${ils(p.actual)}</td><td>${meter(p.actual/p.budget,p.actual>p.budget)}</td><td>${meter(p.progress)}</td><td class="n">${ils(p.budget-p.actual)}</td></tr></tfoot>`;
+  }
+}
+
+function drawCurve(S,budget,eac){
+  const el=document.getElementById("bChart");
+  const mset=new Set(); S.forEach(p=>p.months.forEach(m=>mset.add(m.month)));
+  const months=[...mset].sort(); if(!months.length){ el.innerHTML=`<div class="empty">אין נתונים</div>`; return; }
+  let cp=0, ca=0; const pts=months.map(m=>{
+    const rows=S.flatMap(p=>p.months.filter(x=>x.month===m));
+    cp+=sum(rows,r=>r.planned); const hasA=rows.some(r=>r.actual!=null); if(hasA) ca+=sum(rows,r=>r.actual||0);
+    return {m,planned:cp,actual:hasA?ca:null};
+  });
+  const lastA=pts.map(p=>p.actual!=null).lastIndexOf(true);
+  const W=Math.max(640,el.clientWidth||900), H=300, ml=58, mr=16, mt=14, mb=30;
+  const ymax=Math.max(budget,eac,cp,ca)*1.08;
+  const nice=v=>{const e=Math.pow(10,Math.floor(Math.log10(v))); const f=v/e; return (f<=1?1:f<=2?2:f<=5?5:10)*e;};
+  const step=nice(ymax/4);
+  const x=i=>ml+(W-ml-mr)*(months.length===1?.5:i/(months.length-1));
+  const y=v=>mt+(H-mt-mb)*(1-v/ymax);
+  const fmtAx=v=>v>=1e6?(v/1e6).toFixed(v%1e6?1:0)+"M":Math.round(v/1e3)+"K";
+  let g="";
+  for(let v=0; v<=ymax; v+=step) g+=`<line x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${ml-8}" y="${y(v)+4}" text-anchor="end">₪${fmtAx(v)}</text>`;
+  const every=Math.ceil(months.length/10);
+  months.forEach((m,i)=>{ if(i%every===0||i===months.length-1) g+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${monLbl(m)}</text>`; });
+  const ti = months.indexOf(DATA.today.slice(0,7));
+  if(ti>=0) g+=`<line x1="${x(ti)}" x2="${x(ti)}" y1="${mt}" y2="${H-mb}" stroke="var(--muted)" stroke-dasharray="2 3"/><text x="${x(ti)}" y="${mt-2}" text-anchor="middle">היום</text>`;
+  g+=`<line x1="${ml}" x2="${W-mr}" y1="${y(budget)}" y2="${y(budget)}" stroke="var(--fg2)" stroke-width="1"/><text x="${ml+6}" y="${y(budget)-6}" text-anchor="start" style="fill:var(--fg2)">תקציב ₪${fmtAx(budget)}</text>`;
+  const line=(arr,key)=>arr.map((p,i)=>p[key]==null?"":`${i&&arr[i-1][key]!=null?"L":"M"}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join("");
+  g+=`<path d="${line(pts,"planned")}" fill="none" stroke="var(--planned)" stroke-width="2" stroke-dasharray="6 4"/>`;
+  if(lastA>=0){
+    g+=`<path d="${line(pts,"actual")}" fill="none" stroke="var(--actual)" stroke-width="2.5"/>`;
+    const fi=months.length-1;
+    if(fi>lastA) g+=`<path d="M${x(lastA)},${y(pts[lastA].actual)}L${x(fi)},${y(eac)}" fill="none" stroke="var(--actual)" stroke-width="2.5" stroke-dasharray="1 5" stroke-linecap="round"/><circle cx="${x(fi)}" cy="${y(eac)}" r="5" fill="var(--surface)" stroke="var(--actual)" stroke-width="2"/><text x="${x(fi)-8}" y="${y(eac)+(eac>budget?-8:16)}" text-anchor="end" style="fill:var(--fg)">תחזית ₪${fmtAx(eac)}</text>`;
+    g+=`<circle cx="${x(lastA)}" cy="${y(pts[lastA].actual)}" r="5" fill="var(--actual)" stroke="var(--surface)" stroke-width="2"/>`;
+  }
+  g+=`<line id="cx" y1="${mt}" y2="${H-mb}" stroke="var(--fg2)" visibility="hidden"/><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}" fill="transparent" id="hitR"/>`;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="עלות מצטברת מתוכננת מול בפועל">${g}</svg>`;
+  const svg=el.querySelector("svg"), cx=svg.querySelector("#cx");
+  const move=e=>{
+    const r=svg.getBoundingClientRect(), sx=(e.clientX-r.left)*W/r.width;
+    const i=Math.max(0,Math.min(months.length-1,Math.round((sx-ml)/(W-ml-mr)*(months.length-1))));
+    cx.setAttribute("x1",x(i)); cx.setAttribute("x2",x(i)); cx.setAttribute("visibility","visible");
+    const p=pts[i];
+    showTip(e,`<b>${monLbl(p.m)}</b><br>מתוכנן מצטבר: ₪${nf.format(p.planned)}<br>${p.actual!=null?`בפועל מצטבר: ₪${nf.format(p.actual)}<br>פער: ₪${nf.format(p.actual-p.planned)}`:"עוד אין עלות בפועל"}`);
+  };
+  svg.querySelector("#hitR").addEventListener("pointermove",move);
+  svg.querySelector("#hitR").addEventListener("pointerdown",move);
+  svg.querySelector("#hitR").addEventListener("pointerleave",()=>{cx.setAttribute("visibility","hidden");hideTip();});
+}
+
+// ---------- schedule ----------
+function renderSchedule(){
+  const L=vis();
+  const msAll=L.flatMap(p=>p.ms.map(m=>({...m,p})));
+  const late=msAll.filter(m=>!m.done&&d(m.due)<TODAY).sort((a,b)=>d(a.due)-d(b.due));
+  const next=msAll.filter(m=>!m.done&&d(m.due)>=TODAY&&days(TODAY,d(m.due))<=30).sort((a,b)=>d(a.due)-d(b.due));
+  const doneN=msAll.filter(m=>m.done).length;
+  const behind=L.filter(p=>p.sStatus==="crit"||p.sStatus==="warn").length;
+  document.getElementById("sFigs").innerHTML=
+    fig("פרויקטים מאחרים",`<span class="num">${behind}</span>`,`מתוך ${L.filter(p=>!p.done).length} פעילים`)+
+    fig("אבני דרך באיחור",`<span class="num">${late.length}</span>`,`בשווי ${ilsC(sum(late,m=>m.amount))} לחיוב`)+
+    fig("ב-30 הימים הקרובים",`<span class="num">${next.length}</span>`,`בשווי ${ilsC(sum(next,m=>m.amount))} לחיוב`)+
+    fig("אבני דרך שהושלמו",`<span class="num">${doneN}</span>`,`מתוך ${msAll.length}`);
+  const starts=L.map(p=>d(p.start)), ends=L.map(p=>d(p.end));
+  const t0=new Date(Math.min(...starts)); t0.setDate(1);
+  const t1=new Date(Math.max(...ends,TODAY)); t1.setMonth(t1.getMonth()+1,1);
+  const X=t=>((t-t0)/(t1-t0)*100).toFixed(2)+"%";
+  let ticks="", grid=""; const c=new Date(t0); let k=0;
+  while(c<=t1){ if(k%2===0){ ticks+=`<span style="left:${X(c)}">${monLbl(c.toISOString().slice(0,7))}</span>`; grid+=`<i class="g-grid" style="left:${X(c)}"></i>`; } c.setMonth(c.getMonth()+1); k++; }
+  const rows=[...L].sort((a,b)=>d(a.start)-d(b.start));
+  document.getElementById("gantt").innerHTML=rows.map(p=>{
+    const s=d(p.start), e=d(p.end);
+    const lateBar=p.lateEnd?`<i class="g-late" style="left:${X(e)};width:calc(${X(TODAY)} - ${X(e)})"></i>`:"";
+    const ms=p.ms.map(m=>{const due=d(m.due); const cls=m.done?"done":due<TODAY?"late":days(TODAY,due)<=30?"next":"future";
+      return `<i class="g-ms ${cls} hit" style="left:${X(due)}" data-tip="${esc(`<b>${m.milestone}</b><br>${p.name}<br>יעד: ${due.toLocaleDateString("he-IL")}${m.done?`<br>הושלמה: ${d(m.done).toLocaleDateString("he-IL")}`:""}<br>לחיוב: ₪${nf.format(m.amount)}`)}"></i>`;}).join("");
+    return `<div class="g-row"><div class="g-name"><button class="link" data-proj="${p.id}">${esc(p.name)}</button><small>${esc(p.pm)} · ${S_TXT[p.sStatus]}</small></div>
+      <div class="g-track">${grid}<i class="g-today" style="left:${X(TODAY)}"></i>
+        <div class="g-bar hit" style="left:${X(s)};width:calc(${X(e)} - ${X(s)})" data-tip="${esc(`<b>${p.name}</b><br>${s.toLocaleDateString("he-IL")} – ${e.toLocaleDateString("he-IL")}<br>בוצע ${Math.round(p.progress*100)}%`)}"><i style="width:${p.progress*100}%"></i></div>${lateBar}${ms}
+      </div></div>`;
+  }).join("")+`<div class="g-axis"><span></span><div class="ticks">${ticks}</div></div>`;
+  const msTable=(list,lateMode)=>list.length?`<thead><tr><th>אבן דרך</th><th>פרויקט</th><th>יעד</th><th class="n">${lateMode?"ימי איחור":"בעוד (ימים)"}</th><th class="n">לחיוב</th></tr></thead><tbody>`+
+    list.map(m=>`<tr><td>${esc(m.milestone)}</td><td><button class="link" data-proj="${m.p.id}">${esc(m.p.name)}</button></td><td>${fdate(m.due)}</td><td class="n"><span class="num" style="${lateMode?"color:var(--crit);font-weight:700":""}">${lateMode?days(d(m.due),TODAY):days(TODAY,d(m.due))}</span></td><td class="n">${ils(m.amount)}</td></tr>`).join("")+`</tbody>`:`<tbody><tr><td class="empty">אין</td></tr></tbody>`;
+  document.getElementById("sLate").innerHTML=msTable(late,true);
+  document.getElementById("sNext").innerHTML=msTable(next,false);
+}
+
+// ---------- billing ----------
+function renderBilling(){
+  const L=vis(), inv=L.flatMap(p=>p.inv.map(i=>({...i,p})));
+  const billed=sum(inv,i=>i.amount), paid=sum(inv.filter(i=>i.paid),i=>i.amount);
+  const open=inv.filter(i=>!i.paid), od=open.filter(i=>d(i.due)<TODAY);
+  const unb=sum(L,p=>p.unbilled);
+  document.getElementById("iFigs").innerHTML=
+    fig("חויב",ilsC(billed),`${pct(billed/sum(L,p=>p.contract))} מערך החוזים`)+
+    fig("נגבה",ilsC(paid),`${pct(paid/billed)} ממה שחויב`)+
+    fig("פתוח, לא באיחור",ilsC(sum(open,i=>i.amount)-sum(od,i=>i.amount)),`${open.length-od.length} חשבוניות`)+
+    fig("באיחור",ilsC(sum(od,i=>i.amount)),`<b class="${od.length?"up":"ok"}">${od.length} חשבוניות</b>`)+
+    fig("בוצע וטרם חויב",ilsC(unb),`פוטנציאל לחיוב מיידי`);
+  const B=[["טרם הגיע מועד",i=>days(d(i.due),TODAY)<=0,"var(--good)"],["1–30 ימים",i=>{const x=days(d(i.due),TODAY);return x>0&&x<=30},"var(--warn)"],["31–60 ימים",i=>{const x=days(d(i.due),TODAY);return x>30&&x<=60},"var(--serious)"],["מעל 60 ימים",i=>days(d(i.due),TODAY)>60,"var(--crit)"]];
+  const tot=sum(open,i=>i.amount)||1;
+  const vals=B.map(([l,f,c])=>({l,c,v:sum(open.filter(f),i=>i.amount),n:open.filter(f).length}));
+  document.getElementById("aging").innerHTML= open.length ? `<div class="aging" role="img" aria-label="גיול חובות">${vals.filter(v=>v.v>0).map(v=>`<div class="hit" style="flex:${v.v};background:${v.c}" data-tip="${esc(`<b>${v.l}</b><br>₪${nf.format(v.v)} · ${v.n} חשבוניות`)}"></div>`).join("")}</div>
+     <div class="agl">${vals.map(v=>`<div><span><i style="background:${v.c}"></i>${v.l}</span><b>${ilsC(v.v)}</b><span class="muted">${v.n} חשבוניות · ${pct(v.v/tot)}</span></div>`).join("")}</div>` : `<div class="empty">אין חובות פתוחים</div>`;
+  document.getElementById("iProj").innerHTML=`<thead><tr><th>פרויקט</th><th class="n">ערך חוזה</th><th class="n">שווי שבוצע</th><th class="n">חויב</th><th class="n">בוצע וטרם חויב</th><th class="n">נגבה</th><th class="n">באיחור</th></tr></thead><tbody>`+
+    [...L].sort((a,b)=>b.unbilled-a.unbilled).map(p=>`<tr><td>${projCell(p)}</td><td class="n">${ils(p.contract)}</td><td class="n">${ils(p.progress*p.contract)}</td><td class="n">${ils(p.invoiced)}</td><td class="n" style="${p.unbilled>0.12*p.contract?"font-weight:700":""}">${ils(p.unbilled)}</td><td class="n">${ils(p.paid)}</td><td class="n" style="${p.overdue?"color:var(--crit);font-weight:700":""}">${ils(p.overdue)}</td></tr>`).join("")+`</tbody>`;
+  document.getElementById("iOpen").innerHTML=open.length?`<thead><tr><th>חשבונית</th><th>פרויקט</th><th>לקוח</th><th>תאריך</th><th>פירעון</th><th>מצב</th><th class="n">סכום</th></tr></thead><tbody>`+
+    open.sort((a,b)=>d(a.due)-d(b.due)).map(i=>{const x=days(d(i.due),TODAY); return `<tr><td class="num">${i.invoice}</td><td><button class="link" data-proj="${i.p.id}">${esc(i.p.name)}</button></td><td>${esc(i.p.customer)}</td><td>${fdate(i.date)}</td><td>${fdate(i.due)}</td><td>${x>0?st(x>30?"crit":"warn",`באיחור ${x} ימים`):st("good",`בעוד ${-x} ימים`)}</td><td class="n">${ils(i.amount)}</td></tr>`;}).join("")+`</tbody>`:`<tbody><tr><td class="empty">אין חשבוניות פתוחות</td></tr></tbody>`;
+}
+
+// ---------- alerts ----------
+const SEV_IC={crit:"!",warn:"▲",info:"i"};
+function alertRow(a,withBtn=true){
+  const read=readSet.has(a.id);
+  return `<div class="al ${read?"read":""}"><span class="ic ${a.sev}" aria-label="${a.sev==="crit"?"קריטי":a.sev==="warn"?"אזהרה":"מידע"}">${SEV_IC[a.sev]}</span>
+    <div style="min-width:0"><div class="t">${a.title}</div><div class="d">${a.desc}</div>
+      <div class="meta"><button class="link" style="font-size:12px" data-proj="${a.p.id}">${esc(a.p.name)}</button> · ${esc(a.p.pm)} · ${CATS[a.cat]}</div></div>
+    ${withBtn?`<button class="mark" type="button" data-read="${esc(a.id)}">${read?"החזר לפתוחות":"סמן כטופל"}</button>`:"<span></span>"}</div>`;
+}
+function renderAlerts(){
+  const all=visAlerts(), showRead=document.getElementById("showRead").checked;
+  const counts=Object.fromEntries(Object.keys(CATS).map(k=>[k,all.filter(a=>(k==="all"||a.cat===k)&&!readSet.has(a.id)).length]));
+  document.getElementById("aCats").innerHTML=Object.entries(CATS).map(([k,l])=>`<button class="chip" type="button" data-cat="${k}" aria-pressed="${k===cat}">${l} <span class="num">${counts[k]}</span></button>`).join("");
+  const L=all.filter(a=>(cat==="all"||a.cat===cat)&&(showRead||!readSet.has(a.id)));
+  document.getElementById("aList").innerHTML=L.length?L.map(a=>alertRow(a)).join(""):`<div class="empty">אין התראות פתוחות בקטגוריה הזו</div>`;
+}
+function updateBadge(){
+  const n=visAlerts().filter(a=>!readSet.has(a.id)&&a.sev!=="info").length;
+  const b=document.getElementById("alertCount"); b.hidden=!n; b.textContent=n;
+}
+document.getElementById("aCats").addEventListener("click",e=>{const b=e.target.closest("[data-cat]"); if(b){cat=b.dataset.cat; renderAlerts();}});
+document.getElementById("showRead").addEventListener("change",renderAlerts);
+document.getElementById("readAll").addEventListener("click",()=>{ visAlerts().filter(a=>cat==="all"||a.cat===cat).forEach(a=>readSet.add(a.id)); saveRead(); renderAlerts(); updateBadge(); });
+document.getElementById("aList").addEventListener("click",e=>{const b=e.target.closest("[data-read]"); if(!b) return; const id=b.dataset.read; readSet.has(id)?readSet.delete(id):readSet.add(id); saveRead(); renderAlerts(); updateBadge();});
+
+// ---------- tooltip ----------
+const tipEl=document.getElementById("tip");
+function showTip(e,html){ tipEl.innerHTML=html; tipEl.hidden=false; const r=tipEl.getBoundingClientRect(); let x=e.clientX-r.width/2, y=e.clientY-r.height-14; x=Math.max(8,Math.min(x,innerWidth-r.width-8)); if(y<8) y=e.clientY+18; tipEl.style.left=x+"px"; tipEl.style.top=y+"px"; }
+function hideTip(){ tipEl.hidden=true; }
+document.addEventListener("pointermove",e=>{ const h=e.target.closest("[data-tip]"); if(h) showTip(e,h.dataset.tip); else if(!e.target.closest("#hitR")) hideTip(); });
+document.addEventListener("pointerdown",e=>{ const h=e.target.closest("[data-tip]"); if(h) showTip(e,h.dataset.tip); });
+document.addEventListener("scroll",hideTip,{passive:true});
+
+function renderTab(){ ({overview:renderOverview,budget:renderBudget,schedule:renderSchedule,billing:renderBilling,alerts:renderAlerts})[tab](); }
+function renderAll(){ updateBadge(); renderTab(); }
+let resizeT; addEventListener("resize",()=>{ clearTimeout(resizeT); resizeT=setTimeout(()=>{ if(tab==="budget") renderBudget(); },150); });
+const h=(location.hash||"").slice(1);
+setTab(["overview","budget","schedule","billing","alerts"].includes(h)?h:"overview",false);
+updateBadge();
+</script>
