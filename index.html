@@ -1,0 +1,1213 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>רוקדים וזזים</title>
+<style>
+  :root {
+    --bg: #0d0f1a;
+    --panel: #161a2b;
+    --panel-2: #1e2338;
+    --text: #f2f4ff;
+    --muted: #9aa3c7;
+    --accent: #ffd24a;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --lane-l: #c084fc;
+    --lane-d: #38bdf8;
+    --lane-u: #4ade80;
+    --lane-r: #fb7185;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Rubik", "Heebo", Arial, sans-serif;
+    overflow: hidden;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 440px;
+    height: 100vh;
+  }
+  #stage { position: relative; overflow: hidden; }
+  #lanes { width: 100%; height: 100%; display: block; }
+
+  /* תצוגת ניקוד בזמן משחק */
+  .hud {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  .hud-top {
+    width: 100%; display: flex; justify-content: space-between;
+    padding: 16px 28px; font-size: 28px; font-weight: 700;
+  }
+  #judge {
+    margin-top: 32vh; font-size: 72px; font-weight: 900;
+    text-shadow: 0 4px 24px rgba(0,0,0,.6); opacity: 0;
+    transition: opacity .25s;
+  }
+  #combo { font-size: 44px; font-weight: 800; color: var(--accent); min-height: 54px; }
+  #countdown {
+    position: absolute; top: 40%; width: 100%; text-align: center;
+    font-size: 160px; font-weight: 900; color: var(--accent); pointer-events: none;
+  }
+
+  /* מסכים */
+  .screen {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(13, 15, 26, .92); padding: 24px; overflow: auto;
+  }
+  .screen.active { display: flex; }
+  .card {
+    background: var(--panel); border-radius: 20px; padding: 32px 36px;
+    max-width: 760px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  h1 { margin: 0 0 8px; font-size: 44px; }
+  h2 { margin: 0 0 16px; font-size: 30px; }
+  h3 { margin: 22px 0 10px; font-size: 20px; color: var(--muted); font-weight: 600; }
+  p, li { font-size: 18px; line-height: 1.6; }
+  ul { padding-inline-start: 22px; margin: 8px 0; }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button, .btn {
+    font: inherit; font-size: 20px; font-weight: 700; cursor: pointer;
+    border: 0; border-radius: 12px; padding: 14px 24px;
+    background: var(--accent); color: #1a1400;
+  }
+  button.secondary, .btn.secondary { background: var(--panel-2); color: var(--text); }
+  button:disabled { opacity: .5; cursor: default; }
+  .songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .song {
+    background: var(--panel-2); border: 2px solid transparent; border-radius: 14px;
+    padding: 14px 16px; cursor: pointer; text-align: start; color: var(--text);
+    font-size: 18px; font-weight: 600;
+  }
+  .song small { display: block; color: var(--muted); font-weight: 400; margin-top: 4px; font-size: 15px; }
+  .song.selected { border-color: var(--accent); }
+  .seg { display: inline-flex; background: var(--panel-2); border-radius: 12px; padding: 4px; }
+  .seg button { background: transparent; color: var(--text); padding: 10px 20px; font-size: 18px; }
+  .seg button.selected { background: var(--accent); color: #1a1400; }
+  .settings { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 14px; align-items: center; font-size: 17px; }
+  .settings input[type=range] { width: 100%; }
+  select { font: inherit; font-size: 17px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); color: var(--text); border: 1px solid #333a5c; }
+  .progress { height: 14px; background: var(--panel-2); border-radius: 7px; overflow: hidden; margin: 16px 0; }
+  .progress > div { height: 100%; width: 0; background: var(--ok); transition: width .1s; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 18px 0; }
+  .stat { background: var(--panel-2); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat b { display: block; font-size: 30px; }
+  .grade { font-size: 110px; font-weight: 900; color: var(--accent); line-height: 1; }
+
+  /* צד: מצלמה ומשטח */
+  #side {
+    background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 14px;
+    overflow: auto;
+  }
+  .cam {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000;
+    border-radius: 14px; overflow: hidden;
+  }
+  .cam video, .cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  .cam video { transform: scaleX(-1); opacity: .75; }
+  .cam .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 18px; text-align: center; padding: 20px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { background: var(--panel-2); border-radius: 999px; padding: 6px 14px; font-size: 16px; }
+  .chip.ok { background: rgba(74, 222, 128, .18); color: var(--ok); }
+  .chip.bad { background: rgba(248, 113, 113, .18); color: var(--bad); }
+  #pad { width: 100%; max-width: 300px; aspect-ratio: 1; align-self: center; display: block; }
+  #hint { font-size: 17px; color: var(--muted); min-height: 2.6em; text-align: center; }
+  .side-buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .side-buttons button { font-size: 16px; padding: 10px 16px; }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    #side { max-height: 45vh; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <section id="stage">
+    <canvas id="lanes"></canvas>
+    <div class="hud">
+      <div class="hud-top"><span id="score">0</span><span id="songTitle"></span><span id="timeLeft"></span></div>
+      <div id="judge"></div>
+      <div id="combo"></div>
+    </div>
+    <div id="countdown"></div>
+
+    <!-- מסך פתיחה -->
+    <div class="screen active" id="screen-start">
+      <div class="card">
+        <h1>רוקדים וזזים 🎵</h1>
+        <p class="muted">חצים עולים על המסך לפי קצב השיר. כשחץ מגיע לשורה העליונה, דורכים לכיוון שלו. המצלמה מזהה את כפות הרגליים שלך.</p>
+        <h3>לפני שמתחילים</h3>
+        <ul>
+          <li>שימי את המחשב נמוך, למשל על כיסא, עם המצלמה מופנית אלייך.</li>
+          <li>עמדי במרחק 2.5–3 מטר, כך שרואים אותך <b>מהראש ועד כפות הרגליים</b>.</li>
+          <li>הדליקי אור בחדר ופני מקום סביבך.</li>
+        </ul>
+        <h3>איך דורכים</h3>
+        <ul>
+          <li>⬅️ צעד הצידה שמאלה &nbsp; ➡️ צעד הצידה ימינה</li>
+          <li>⬆️ צעד קדימה, לכיוון המסך &nbsp; ⬇️ צעד אחורה</li>
+          <li>אחרי כל צעד חוזרים לאמצע.</li>
+        </ul>
+        <p class="muted">התמונה מהמצלמה מעובדת רק במחשב שלך ולא נשלחת לשום מקום.</p>
+        <div class="row" style="margin-top:18px">
+          <button id="btnCamera">הפעלת מצלמה</button>
+          <button class="secondary" id="btnKeys">לשחק עם מקשי החצים</button>
+        </div>
+        <p id="startError" style="color:var(--bad)"></p>
+      </div>
+    </div>
+
+    <!-- מסך כיול -->
+    <div class="screen" id="screen-calib">
+      <div class="card">
+        <h2>כיול</h2>
+        <p id="calibText">עמדי במרכז, ידיים לצדי הגוף, ואל תזוזי.</p>
+        <div class="progress"><div id="calibBar"></div></div>
+        <p class="muted">בצד, מתחת למצלמה, יש משטח עם 4 חצים. אחרי הכיול נסי לדרוך לכל כיוון ותראי את המשבצת נדלקת.</p>
+        <div class="row">
+          <button id="btnCalibDone" disabled>הכיול עובד, לבחירת שיר</button>
+          <button class="secondary" id="btnCalibRedo">כיול מחדש</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- תפריט שירים -->
+    <div class="screen" id="screen-menu">
+      <div class="card">
+        <h2>בחרי שיר</h2>
+        <div class="songs" id="songList"></div>
+        <div class="row" style="margin-top:12px">
+          <label class="btn secondary" for="fileInput">🎧 העלאת שיר משלך (MP3)</label>
+          <input type="file" id="fileInput" accept="audio/*" hidden>
+          <span id="fileStatus" class="muted"></span>
+        </div>
+        <h3>רמת קושי</h3>
+        <div class="seg" id="difficulty">
+          <button data-d="easy">קל</button>
+          <button data-d="medium" class="selected">בינוני</button>
+          <button data-d="hard">קשה</button>
+        </div>
+        <h3>הגדרות</h3>
+        <div class="settings">
+          <label for="setStep">גודל צעד נדרש</label>
+          <input type="range" id="setStep" min="0.6" max="1.6" step="0.05" value="1">
+          <span id="valStep"></span>
+          <label for="setLatency">תיקון עיכוב מצלמה</label>
+          <input type="range" id="setLatency" min="0" max="300" step="10" value="90">
+          <span id="valLatency"></span>
+          <label for="setSpeed">מהירות החצים</label>
+          <input type="range" id="setSpeed" min="0.6" max="1.8" step="0.1" value="1">
+          <span id="valSpeed"></span>
+          <label for="setMode">שיטת זיהוי</label>
+          <select id="setMode">
+            <option value="pose">זיהוי שלד (כפות רגליים)</option>
+            <option value="motion">זיהוי תנועה באזורים</option>
+            <option value="keys">מקלדת בלבד</option>
+          </select>
+          <span></span>
+        </div>
+        <div class="row" style="margin-top:22px">
+          <button id="btnPlay">▶ התחלה</button>
+          <button class="secondary" id="btnRecalib">כיול מחדש</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- תוצאות -->
+    <div class="screen" id="screen-results">
+      <div class="card" style="text-align:center">
+        <div class="grade" id="resGrade">A</div>
+        <h2 id="resTitle"></h2>
+        <div class="stats">
+          <div class="stat"><b id="resPerfect">0</b>מושלם</div>
+          <div class="stat"><b id="resGreat">0</b>מצוין</div>
+          <div class="stat"><b id="resGood">0</b>טוב</div>
+          <div class="stat"><b id="resMiss">0</b>פספוס</div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b id="resScore">0</b>ניקוד</div>
+          <div class="stat"><b id="resAcc">0%</b>דיוק</div>
+          <div class="stat"><b id="resCombo">0</b>רצף שיא</div>
+          <div class="stat"><b id="resSteps">0</b>צעדים</div>
+        </div>
+        <p id="resBest" class="muted"></p>
+        <div class="row" style="justify-content:center">
+          <button id="btnAgain">שוב!</button>
+          <button class="secondary" id="btnMenu">לתפריט</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="side">
+    <div class="cam">
+      <video id="video" playsinline muted></video>
+      <canvas id="camCanvas"></canvas>
+      <div class="placeholder" id="camPlaceholder">המצלמה כבויה</div>
+    </div>
+    <div class="chips">
+      <span class="chip" id="chipBody">גוף</span>
+      <span class="chip" id="chipFeet">כפות רגליים</span>
+      <span class="chip" id="chipMode">מקלדת</span>
+    </div>
+    <canvas id="pad" width="300" height="300"></canvas>
+    <div id="hint"></div>
+    <div class="side-buttons">
+      <button class="secondary" id="btnStop" hidden>⏹ עצירה (Esc)</button>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// הגדרות כלליות
+// ---------------------------------------------------------------------------
+const MP_VERSION = '0.10.14';
+const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task';
+
+const LANES = ['L', 'D', 'U', 'R'];              // סדר העמודות על המסך: ← ↓ ↑ →
+const LANE_COLOR = {
+  L: getCss('--lane-l'), D: getCss('--lane-d'), U: getCss('--lane-u'), R: getCss('--lane-r'),
+};
+const KEY_TO_LANE = { ArrowLeft: 'L', ArrowDown: 'D', ArrowUp: 'U', ArrowRight: 'R' };
+// חלונות הזמן לשיפוט (בשניות). רחבים יחסית, כי למצלמה יש עיכוב
+const WINDOWS = [
+  { name: 'מושלם', key: 'perfect', w: 0.10, pts: 100, color: '#ffd24a' },
+  { name: 'מצוין', key: 'great', w: 0.17, pts: 70, color: '#4ade80' },
+  { name: 'טוב', key: 'good', w: 0.25, pts: 40, color: '#38bdf8' },
+];
+const MISS_WINDOW = 0.25;
+
+const settings = {
+  step: 1,          // מכפיל לגודל הצעד הנדרש
+  latency: 0.09,    // תיקון עיכוב בשניות
+  speed: 1,         // מהירות גלילת החצים
+  mode: 'keys',     // pose | motion | keys
+  difficulty: 'medium',
+};
+
+function getCss(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const $ = id => document.getElementById(id);
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+}
+
+function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function storageSet(key, v) { try { localStorage.setItem(key, v); } catch { /* אין אחסון, לא נורא */ } }
+
+// מחולל מספרים אקראיים קבוע לפי זרע, כדי שאותו שיר ייתן תמיד אותם חצים
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// אודיו: מנוע סינתיסייזר קטן לשירים המובנים
+// ---------------------------------------------------------------------------
+let actx = null;
+let master = null;
+let noiseBuf = null;
+
+function ensureAudio() {
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  master = actx.createGain();
+  master.gain.value = 0.7;
+  const comp = actx.createDynamicsCompressor();
+  master.connect(comp).connect(actx.destination);
+  noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function envGain(t, a, peak, dec, dest = master) {
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec);
+  g.connect(dest);
+  return g;
+}
+
+function kick(t, vol = 1) {
+  const o = actx.createOscillator();
+  o.frequency.setValueAtTime(150, t);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+  o.connect(envGain(t, 0.002, 0.9 * vol, 0.28));
+  o.start(t); o.stop(t + 0.32);
+}
+
+function snare(t, vol = 1) {
+  const n = actx.createBufferSource(); n.buffer = noiseBuf;
+  const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
+  n.connect(hp).connect(envGain(t, 0.002, 0.35 * vol, 0.16));
+  n.start(t); n.stop(t + 0.2);
+  const o = actx.createOscillator(); o.type = 'triangle'; o.frequency.value = 190;
+  o.connect(envGain(t, 0.002, 0.25 * vol, 0.08));
+  o.start(t); o.stop(t + 0.12);
+}
+
+function hat(t, vol = 1, open = false) {
+  const n = actx.createBufferSource(); n.buffer = noiseBuf;
+  const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7500;
+  n.connect(hp).connect(envGain(t, 0.001, 0.12 * vol, open ? 0.2 : 0.04));
+  n.start(t); n.stop(t + 0.25);
+}
+
+function tone(t, midi, dur, type, vol, cutoff = 4000) {
+  const o = actx.createOscillator(); o.type = type; o.frequency.value = midiHz(midi);
+  const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+  o.connect(f).connect(envGain(t, 0.008, vol, dur));
+  o.start(t); o.stop(t + dur + 0.05);
+}
+
+function pad(t, notes, dur, vol) {
+  for (const m of notes) {
+    const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(m);
+    o.detune.value = (Math.random() - 0.5) * 14;
+    const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200;
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.3);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(f).connect(g).connect(master);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+}
+
+// שירים מובנים. אקורד = [תו בסיס (MIDI), מינורי?]
+const SONGS = [
+  { id: 'morning', name: 'בוקר של אנרגיה', bpm: 100, seed: 11, desc: 'קצב נינוח לחימום',
+    prog: [[60, false], [67, false], [69, true], [65, false]] },
+  { id: 'groove', name: 'גרוב בסלון', bpm: 118, seed: 23, desc: 'קצב בינוני וקופצני',
+    prog: [[57, true], [65, false], [60, false], [67, false]] },
+  { id: 'turbo', name: 'טורבו', bpm: 132, seed: 37, desc: 'מהיר, לאימון רציני',
+    prog: [[62, true], [58, false], [60, false], [57, false]] },
+];
+const SONG_BARS = 48;
+
+// חלקי השיר לפי מספר תיבה
+function sectionOf(bar) {
+  if (bar < 4) return 'intro';
+  if (bar < 20) return 'A';
+  if (bar < 28) return 'break';
+  if (bar < 44) return 'B';
+  return 'outro';
+}
+
+function chordNotes([root, minor]) { return [root, root + (minor ? 3 : 4), root + 7]; }
+
+// מנגן צעד אחד (שש-עשרית) של שיר מובנה
+function playStep(song, step, t) {
+  const bar = Math.floor(step / 16), s = step % 16;
+  if (bar >= SONG_BARS) return;
+  const sec = sectionOf(bar);
+  const chord = song.prog[bar % song.prog.length];
+  const notes = chordNotes(chord);
+  const stepDur = 60 / song.bpm / 4;
+  const r = rng(song.seed * 1000 + (bar % 8) * 16 + s);
+
+  // תופים
+  if (sec !== 'break') {
+    if (s % 4 === 0 && (sec !== 'intro' || s === 0 || s === 8)) kick(t, sec === 'outro' ? 0.7 : 1);
+    if ((s === 4 || s === 12) && sec !== 'intro') snare(t);
+    if (s % 2 === 0) hat(t, s % 4 === 2 ? 1 : 0.6, s === 14 && sec === 'B');
+  } else {
+    if (s % 4 === 2) hat(t, 0.6);
+    if (bar >= 26 && s % 2 === 0) kick(t, 0.25 + 0.1 * (s / 2)); // בנייה לקראת החלק הבא
+  }
+
+  // בס
+  if (sec === 'A' || sec === 'B' || sec === 'outro') {
+    if (s % 2 === 0) tone(t, chord[0] - 24 + (s % 8 === 6 ? 12 : 0), stepDur * 1.6, 'square', 0.12, 600);
+  }
+
+  // פד באקורד בתחילת כל תיבה
+  if (s === 0 && (sec === 'break' || sec === 'A' || sec === 'intro')) {
+    pad(t, notes.map(n => n - 12), stepDur * 16, sec === 'break' ? 0.06 : 0.035);
+  }
+
+  // ארפג'יו
+  if (sec === 'A' || sec === 'break' || sec === 'B') {
+    if (s % 2 === 0) {
+      const order = [0, 1, 2, 1, 0, 2, 1, 2];
+      tone(t, notes[order[s / 2]] + 12, stepDur * 1.2, 'triangle', 0.08);
+    }
+  }
+
+  // מנגינה בחלק B
+  if (sec === 'B' && s % 2 === 0) {
+    const rhythm = [1, 0, 1, 1, 0, 1, 1, 0];
+    if (rhythm[s / 2] && r() > 0.15) {
+      const pick = notes[Math.floor(r() * 3)] + 12 + (r() > 0.7 ? 12 : 0);
+      tone(t, pick, stepDur * 1.8, 'square', 0.06, 2500);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ניתוח קצב לשיר שהמשתמשת מעלה
+// ---------------------------------------------------------------------------
+function analyzeBuffer(buf) {
+  const sr = buf.sampleRate, hop = 512;
+  const frames = Math.floor(buf.length / hop);
+  const c0 = buf.getChannelData(0);
+  const c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : null;
+  const env = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    let sum = 0;
+    const o = f * hop;
+    for (let i = 0; i < hop; i++) {
+      const v = c1 ? (c0[o + i] + c1[o + i]) * 0.5 : c0[o + i];
+      sum += v * v;
+    }
+    env[f] = Math.sqrt(sum / hop);
+  }
+  // חוזק "התחלת צליל": עלייה בעוצמה הלוגריתמית
+  const onset = new Float32Array(frames);
+  for (let f = 1; f < frames; f++) {
+    onset[f] = Math.max(0, Math.log(1e-4 + env[f]) - Math.log(1e-4 + env[f - 1]));
+  }
+  const fps = sr / hop;
+
+  // מחפשים את הקצב והפאזה שהפעימות שלהם נופלות על הכי הרבה התחלות צליל
+  let best = { score: -1, bpm: 120, phase: 0 };
+  for (let bpm = 70; bpm <= 180; bpm += 0.25) {
+    const period = fps * 60 / bpm;
+    const prefer = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 118) / 0.5, 2));
+    for (let ph = 0; ph < period; ph += 1) {
+      let sum = 0, n = 0;
+      for (let x = ph; x < frames; x += period) { sum += onset[Math.round(x)] || 0; n++; }
+      const score = (sum / Math.max(1, n)) * (0.6 + 0.4 * prefer);
+      if (score > best.score) best = { score, bpm, phase: ph };
+    }
+  }
+  const beatSec = 60 / best.bpm;
+  const maxEnv = env.reduce((a, b) => Math.max(a, b), 0) || 1;
+  const beats = [];
+  for (let t = best.phase / fps, i = 0; t < buf.duration; t += beatSec, i++) {
+    const f = Math.min(frames - 1, Math.round(t * fps));
+    beats.push({ t, i, loud: env[f] / maxEnv });
+  }
+  return { bpm: Math.round(best.bpm), beats };
+}
+
+// ---------------------------------------------------------------------------
+// יצירת רצף חצים
+// ---------------------------------------------------------------------------
+// candidates: [{t, strong, rest}] — strong: פעימה חזקה, rest: חלק רגוע
+function buildChart(candidates, difficulty, seed) {
+  const r = rng(seed);
+  const every = difficulty === 'easy' ? 2 : 1;
+  const minGap = difficulty === 'hard' ? 0.3 : 0.38;
+  const notes = [];
+  let last = -10, prevLane = null, repeat = 0;
+  candidates.forEach((c, idx) => {
+    const stride = c.rest ? Math.max(2, every * 2) : every;
+    if (idx % stride !== 0) return;
+    if (c.t - last < minGap) return;
+    // בחירת כיוון: לא יותר מפעמיים ברצף לאותו כיוון
+    let lane;
+    do { lane = LANES[Math.floor(r() * 4)]; } while (lane === prevLane && repeat >= 1);
+    repeat = lane === prevLane ? repeat + 1 : 0;
+    prevLane = lane;
+    if (difficulty === 'hard' && c.strong && r() < 0.12 && c.t - last > 0.6) {
+      // קפיצה: שתי רגליים לצדדים בבת אחת
+      notes.push({ t: c.t, lane: 'L' }, { t: c.t, lane: 'R' });
+    } else {
+      notes.push({ t: c.t, lane });
+    }
+    last = c.t;
+  });
+  return notes;
+}
+
+function chartForBuiltin(song, difficulty) {
+  const beat = 60 / song.bpm;
+  const cands = [];
+  for (let b = 2 * 4; b < 46 * 4; b++) {
+    const bar = Math.floor(b / 4);
+    cands.push({ t: b * beat, strong: b % 4 === 0, rest: sectionOf(bar) === 'break' || sectionOf(bar) === 'intro' });
+  }
+  return buildChart(cands, difficulty, song.seed + difficulty.length);
+}
+
+function chartForUpload(analysis, duration, difficulty) {
+  const cands = analysis.beats
+    .filter(b => b.t > 3 && b.t < duration - 3 && b.loud > 0.12)
+    .map(b => ({ t: b.t, strong: b.i % 4 === 0, rest: b.loud < 0.3 }));
+  return buildChart(cands, difficulty, Math.round(duration * 100));
+}
+
+// ---------------------------------------------------------------------------
+// מצלמה וזיהוי שלד
+// ---------------------------------------------------------------------------
+const video = $('video');
+const camCanvas = $('camCanvas');
+const camCtx = camCanvas.getContext('2d');
+let landmarker = null;
+let lastVideoTime = -1;
+
+const POSE_LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24],
+  [23, 25], [25, 27], [24, 26], [26, 28], [27, 29], [29, 31], [27, 31], [28, 30], [30, 32], [28, 32]];
+
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false,
+  });
+  video.srcObject = stream;
+  await video.play();
+  $('camPlaceholder').style.display = 'none';
+}
+
+async function loadPose() {
+  setHint('טוען את מודל זיהוי הגוף… (בפעם הראשונה זה לוקח כמה שניות)');
+  const vision = await import(`${MP_BASE}/vision_bundle.mjs`);
+  const files = await vision.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+  const opts = {
+    baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
+    runningMode: 'VIDEO', numPoses: 1,
+    minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+  };
+  try {
+    landmarker = await vision.PoseLandmarker.createFromOptions(files, opts);
+  } catch {
+    opts.baseOptions.delegate = 'CPU';
+    landmarker = await vision.PoseLandmarker.createFromOptions(files, opts);
+  }
+  setHint('');
+}
+
+// מצב המעקב אחרי כל רגל
+const tracker = {
+  body: false,
+  feet: [null, null],                 // מיקום מוחלק של כל כף רגל, בפיקסלים של הווידאו
+  leg: 0,                             // אורך רגל ממוצע (מירך לקרסול), יחידת המידה של הצעדים
+  zones: ['C', 'C'],                  // אזור נוכחי לכל רגל
+  cand: [{ z: 'C', n: 0, t: 0 }, { z: 'C', n: 0, t: 0 }],
+};
+let calib = null;                     // { base: [{x,y},{x,y}], leg }
+const calibState = { samples: [], active: false };
+
+function handlePose(lm, now) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!lm) {
+    tracker.body = false; tracker.feet = [null, null];
+    return;
+  }
+  // הופכים את ציר X כדי שימין שלך יהיה ימין על המסך (כמו מראה)
+  const P = i => ({ x: (1 - lm[i].x) * vw, y: lm[i].y * vh, v: lm[i].visibility ?? 1 });
+  tracker.body = P(11).v > 0.5 && P(12).v > 0.5 && P(23).v > 0.5 && P(24).v > 0.5;
+  const hipL = P(23), hipR = P(24), ankL = P(27), ankR = P(28);
+  const leg = (Math.hypot(hipL.x - ankL.x, hipL.y - ankL.y) + Math.hypot(hipR.x - ankR.x, hipR.y - ankR.y)) / 2;
+  tracker.leg = tracker.leg ? tracker.leg * 0.9 + leg * 0.1 : leg;
+
+  [[27, 31], [28, 32]].forEach(([a, b], i) => {
+    const A = P(a), B = P(b);
+    const vis = Math.min(A.v, B.v);
+    // קואורדינטות מנורמלות מחוץ לתמונה פירושן שהרגל לא באמת נראית
+    const inFrame = lm[a].y < 1.02 && lm[b].y < 1.05;
+    if (vis < 0.5 || !inFrame) { tracker.feet[i] = null; return; }
+    const raw = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+    const prev = tracker.feet[i];
+    tracker.feet[i] = prev ? { x: prev.x * 0.4 + raw.x * 0.6, y: prev.y * 0.4 + raw.y * 0.6 } : raw;
+  });
+
+  if (calibState.active) stepCalibration(now);
+  else if (calib) classifyFeet(now);
+}
+
+function stepCalibration() {
+  const f = tracker.feet;
+  const bar = $('calibBar');
+  if (!tracker.body || !f[0] || !f[1]) {
+    calibState.samples = [];
+    bar.style.width = '0%';
+    $('calibText').textContent = 'לא רואים אותך מהראש ועד כפות הרגליים. התרחקי מעט מהמצלמה או הנמיכי אותה.';
+    return;
+  }
+  const s = calibState.samples;
+  s.push({ a: { ...f[0] }, b: { ...f[1] }, leg: tracker.leg });
+  // אם זזת יותר מדי, מתחילים לספור מחדש
+  const first = s[0];
+  const moved = Math.hypot(first.a.x - f[0].x, first.a.y - f[0].y) + Math.hypot(first.b.x - f[1].x, first.b.y - f[1].y);
+  if (moved > tracker.leg * 0.12) { calibState.samples = []; return; }
+  $('calibText').textContent = 'מעולה, עכשיו בלי לזוז…';
+  const need = 45;
+  bar.style.width = `${Math.min(100, s.length / need * 100)}%`;
+  if (s.length >= need) {
+    const avg = k => ({ x: s.reduce((a, v) => a + v[k].x, 0) / s.length, y: s.reduce((a, v) => a + v[k].y, 0) / s.length });
+    calib = { base: [avg('a'), avg('b')], leg: s.reduce((a, v) => a + v.leg, 0) / s.length };
+    calibState.active = false;
+    tracker.zones = ['C', 'C'];
+    $('calibText').textContent = 'הכיול הצליח! נסי לדרוך לכל כיוון ולחזור לאמצע. המשבצות במשטח בצד יידלקו.';
+    $('btnCalibDone').disabled = false;
+  }
+}
+
+function startCalibration() {
+  calib = null;
+  calibState.samples = [];
+  calibState.active = true;
+  $('btnCalibDone').disabled = true;
+  $('calibBar').style.width = '0%';
+  $('calibText').textContent = 'עמדי במרכז, ידיים לצדי הגוף, ואל תזוזי.';
+  showScreen('screen-calib');
+}
+
+// ספים לזיהוי צעד, כחלק מאורך הרגל
+function thresholds() {
+  return { lat: 0.32 * settings.step, fwd: 0.085 * settings.step, back: 0.1 * settings.step };
+}
+
+// לאן כל רגל הלכה ביחס למקום שלה בכיול
+function footOffset(i) {
+  const f = tracker.feet[i], b = calib.base[i];
+  return { dx: (f.x - b.x) / calib.leg, dy: (f.y - b.y) / calib.leg };
+}
+
+function zoneFor(i, current) {
+  const { dx, dy } = footOffset(i);
+  const th = thresholds();
+  // כדי לא לקפוץ הלוך ושוב בין אזורים, יציאה מאזור דורשת לחזור קרוב יותר למרכז
+  const k = z => (current === z ? 0.65 : 1);
+  if (dx < -th.lat * k('L')) return 'L';
+  if (dx > th.lat * k('R')) return 'R';
+  if (dy > th.fwd * k('U')) return 'U';           // קדימה = כף הרגל נמוכה יותר בתמונה
+  if (dy < -th.back * k('D')) return 'D';         // אחורה = כף הרגל גבוהה יותר בתמונה
+  return 'C';
+}
+
+function classifyFeet(now) {
+  for (let i = 0; i < 2; i++) {
+    if (!tracker.feet[i]) continue;
+    const z = zoneFor(i, tracker.zones[i]);
+    const c = tracker.cand[i];
+    if (z !== c.z) { c.z = z; c.n = 1; c.t = now; } else c.n++;
+    // צעד אחורה דומה להרמת רגל, לכן הוא צריך להחזיק פריים נוסף
+    const need = z === 'D' ? 3 : 2;
+    if (c.n >= need && z !== tracker.zones[i]) {
+      tracker.zones[i] = z;
+      if (z !== 'C') press(z, c.t);
+    }
+  }
+  // תיקון סחיפה: כשהרגליים במרכז, המרכז זז לאט איתן
+  if (tracker.zones[0] === 'C' && tracker.zones[1] === 'C' && tracker.feet[0] && tracker.feet[1]) {
+    for (let i = 0; i < 2; i++) {
+      calib.base[i].x += (tracker.feet[i].x - calib.base[i].x) * 0.02;
+      calib.base[i].y += (tracker.feet[i].y - calib.base[i].y) * 0.02;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// זיהוי תנועה באזורים (גיבוי למקרה שזיהוי השלד לא נטען)
+// ---------------------------------------------------------------------------
+const motion = { canvas: document.createElement('canvas'), prev: null, active: { L: false, D: false, U: false, R: false } };
+motion.canvas.width = 64; motion.canvas.height = 36;
+const motionCtx = motion.canvas.getContext('2d', { willReadFrequently: true });
+
+function handleMotion(now) {
+  const W = 64, H = 36;
+  motionCtx.save();
+  motionCtx.scale(-1, 1);
+  motionCtx.drawImage(video, -W, 0, W, H);
+  motionCtx.restore();
+  const data = motionCtx.getImageData(0, 0, W, H).data;
+  const gray = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) gray[i] = (data[i * 4] + data[i * 4 + 1] + data[i * 4 + 2]) / 3;
+  if (motion.prev) {
+    const count = { L: 0, D: 0, U: 0, R: 0 }, size = { L: 0, D: 0, U: 0, R: 0 };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const nx = x / W, ny = y / H;
+      const z = nx < 0.3 ? 'L' : nx > 0.7 ? 'R' : ny < 0.35 ? 'U' : ny > 0.6 ? 'D' : null;
+      if (!z) continue;
+      size[z]++;
+      if (Math.abs(gray[y * W + x] - motion.prev[y * W + x]) > 28) count[z]++;
+    }
+    for (const z of LANES) {
+      const on = count[z] / size[z] > 0.12 / settings.step;
+      if (on && !motion.active[z]) press(z, now);
+      motion.active[z] = on;
+    }
+  }
+  motion.prev = gray;
+}
+
+// ---------------------------------------------------------------------------
+// ציור המצלמה והמשטח
+// ---------------------------------------------------------------------------
+function drawCamera() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw) return;
+  if (camCanvas.width !== vw) { camCanvas.width = vw; camCanvas.height = vh; }
+  camCtx.clearRect(0, 0, vw, vh);
+  if (settings.mode === 'motion') {
+    camCtx.strokeStyle = 'rgba(255,255,255,.5)'; camCtx.lineWidth = 3;
+    camCtx.strokeRect(0, 0, vw * 0.3, vh);
+    camCtx.strokeRect(vw * 0.7, 0, vw * 0.3, vh);
+    camCtx.strokeRect(vw * 0.3, 0, vw * 0.4, vh * 0.35);
+    camCtx.strokeRect(vw * 0.3, vh * 0.6, vw * 0.4, vh * 0.4);
+    return;
+  }
+  const lm = lastLandmarks;
+  if (!lm) return;
+  const P = i => [(1 - lm[i].x) * vw, lm[i].y * vh];
+  camCtx.strokeStyle = 'rgba(255, 210, 74, .9)'; camCtx.lineWidth = Math.max(3, vw / 250);
+  for (const [a, b] of POSE_LINKS) {
+    if ((lm[a].visibility ?? 1) < 0.4 || (lm[b].visibility ?? 1) < 0.4) continue;
+    camCtx.beginPath(); camCtx.moveTo(...P(a)); camCtx.lineTo(...P(b)); camCtx.stroke();
+  }
+  tracker.feet.forEach((f, i) => {
+    if (!f) return;
+    const z = tracker.zones[i];
+    camCtx.fillStyle = z === 'C' ? '#fff' : LANE_COLOR[z];
+    camCtx.beginPath(); camCtx.arc(f.x, f.y, vw / 70, 0, Math.PI * 2); camCtx.fill();
+  });
+}
+
+const padCanvas = $('pad');
+const padCtx = padCanvas.getContext('2d');
+
+function drawPad() {
+  const W = padCanvas.width, cell = W / 3;
+  padCtx.clearRect(0, 0, W, W);
+  const cells = { U: [1, 0], L: [0, 1], C: [1, 1], R: [2, 1], D: [1, 2] };
+  const lit = new Set();
+  if (settings.mode === 'pose' && calib) tracker.zones.forEach(z => lit.add(z));
+  if (settings.mode === 'motion') LANES.forEach(z => motion.active[z] && lit.add(z));
+  for (const z of LANES) if (performance.now() - flash[z] < 150) lit.add(z);
+  for (const [z, [cx, cy]] of Object.entries(cells)) {
+    const x = cx * cell + 6, y = cy * cell + 6, s = cell - 12;
+    padCtx.fillStyle = lit.has(z) && z !== 'C' ? LANE_COLOR[z] : '#252b45';
+    roundRect(padCtx, x, y, s, s, 14); padCtx.fill();
+    if (z !== 'C') drawArrow(padCtx, x + s / 2, y + s / 2, s * 0.55, z, lit.has(z) ? '#0d0f1a' : LANE_COLOR[z]);
+  }
+  // נקודות כפות הרגליים במשטח (מבט מלמעלה: קדימה = למעלה)
+  if (settings.mode === 'pose' && calib) {
+    const th = thresholds();
+    tracker.feet.forEach((f, i) => {
+      if (!f) return;
+      const { dx, dy } = footOffset(i);
+      const px = W / 2 + (i === 0 ? -cell * 0.18 : cell * 0.18) + clamp(dx / th.lat, -1.6, 1.6) * cell;
+      const py = W / 2 - clamp(dy > 0 ? dy / th.fwd : dy / th.back, -1.6, 1.6) * cell;
+      padCtx.fillStyle = '#fff';
+      padCtx.beginPath(); padCtx.ellipse(px, py, 11, 17, 0, 0, Math.PI * 2); padCtx.fill();
+    });
+  }
+}
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+const ARROW_ROT = { U: 0, R: Math.PI / 2, D: Math.PI, L: -Math.PI / 2 };
+function drawArrow(ctx, x, y, size, dir, fill, stroke, lineW = 0) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(ARROW_ROT[dir]); ctx.scale(size, size);
+  ctx.beginPath();
+  ctx.moveTo(0, -0.5); ctx.lineTo(0.5, 0); ctx.lineTo(0.2, 0); ctx.lineTo(0.2, 0.5);
+  ctx.lineTo(-0.2, 0.5); ctx.lineTo(-0.2, 0); ctx.lineTo(-0.5, 0); ctx.closePath();
+  ctx.restore();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lineW; ctx.stroke(); }
+}
+
+// ---------------------------------------------------------------------------
+// המשחק
+// ---------------------------------------------------------------------------
+const lanesCanvas = $('lanes');
+const lctx = lanesCanvas.getContext('2d');
+const flash = { L: -1e9, D: -1e9, U: -1e9, R: -1e9 };
+let game = null;
+let lastGameSetup = null;
+let lastLandmarks = null;
+let uploaded = null;                  // { name, buffer, analysis }
+let selectedSong = SONGS[0].id;
+
+function songTime() {
+  return actx.currentTime - game.t0 - (actx.outputLatency || 0);
+}
+
+function press(lane, perfTime) {
+  flash[lane] = performance.now();
+  if (!game || game.over) return;
+  game.steps++;
+  // זמן הצעד בשיר: עכשיו, פחות כמה זמן עבר מאז שהצעד באמת קרה, פחות עיכוב המצלמה
+  const delay = settings.mode === 'keys' ? 0 : settings.latency;
+  const t = songTime() - (performance.now() - perfTime) / 1000 - delay;
+  let best = null;
+  for (const n of game.notes) {
+    if (n.done || n.lane !== lane) continue;
+    const d = Math.abs(n.t - t);
+    if (d <= MISS_WINDOW && (!best || d < Math.abs(best.t - t))) best = n;
+    if (n.t - t > MISS_WINDOW) break;
+  }
+  if (!best) return;                  // צעד מוקדם מדי או סתם: לא מענישים
+  const d = Math.abs(best.t - t);
+  const w = WINDOWS.find(x => d <= x.w);
+  best.done = true; best.judge = w.key;
+  game.counts[w.key]++;
+  game.combo++;
+  game.maxCombo = Math.max(game.maxCombo, game.combo);
+  game.score += Math.round(w.pts * (1 + Math.min(game.combo, 50) / 50));
+  game.hitFx.push({ lane, at: performance.now(), color: w.color });
+  showJudge(w.name, w.color);
+}
+
+function showJudge(text, color) {
+  const j = $('judge');
+  j.textContent = text; j.style.color = color; j.style.opacity = 1;
+  clearTimeout(showJudge.tm);
+  showJudge.tm = setTimeout(() => { j.style.opacity = 0; }, 450);
+  $('combo').textContent = game.combo >= 3 ? `${game.combo} ברצף!` : '';
+}
+
+async function startGame(setup) {
+  ensureAudio();
+  await actx.resume();
+  lastGameSetup = setup;
+  let notes, duration, title, bpm, source = null, song = null;
+  if (setup.kind === 'builtin') {
+    song = SONGS.find(s => s.id === setup.id);
+    notes = chartForBuiltin(song, settings.difficulty);
+    duration = SONG_BARS * 4 * 60 / song.bpm + 1;
+    title = song.name; bpm = song.bpm;
+  } else {
+    notes = chartForUpload(uploaded.analysis, uploaded.buffer.duration, settings.difficulty);
+    duration = uploaded.buffer.duration;
+    title = uploaded.name; bpm = uploaded.analysis.bpm;
+  }
+  const lead = 3;
+  const t0 = actx.currentTime + lead;
+  if (setup.kind === 'upload') {
+    source = actx.createBufferSource();
+    source.buffer = uploaded.buffer;
+    source.connect(master);
+    source.start(t0);
+  }
+  game = {
+    notes: notes.map(n => ({ ...n, done: false, judge: null })),
+    t0, duration, title, bpm, song, source, nextStep: 0,
+    counts: { perfect: 0, great: 0, good: 0, miss: 0 },
+    score: 0, combo: 0, maxCombo: 0, steps: 0, hitFx: [], over: false,
+    key: `${setup.kind === 'builtin' ? setup.id : 'upload:' + title}|${settings.difficulty}`,
+  };
+  if (song) {
+    clearInterval(startGame.timer);
+    startGame.timer = setInterval(scheduleMusic, 25);
+  }
+  $('songTitle').textContent = title;
+  $('score').textContent = '0';
+  $('combo').textContent = '';
+  $('btnStop').hidden = false;
+  showScreen(null);
+}
+
+// מתזמן צלילים מעט קדימה, כדי שהמוזיקה לא תיקטע
+function scheduleMusic() {
+  if (!game || game.over || !game.song) return;
+  const stepDur = 60 / game.song.bpm / 4;
+  while (game.t0 + game.nextStep * stepDur < actx.currentTime + 0.15) {
+    playStep(game.song, game.nextStep, game.t0 + game.nextStep * stepDur);
+    game.nextStep++;
+  }
+}
+
+function stopGame(showResults) {
+  if (!game) return;
+  game.over = true;
+  clearInterval(startGame.timer);
+  if (game.source) { try { game.source.stop(); } catch { /* כבר נעצר */ } }
+  $('btnStop').hidden = true;
+  $('countdown').textContent = '';
+  if (showResults) renderResults();
+  else {
+    ['songTitle', 'score', 'timeLeft', 'combo'].forEach(id => { $(id).textContent = ''; });
+    showScreen('screen-menu');
+  }
+}
+
+function renderResults() {
+  const c = game.counts;
+  const total = (c.perfect + c.great + c.good + c.miss) || 1;
+  const acc = (c.perfect * 1 + c.great * 0.8 + c.good * 0.5) / total;
+  const grade = acc >= 0.93 ? 'S' : acc >= 0.82 ? 'A' : acc >= 0.68 ? 'B' : acc >= 0.5 ? 'C' : 'D';
+  $('resGrade').textContent = grade;
+  $('resTitle').textContent = `${game.title} · ${{ easy: 'קל', medium: 'בינוני', hard: 'קשה' }[settings.difficulty]}`;
+  $('resPerfect').textContent = c.perfect;
+  $('resGreat').textContent = c.great;
+  $('resGood').textContent = c.good;
+  $('resMiss').textContent = c.miss;
+  $('resScore').textContent = game.score.toLocaleString('he-IL');
+  $('resAcc').textContent = `${Math.round(acc * 100)}%`;
+  $('resCombo').textContent = game.maxCombo;
+  $('resSteps').textContent = game.steps;
+  const prev = Number(storageGet('best:' + game.key) || 0);
+  if (game.score > prev) {
+    storageSet('best:' + game.key, String(game.score));
+    $('resBest').textContent = prev ? '🎉 שיא חדש!' : '';
+  } else {
+    $('resBest').textContent = `השיא שלך בשיר הזה: ${prev.toLocaleString('he-IL')}`;
+  }
+  showScreen('screen-results');
+}
+
+function resizeLanes() {
+  const r = lanesCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  lanesCanvas.width = r.width * dpr; lanesCanvas.height = r.height * dpr;
+  lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resizeLanes);
+
+function drawLanes() {
+  const W = lanesCanvas.clientWidth, H = lanesCanvas.clientHeight;
+  lctx.clearRect(0, 0, W, H);
+  const laneW = Math.min(150, (W - 40) / 4);
+  const left = (W - laneW * 4) / 2;
+  const targetY = 130;
+  const size = laneW * 0.78;
+  const pxPerSec = H * 0.55 * settings.speed;
+  const st = game && !game.over ? songTime() : -1;
+  const beatPulse = game && st > 0 ? Math.max(0, 1 - ((st * game.bpm / 60) % 1) * 4) : 0;
+
+  // רקע העמודות
+  LANES.forEach((lane, i) => {
+    lctx.fillStyle = i % 2 ? 'rgba(255,255,255,.035)' : 'rgba(255,255,255,.06)';
+    lctx.fillRect(left + i * laneW, 0, laneW, H);
+  });
+
+  // שורת היעד
+  LANES.forEach((lane, i) => {
+    const x = left + i * laneW + laneW / 2;
+    const pressed = performance.now() - flash[lane] < 140;
+    const s = size * (1 + beatPulse * 0.06) * (pressed ? 0.9 : 1);
+    drawArrow(lctx, x, targetY, s, lane, pressed ? LANE_COLOR[lane] : 'rgba(255,255,255,.08)', 'rgba(255,255,255,.8)', 4);
+  });
+
+  if (!game || game.over) return;
+
+  // פספוסים: חץ שעבר את שורת היעד בלי צעד
+  for (const n of game.notes) {
+    if (n.done) continue;
+    if (st - n.t > MISS_WINDOW) {
+      n.done = true; n.judge = 'miss'; game.counts.miss++; game.combo = 0;
+      showJudge('פספוס', '#f87171');
+    } else break;
+  }
+
+  // החצים
+  for (const n of game.notes) {
+    if (n.done) continue;
+    const y = targetY + (n.t - st) * pxPerSec;
+    if (y > H + size) break;
+    const x = left + LANES.indexOf(n.lane) * laneW + laneW / 2;
+    drawArrow(lctx, x, y, size, n.lane, LANE_COLOR[n.lane], 'rgba(255,255,255,.9)', 3);
+  }
+
+  // אפקט פגיעה
+  const now = performance.now();
+  game.hitFx = game.hitFx.filter(fx => now - fx.at < 300);
+  for (const fx of game.hitFx) {
+    const p = (now - fx.at) / 300;
+    const x = left + LANES.indexOf(fx.lane) * laneW + laneW / 2;
+    lctx.globalAlpha = 1 - p;
+    lctx.strokeStyle = fx.color; lctx.lineWidth = 6;
+    lctx.beginPath(); lctx.arc(x, targetY, size * (0.5 + p * 0.5), 0, Math.PI * 2); lctx.stroke();
+    lctx.globalAlpha = 1;
+  }
+
+  // ספירה לאחור, ניקוד וזמן
+  $('countdown').textContent = st < 0 ? String(Math.ceil(-st)) : '';
+  $('score').textContent = game.score.toLocaleString('he-IL');
+  const left2 = Math.max(0, game.duration - Math.max(0, st));
+  $('timeLeft').textContent = `${Math.floor(left2 / 60)}:${String(Math.floor(left2 % 60)).padStart(2, '0')}`;
+  if (st > game.duration) stopGame(true);
+}
+
+// ---------------------------------------------------------------------------
+// לולאה ראשית
+// ---------------------------------------------------------------------------
+function updateChips() {
+  const chip = (el, ok, text) => { el.textContent = text; el.className = 'chip ' + (ok === null ? '' : ok ? 'ok' : 'bad'); };
+  const modeName = { pose: 'זיהוי שלד', motion: 'זיהוי תנועה', keys: 'מקלדת' }[settings.mode];
+  chip($('chipMode'), null, modeName);
+  if (settings.mode === 'pose') {
+    const feet = tracker.feet[0] && tracker.feet[1];
+    chip($('chipBody'), tracker.body, tracker.body ? 'גוף ✓' : 'גוף ✗');
+    chip($('chipFeet'), !!feet, feet ? 'כפות רגליים ✓' : 'כפות רגליים ✗');
+  } else {
+    chip($('chipBody'), null, 'גוף');
+    chip($('chipFeet'), null, 'כפות רגליים');
+  }
+}
+
+function setHint(t) { $('hint').textContent = t; }
+
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    if (settings.mode === 'pose' && landmarker) {
+      const res = landmarker.detectForVideo(video, now);
+      lastLandmarks = res.landmarks && res.landmarks[0] || null;
+      handlePose(lastLandmarks, now);
+    } else if (settings.mode === 'motion') {
+      handleMotion(now);
+    }
+    drawCamera();
+  }
+  if (settings.mode === 'pose' && landmarker && calib && !(tracker.feet[0] && tracker.feet[1])) {
+    setHint('לא רואים את כפות הרגליים. התרחקי מהמצלמה או הנמיכי אותה.');
+  } else if (settings.mode === 'pose' && calib && !game?.over && game) {
+    setHint('');
+  }
+  drawPad();
+  drawLanes();
+  updateChips();
+}
+
+// ---------------------------------------------------------------------------
+// כפתורים ותפריטים
+// ---------------------------------------------------------------------------
+function renderSongs() {
+  const list = $('songList');
+  list.innerHTML = '';
+  const items = SONGS.map(s => ({ id: s.id, name: s.name, desc: `${s.bpm} פעימות לדקה · ${s.desc}` }));
+  if (uploaded) items.push({ id: 'upload', name: `🎧 ${uploaded.name}`, desc: `${uploaded.analysis.bpm} פעימות לדקה (זוהה אוטומטית)` });
+  for (const it of items) {
+    const b = document.createElement('button');
+    b.className = 'song' + (it.id === selectedSong ? ' selected' : '');
+    b.innerHTML = `${it.name}<small>${it.desc}</small>`;
+    b.onclick = () => { selectedSong = it.id; renderSongs(); };
+    list.appendChild(b);
+  }
+}
+
+function setMode(mode) {
+  settings.mode = mode;
+  $('setMode').value = mode;
+  motion.prev = null;
+}
+
+$('btnCamera').onclick = async () => {
+  $('startError').textContent = '';
+  $('btnCamera').disabled = true;
+  ensureAudio();
+  try {
+    await startCamera();
+  } catch (e) {
+    $('startError').textContent = 'לא הצלחנו להפעיל את המצלמה. צריך לאשר לדפדפן גישה למצלמה. אפשר גם לשחק עם מקשי החצים.';
+    $('btnCamera').disabled = false;
+    return;
+  }
+  try {
+    await loadPose();
+    setMode('pose');
+    startCalibration();
+  } catch (e) {
+    console.error(e);
+    setMode('motion');
+    setHint('זיהוי השלד לא נטען (צריך חיבור לאינטרנט בפעם הראשונה). עברנו לזיהוי תנועה באזורים.');
+    showScreen('screen-menu');
+  }
+  $('btnCamera').disabled = false;
+};
+
+$('btnKeys').onclick = () => { ensureAudio(); setMode('keys'); showScreen('screen-menu'); };
+$('btnCalibDone').onclick = () => showScreen('screen-menu');
+$('btnCalibRedo').onclick = startCalibration;
+$('btnRecalib').onclick = () => {
+  if (!landmarker) { $('btnCamera').click(); return; }
+  setMode('pose');
+  startCalibration();
+};
+
+$('setMode').onchange = e => {
+  const m = e.target.value;
+  if (m === 'pose' && !landmarker) { setMode(m); $('btnCamera').click(); return; }
+  if (m === 'motion' && !video.srcObject) { startCamera().catch(() => setMode('keys')); }
+  setMode(m);
+  if (m === 'pose' && !calib) startCalibration();
+};
+
+document.querySelectorAll('#difficulty button').forEach(b => {
+  b.onclick = () => {
+    settings.difficulty = b.dataset.d;
+    document.querySelectorAll('#difficulty button').forEach(x => x.classList.toggle('selected', x === b));
+  };
+});
+
+function bindRange(id, valId, key, fmt, scale = 1) {
+  const el = $(id);
+  const update = () => { settings[key] = Number(el.value) * scale; $(valId).textContent = fmt(Number(el.value)); };
+  el.oninput = update; update();
+}
+bindRange('setStep', 'valStep', 'step', v => `×${v.toFixed(2)}`);
+bindRange('setLatency', 'valLatency', 'latency', v => `${v} מ״ש`, 0.001);
+bindRange('setSpeed', 'valSpeed', 'speed', v => `×${v.toFixed(1)}`);
+
+$('fileInput').onchange = async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  ensureAudio();
+  $('fileStatus').textContent = 'מנתח את הקצב של השיר…';
+  try {
+    const buffer = await actx.decodeAudioData(await file.arrayBuffer());
+    await new Promise(r => setTimeout(r, 30));      // נותן לדף להציג את ההודעה
+    const analysis = analyzeBuffer(buffer);
+    uploaded = { name: file.name.replace(/\.[^.]+$/, ''), buffer, analysis };
+    selectedSong = 'upload';
+    $('fileStatus').textContent = `מוכן! קצב: ${analysis.bpm} פעימות לדקה`;
+    renderSongs();
+  } catch (err) {
+    console.error(err);
+    $('fileStatus').textContent = 'לא הצלחנו לקרוא את הקובץ. נסי קובץ MP3 אחר.';
+  }
+  e.target.value = '';
+};
+
+$('btnPlay').onclick = () => startGame(selectedSong === 'upload' ? { kind: 'upload' } : { kind: 'builtin', id: selectedSong });
+$('btnAgain').onclick = () => startGame(lastGameSetup);
+$('btnMenu').onclick = () => showScreen('screen-menu');
+$('btnStop').onclick = () => stopGame(false);
+
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { stopGame(false); return; }
+  const lane = KEY_TO_LANE[e.key];
+  if (lane && !e.repeat) { e.preventDefault(); press(lane, performance.now()); }
+});
+
+renderSongs();
+resizeLanes();
+loop();
+
+// חשיפה לבדיקות אוטומטיות בלבד
+window.__game = { get state() { return game; }, songTime: () => (game && actx ? songTime() : null), get landmarker() { return landmarker; }, tracker, get calib() { return calib; }, settings, buildChart, analyzeBuffer, handlePose, zoneFor };
+</script>
+</body>
+</html>
