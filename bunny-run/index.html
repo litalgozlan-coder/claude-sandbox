@@ -788,7 +788,7 @@ const MAT = {
   birdBelly: new THREE.MeshStandardMaterial({ color: 0xffe3b0, roughness: 0.6 }),
   beak: new THREE.MeshStandardMaterial({ color: 0xffb02e, roughness: 0.5 }),
   path: new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.95 }),
-  water: new THREE.MeshPhysicalMaterial({ map: waterTex, color: 0xd8f4ff, roughness: 0.08, clearcoat: 1, transparent: true, opacity: 0.92, envMapIntensity: 1.4 }),
+  water: new THREE.MeshStandardMaterial({ map: waterTex, color: 0xd8f4ff, roughness: 0.5, metalness: 0, transparent: true, opacity: 0.93, envMapIntensity: 0.5 }),
   rainbow: new THREE.MeshStandardMaterial({ map: rainbowTex, emissiveMap: rainbowTex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.4, side: THREE.DoubleSide }),
 };
 const FLOWER_COLORS = [0xff6fae, 0xffd23f, 0xb58cff, 0xff8a3d, 0xffffff, 0x6fd3ff];
@@ -949,10 +949,10 @@ function liftAt(s) {
 }
 
 const _v = new THREE.Vector3();
-function worldAt(s, lat, up = 0, out = _v, branchSide = 0) {
+function worldAt(s, lat, up = 0, out = _v, branchSide = 0, lift = true) {
   const p = pointAt(s, branchSide);
   const x = p.x + Math.cos(p.th) * lat, z = p.z + Math.sin(p.th) * lat;
-  return out.set(x, terrainH(x, z) + liftAt(s) + up, z);
+  return out.set(x, terrainH(x, z) + (lift ? liftAt(s) : 0) + up, z);
 }
 const headingAt = (s, side = 0) => pointAt(s, side).th;
 
@@ -965,7 +965,7 @@ function makeRibbon(material, y = 0.05) {
   const idx = [];
   for (let r = 0; r < MAX_ROWS - 1; r++) for (let c = 0; c < COLS - 1; c++) {
     const a = r * COLS + c, b = a + 1, d = a + COLS, e = d + 1;
-    idx.push(a, d, b, b, d, e);
+    idx.push(a, b, d, b, e, d);
   }
   geo.setIndex(idx);
   const m = new THREE.Mesh(geo, material);
@@ -1460,7 +1460,7 @@ function trackSpot(s, latMin, latMax) {
   if (fork && side && s > fork.at + BRANCH_LEN - 2) return null;
   if (!fork && s > knownEnd()) return null;
   const lat = (Math.random() < 0.5 ? -1 : 1) * rand(latMin, latMax);
-  const p = worldAt(s, lat, 0, new THREE.Vector3(), side);
+  const p = worldAt(s, lat, 0, new THREE.Vector3(), side, false);
   if (fork && s > fork.at - 4) {
     // לא לשים עצים על הענף השני
     const other = fork.branches.find(b => b.side !== side) || fork.branches[0];
@@ -1505,9 +1505,9 @@ function placeInst(it, s, kind) {
   it.s = s;
   if (kind === 'stones') {
     const fork = pendingFork();
-    if ((fork && s > fork.at) || s > knownEnd()) { it.pos = null; return; }
+    if ((fork && s > fork.at) || s > knownEnd() || segAt(s).type === 'rainbow') { it.pos = null; return; }
     const lat = it.side * rand(3.05, 3.35);
-    it.pos = worldAt(s, lat, 0, new THREE.Vector3());
+    it.pos = worldAt(s, lat, 0, new THREE.Vector3(), 0, false);
   } else {
     it.pos = trackSpot(s, kind === 'flowers' ? 3.4 : 3.3, kind === 'flowers' ? 14 : 16);
   }
@@ -2033,7 +2033,7 @@ function animateBunny(dt, running) {
     const s = i ? 1 : -1;
     const flap = running ? Math.sin(b.run + i * 0.6) * 0.12 : Math.sin(t * 2 + i) * 0.05;
     const twitch = i === 1 && !running ? Math.max(0, Math.sin(t * 1.7) - 0.9) * 3 : 0;
-    e.rotation.x = b.duckK * 1.25 + jh * 0.7 + flap + (running ? 0.15 : 0) + (sliding ? 0.8 : 0);
+    e.rotation.x = b.duckK * 1.25 + jh * 0.7 + flap + (running ? 0.15 : 0) + (sliding ? 0.35 : 0);
     e.rotation.z = -s * (0.14 + b.duckK * 0.25) + twitch;
   });
   p.feet.forEach(f => {
@@ -2072,7 +2072,7 @@ function updateCamera(dt, running) {
   const kk = 1 - Math.pow(0.02, dt);
   camState.lat = lerp(camState.lat, lat * 0.55, kk);
   const k = curvature(G.dist + 4);
-  camState.roll = lerp(camState.roll, clamp(k * 7, -0.22, 0.22), 1 - Math.pow(0.05, dt));
+  camState.roll = lerp(camState.roll, clamp(k * 3.5, -0.1, 0.1), 1 - Math.pow(0.05, dt));
   const seg = segAt(G.dist);
   const high = seg.type === 'rainbow' ? 1.2 : 0;
   camState.y = lerp(camState.y, 2.5 + bunnyHeight() * 0.35 + high, kk);
@@ -2175,7 +2175,7 @@ function endRound(completed) {
 // ---------------------------------------------------------------------------
 // לולאה ראשית
 // ---------------------------------------------------------------------------
-function frame(dt) {
+function frame(dt, render = true) {
   clock.t += dt;
   const t = now();
   if (settings.mode === 'pose' && landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
@@ -2197,7 +2197,7 @@ function frame(dt) {
   if (!G.paused) { recycleWorld(G.dist); updateAmbient(dt); animateBunny(dt, running); }
   updateRibbons(G.dist);
   updateCamera(dt, running);
-  composer.render(dt);
+  if (render) composer.render(dt);
   if (G.running) updateHud();
 }
 
