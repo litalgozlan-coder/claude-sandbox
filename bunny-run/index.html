@@ -1,0 +1,1152 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ארנב רץ</title>
+<style>
+  :root {
+    --panel: rgba(255, 255, 255, .94);
+    --text: #2b2440;
+    --muted: #6b6485;
+    --accent: #ff8a3d;
+    --accent-2: #7c5cff;
+    --ok: #22a06b;
+    --bad: #e5484d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #bfe6ff; color: var(--text); overflow: hidden;
+    font-family: "Segoe UI", "Rubik", "Heebo", Arial, sans-serif;
+  }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* תצוגה בזמן משחק */
+  .hud { position: fixed; top: 14px; right: 18px; left: 18px; display: flex; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+  .hud-box { background: var(--panel); border-radius: 16px; padding: 10px 18px; font-size: 24px; font-weight: 800; box-shadow: 0 6px 20px rgba(40, 30, 80, .15); }
+  .hud[hidden] { display: none; }
+  #hearts { letter-spacing: 4px; }
+  #toast {
+    position: fixed; top: 22%; width: 100%; text-align: center; font-size: 56px; font-weight: 900;
+    color: #fff; text-shadow: 0 4px 0 rgba(60, 40, 120, .35), 0 8px 30px rgba(60, 40, 120, .3);
+    pointer-events: none; opacity: 0; transition: opacity .25s;
+  }
+
+  /* מצלמה קטנה בפינה */
+  .cam {
+    position: fixed; bottom: 16px; left: 16px; width: 260px; aspect-ratio: 4 / 3;
+    border-radius: 16px; overflow: hidden; background: #1d1934; box-shadow: 0 8px 24px rgba(40, 30, 80, .3);
+    display: none;
+  }
+  .cam.on { display: block; }
+  .cam video, .cam canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cam video { transform: scaleX(-1); }
+  .cam .cam-status { position: absolute; bottom: 0; inset-inline: 0; padding: 6px 10px; font-size: 15px; font-weight: 700; color: #fff; background: rgba(0, 0, 0, .45); text-align: center; }
+
+  /* מסכים */
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(120, 100, 200, .25); overflow: auto; }
+  .screen.active { display: flex; }
+  .card { background: var(--panel); border-radius: 26px; padding: 30px 36px; max-width: 720px; width: 100%; box-shadow: 0 20px 60px rgba(40, 30, 80, .25); }
+  h1 { margin: 0 0 6px; font-size: 46px; }
+  h2 { margin: 0 0 14px; font-size: 32px; }
+  h3 { margin: 20px 0 8px; font-size: 20px; color: var(--muted); }
+  p, li { font-size: 18px; line-height: 1.6; }
+  .muted { color: var(--muted); }
+  .moves { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 10px 0; }
+  .move { background: #f3efff; border-radius: 14px; padding: 10px 14px; font-size: 17px; }
+  .move b { display: block; font-size: 19px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-size: 20px; font-weight: 800; cursor: pointer; border: 0; border-radius: 14px; padding: 14px 26px; background: var(--accent); color: #fff; box-shadow: 0 4px 0 #d96a22; }
+  button:active { transform: translateY(2px); box-shadow: 0 2px 0 #d96a22; }
+  button.secondary { background: #ece8fb; color: var(--text); box-shadow: 0 4px 0 #cfc7f0; }
+  button:disabled { opacity: .5; cursor: default; }
+  .settings { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 14px; align-items: center; font-size: 17px; }
+  .settings input[type=range] { width: 100%; }
+  .seg { display: inline-flex; background: #ece8fb; border-radius: 12px; padding: 4px; }
+  .seg button { background: transparent; color: var(--text); box-shadow: none; padding: 8px 16px; font-size: 17px; }
+  .seg button.selected { background: var(--accent-2); color: #fff; }
+  .checklist { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .checklist li { background: #f3efff; border-radius: 14px; padding: 12px 14px; font-size: 18px; font-weight: 700; }
+  .checklist li.done { background: #d9f7e8; color: var(--ok); }
+  .checklist li.done::before { content: "✓ "; }
+  .progress { height: 14px; background: #ece8fb; border-radius: 7px; overflow: hidden; margin: 14px 0; }
+  .progress > div { height: 100%; width: 0; background: var(--ok); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+  .stat { background: #f3efff; border-radius: 14px; padding: 12px; text-align: center; font-size: 16px; }
+  .stat b { display: block; font-size: 30px; }
+  .error { color: var(--bad); }
+
+  @media (max-width: 700px) {
+    .cam { width: 160px; }
+    .moves, .checklist, .stats { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" id="hud" hidden>
+  <div class="hud-box" id="hearts"></div>
+  <div class="hud-box" id="score">0</div>
+  <div class="hud-box" id="timer">3:00</div>
+</div>
+<div id="toast"></div>
+
+<div class="cam" id="cam">
+  <video id="video" playsinline muted></video>
+  <canvas id="camCanvas"></canvas>
+  <div class="cam-status" id="camStatus"></div>
+</div>
+
+<!-- פתיחה -->
+<div class="screen active" id="screen-start">
+  <div class="card">
+    <h1>ארנב רץ 🐰</h1>
+    <p class="muted">הארנב רץ בשביל, ואת מזיזה אותו עם הגוף שלך. המצלמה מזהה את התנועות שלך.</p>
+    <div class="moves">
+      <div class="move"><b>🪵 גדר</b>קופצים</div>
+      <div class="move"><b>🌿 ענף נמוך</b>מתכופפים (סקוואט)</div>
+      <div class="move"><b>🍄 פטרייה ענקית</b>צעד הצידה ימינה או שמאלה</div>
+      <div class="move"><b>🫧 בועת סבון</b>אגרוף ביד של אותו צד, ומשתחרר פרפר</div>
+      <div class="move"><b>🥕 גזר</b>אוספים בדרך</div>
+      <div class="move"><b>❤️ לב</b>מחזיר חיים</div>
+    </div>
+    <h3>הכנה</h3>
+    <ul>
+      <li>עמדי 1.5–2 מטר מהמחשב, כך שרואים אותך <b>מהראש ועד המותניים</b> לפחות.</li>
+      <li>פני מקום סביבך לקפיצות ולצעדים הצידה.</li>
+      <li>התמונה מעובדת רק במחשב שלך ולא נשלחת לשום מקום.</li>
+    </ul>
+    <h3>אורך סבב</h3>
+    <div class="seg" id="roundLen">
+      <button data-s="120">2 דקות</button>
+      <button data-s="180" class="selected">3 דקות</button>
+      <button data-s="300">5 דקות</button>
+    </div>
+    <div class="row" style="margin-top:20px">
+      <button id="btnCamera">📷 הפעלת מצלמה</button>
+      <button class="secondary" id="btnKeys">משחק עם מקלדת</button>
+    </div>
+    <p class="muted" style="font-size:15px">מקלדת: חצים ימינה ושמאלה לשינוי נתיב, חץ למעלה או רווח לקפיצה, חץ למטה להתכופפות, A ו-D לאגרוף שמאל וימין.</p>
+    <p class="error" id="startError"></p>
+  </div>
+</div>
+
+<!-- כיול ותרגול -->
+<div class="screen" id="screen-calib">
+  <div class="card">
+    <h2 id="calibTitle">כיול</h2>
+    <p id="calibText">עמדי במרכז, מול המצלמה, ואל תזוזי.</p>
+    <div class="progress"><div id="calibBar"></div></div>
+    <div id="practice" hidden>
+      <p>עכשיו נסי כל תנועה פעם אחת:</p>
+      <ul class="checklist">
+        <li id="pr-jump">קפיצה</li>
+        <li id="pr-squat">התכופפות</li>
+        <li id="pr-left">צעד שמאלה</li>
+        <li id="pr-right">צעד ימינה</li>
+        <li id="pr-punchL">אגרוף ביד שמאל</li>
+        <li id="pr-punchR">אגרוף ביד ימין</li>
+      </ul>
+      <div class="settings" style="margin-top:14px">
+        <label for="setSens">רגישות</label>
+        <input type="range" id="setSens" min="0.6" max="1.6" step="0.05" value="1">
+        <span id="valSens"></span>
+      </div>
+      <p class="muted" style="font-size:15px">אם תנועות לא נקלטות, הגבירי את הרגישות. אם נקלטות תנועות שלא עשית, הנמיכי אותה.</p>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnGo" disabled>🐰 יוצאים לדרך!</button>
+      <button class="secondary" id="btnRecalib">כיול מחדש</button>
+    </div>
+  </div>
+</div>
+
+<!-- עצירה -->
+<div class="screen" id="screen-pause">
+  <div class="card" style="text-align:center">
+    <h2 id="pauseTitle">הפסקה</h2>
+    <p id="pauseText" class="muted"></p>
+    <div class="row" style="justify-content:center">
+      <button id="btnResume">המשך</button>
+      <button class="secondary" id="btnQuit">סיום הסבב</button>
+    </div>
+  </div>
+</div>
+
+<!-- סיכום -->
+<div class="screen" id="screen-results">
+  <div class="card" style="text-align:center">
+    <h2 id="resTitle">כל הכבוד!</h2>
+    <p id="resSub" class="muted"></p>
+    <div class="stats">
+      <div class="stat"><b id="resJumps">0</b>קפיצות</div>
+      <div class="stat"><b id="resSquats">0</b>סקוואטים</div>
+      <div class="stat"><b id="resSteps">0</b>צעדים הצידה</div>
+      <div class="stat"><b id="resPunches">0</b>אגרופים</div>
+      <div class="stat"><b id="resButterflies">0</b>פרפרים שוחררו</div>
+      <div class="stat"><b id="resCarrots">0</b>גזרים</div>
+    </div>
+    <p style="font-size:22px; font-weight:800">ניקוד: <span id="resScore">0</span></p>
+    <p id="resBest" class="muted"></p>
+    <div class="row" style="justify-content:center">
+      <button id="btnAgain">עוד סבב!</button>
+      <button class="secondary" id="btnHome">למסך הראשי</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ---------------------------------------------------------------------------
+// כללי
+// ---------------------------------------------------------------------------
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+}
+function storageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function storageSet(k, v) { try { localStorage.setItem(k, v); } catch { /* אין אחסון */ } }
+
+const settings = { sens: 1, roundSec: 180, mode: 'keys' };
+
+function toast(text, ms = 900) {
+  const t = $('toast');
+  t.textContent = text; t.style.opacity = 1;
+  clearTimeout(toast.tm);
+  toast.tm = setTimeout(() => { t.style.opacity = 0; }, ms);
+}
+
+// ---------------------------------------------------------------------------
+// צלילים ומוזיקה
+// ---------------------------------------------------------------------------
+let actx = null, master = null, musicGain = null, noiseBuf = null;
+
+function ensureAudio() {
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  master = actx.createGain(); master.gain.value = 0.7;
+  master.connect(actx.destination);
+  musicGain = actx.createGain(); musicGain.gain.value = 0.55; musicGain.connect(master);
+  noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+function env(t, a, peak, dec, dest) {
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + a);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + a + dec);
+  g.connect(dest);
+  return g;
+}
+function osc(t, type, freq, dur, vol, dest = musicGain, freqEnd = null) {
+  const o = actx.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  o.connect(env(t, 0.005, vol, dur, dest));
+  o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(t, hp, dur, vol, dest = musicGain) {
+  const n = actx.createBufferSource(); n.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp;
+  n.connect(f).connect(env(t, 0.002, vol, dur, dest));
+  n.start(t); n.stop(t + dur + 0.05);
+}
+
+const sfx = {
+  jump() { const t = actx.currentTime; osc(t, 'sine', 300, 0.25, 0.3, master, 800); },
+  pop() { const t = actx.currentTime; osc(t, 'sine', 900, 0.08, 0.35, master, 1800); noise(t, 4000, 0.06, 0.2, master); osc(t + 0.06, 'triangle', 1320, 0.2, 0.2, master); },
+  carrot() { const t = actx.currentTime; osc(t, 'triangle', 988, 0.1, 0.25, master); osc(t + 0.08, 'triangle', 1319, 0.16, 0.25, master); },
+  heart() { const t = actx.currentTime; [784, 988, 1175, 1568].forEach((f, i) => osc(t + i * 0.07, 'triangle', f, 0.18, 0.22, master)); },
+  oops() { const t = actx.currentTime; osc(t, 'square', 330, 0.3, 0.15, master, 140); },
+  swish() { const t = actx.currentTime; noise(t, 2500, 0.08, 0.12, master); },
+};
+
+// מוזיקת רקע עליזה בלולאה
+const MUSIC = { bpm: 124, prog: [[60, 0], [67, 0], [69, 1], [65, 0]] };
+const music = { step: 0, t0: 0, timer: null };
+
+function playMusicStep(step, t) {
+  const s = step % 16, bar = Math.floor(step / 16);
+  const [root, minor] = MUSIC.prog[bar % 4];
+  const chord = [root, root + (minor ? 3 : 4), root + 7];
+  const sd = 60 / MUSIC.bpm / 4;
+  if (s % 4 === 0) osc(t, 'sine', 140, 0.22, 0.6, musicGain, 45);
+  if (s === 4 || s === 12) noise(t, 1800, 0.12, 0.25);
+  if (s % 2 === 0) noise(t, 8000, 0.03, 0.08);
+  if (s % 2 === 0) osc(t, 'square', midiHz(root - 24 + (s % 8 === 6 ? 12 : 0)), sd * 1.5, 0.09);
+  if (s % 2 === 1 || bar % 2 === 1) {
+    const order = [0, 1, 2, 1, 2, 0, 1, 2];
+    osc(t, 'triangle', midiHz(chord[order[Math.floor(s / 2)]] + 12), sd * 1.3, 0.07);
+  }
+  if (bar % 4 >= 2 && [0, 3, 6, 10].includes(s)) osc(t, 'square', midiHz(chord[(s + bar) % 3] + 24), sd * 2, 0.035);
+}
+
+function startMusic() {
+  stopMusic();
+  music.step = 0; music.t0 = actx.currentTime + 0.1;
+  musicGain.gain.value = 0.55;
+  music.timer = setInterval(() => {
+    const sd = 60 / MUSIC.bpm / 4;
+    while (music.t0 + music.step * sd < actx.currentTime + 0.15) {
+      playMusicStep(music.step, music.t0 + music.step * sd);
+      music.step++;
+    }
+  }, 25);
+}
+function stopMusic() { clearInterval(music.timer); music.timer = null; }
+
+// ---------------------------------------------------------------------------
+// מצלמה וזיהוי גוף
+// ---------------------------------------------------------------------------
+const video = $('video');
+const camCanvas = $('camCanvas');
+const camCtx = camCanvas.getContext('2d');
+let landmarker = null;
+let lastVideoTime = -1;
+let lastLandmarks = null;
+
+const LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [0, 11], [0, 12]];
+
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+  video.srcObject = stream;
+  await video.play();
+  $('cam').classList.add('on');
+}
+
+async function loadPose() {
+  $('camStatus').textContent = 'טוען זיהוי גוף…';
+  const vision = await import(`${MP_BASE}/vision_bundle.mjs`);
+  const files = await vision.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`);
+  const opts = {
+    baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
+    runningMode: 'VIDEO', numPoses: 1,
+  };
+  try { landmarker = await vision.PoseLandmarker.createFromOptions(files, opts); }
+  catch { opts.baseOptions.delegate = 'CPU'; landmarker = await vision.PoseLandmarker.createFromOptions(files, opts); }
+}
+
+// מצב הגוף. היחידה היא רוחב הכתפיים, כדי שהמרחק מהמצלמה לא ישנה את הספים
+const body = {
+  visible: false, lostAt: 0,
+  sx: 0, sy: 0, sw: 0,                 // מרכז הכתפיים ורוחבן, מוחלקים
+  wrists: [null, null],                // [שמאל, ימין] של השחקנית
+  lastT: 0,
+  lane: 0, ducking: false, jumpArmed: true,
+  punchAt: [0, 0],
+};
+let calib = null;                      // { sx, sy, sw }
+const calibState = { active: false, samples: [] };
+
+function thresholds() {
+  const k = 1 / settings.sens;
+  return { jump: 0.2 * k, squat: 0.45 * k, lane: 0.55 * k, punch: 4.5 * k };
+}
+
+function handlePose(lm, now) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!lm) { if (body.visible) body.lostAt = now; body.visible = false; return; }
+  const P = i => ({ x: (1 - lm[i].x) * vw, y: lm[i].y * vh, v: lm[i].visibility ?? 1 });
+  const sl = P(11), sr = P(12);
+  const vis = sl.v > 0.6 && sr.v > 0.6;
+  if (!vis) { if (body.visible) body.lostAt = now; body.visible = false; return; }
+  body.visible = true;
+  const sx = (sl.x + sr.x) / 2, sy = (sl.y + sr.y) / 2, sw = Math.hypot(sl.x - sr.x, sl.y - sr.y);
+  const a = body.sw ? 0.55 : 1;
+  body.sx = lerp(body.sx, sx, a); body.sy = lerp(body.sy, sy, a); body.sw = body.sw ? lerp(body.sw, sw, 0.1) : sw;
+
+  const dt = Math.max(0.016, (now - body.lastT) / 1000);
+  body.lastT = now;
+  // שורש כף היד השמאלית (15) מופיע בצד שמאל של המסך אחרי ההיפוך
+  [15, 16].forEach((idx, i) => {
+    const w = P(idx);
+    if (w.v < 0.5) { body.wrists[i] = null; return; }
+    const prev = body.wrists[i];
+    const speed = prev ? Math.hypot(w.x - prev.x, w.y - prev.y) / dt / body.sw : 0;
+    body.wrists[i] = { x: w.x, y: w.y, speed };
+  });
+
+  if (calibState.active) { stepCalibration(); return; }
+  if (calib) detectMoves(now);
+}
+
+function stepCalibration() {
+  const s = calibState.samples;
+  s.push({ sx: body.sx, sy: body.sy, sw: body.sw });
+  const moved = Math.hypot(s[0].sx - body.sx, s[0].sy - body.sy) / body.sw;
+  if (moved > 0.15) { calibState.samples = []; $('calibBar').style.width = '0%'; return; }
+  $('calibText').textContent = 'מעולה, עכשיו בלי לזוז…';
+  const need = 40;
+  $('calibBar').style.width = `${Math.min(100, s.length / need * 100)}%`;
+  if (s.length >= need) {
+    const avg = k => s.reduce((a, v) => a + v[k], 0) / s.length;
+    calib = { sx: avg('sx'), sy: avg('sy'), sw: avg('sw') };
+    calibState.active = false;
+    $('calibTitle').textContent = 'תרגול קצר';
+    $('calibText').textContent = 'הכיול הצליח!';
+    $('practice').hidden = false;
+    $('btnGo').disabled = false;
+  }
+}
+
+function detectMoves(now) {
+  const th = thresholds();
+  const dy = (body.sy - calib.sy) / calib.sw;        // חיובי = נמוך יותר מהרגיל
+  const dx = (body.sx - calib.sx) / calib.sw;
+
+  // נתיב: לפי איפה את עומדת, עם השהיה קטנה כדי לא לקפוץ הלוך ושוב
+  let lane = body.lane;
+  const exit = th.lane * 0.6;
+  if (lane === 0) { if (dx < -th.lane) lane = -1; else if (dx > th.lane) lane = 1; }
+  else if (lane === -1) { if (dx > -exit) lane = dx > th.lane ? 1 : 0; }
+  else if (lane === 1) { if (dx < exit) lane = dx < -th.lane ? -1 : 0; }
+  if (lane !== body.lane) { body.lane = lane; input.lane(lane); }
+
+  // התכופפות
+  const duck = body.ducking ? dy > th.squat * 0.7 : dy > th.squat;
+  if (duck !== body.ducking) { body.ducking = duck; input.duck(duck); }
+
+  // קפיצה: הכתפיים עולות מעל הגובה הרגיל
+  if (body.jumpArmed && dy < -th.jump) { body.jumpArmed = false; input.jump(); }
+  if (!body.jumpArmed && dy > -th.jump * 0.4) body.jumpArmed = true;
+
+  // אגרוף: יד מהירה בגובה החזה ומעלה
+  body.wrists.forEach((w, i) => {
+    if (!w) return;
+    const raised = w.y < body.sy + body.sw * 0.6;
+    if (w.speed > th.punch && raised && now - body.punchAt[i] > 350) {
+      body.punchAt[i] = now;
+      input.punch(i === 0 ? 'L' : 'R');
+    }
+  });
+
+  // סחיפה איטית של הגובה הרגיל כשעומדים רגיל
+  if (Math.abs(dy) < 0.12 && body.jumpArmed && !body.ducking) {
+    calib.sy = lerp(calib.sy, body.sy, 0.01);
+    calib.sw = lerp(calib.sw, body.sw, 0.01);
+  }
+}
+
+function drawCam() {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw) return;
+  if (camCanvas.width !== vw) { camCanvas.width = vw; camCanvas.height = vh; }
+  camCtx.clearRect(0, 0, vw, vh);
+  const lm = lastLandmarks;
+  if (lm) {
+    const P = i => [(1 - lm[i].x) * vw, lm[i].y * vh];
+    camCtx.strokeStyle = '#ffd24a'; camCtx.lineWidth = vw / 120; camCtx.lineCap = 'round';
+    for (const [a, b] of LINKS) {
+      if ((lm[a].visibility ?? 1) < 0.4 || (lm[b].visibility ?? 1) < 0.4) continue;
+      camCtx.beginPath(); camCtx.moveTo(...P(a)); camCtx.lineTo(...P(b)); camCtx.stroke();
+    }
+  }
+  // קווי עזר: איפה מתחלפים הנתיבים
+  if (calib) {
+    const th = thresholds();
+    camCtx.strokeStyle = 'rgba(255,255,255,.5)'; camCtx.lineWidth = vw / 200;
+    camCtx.setLineDash([vw / 40, vw / 60]);
+    for (const s of [-1, 1]) {
+      const x = calib.sx + s * th.lane * calib.sw;
+      camCtx.beginPath(); camCtx.moveTo(x, 0); camCtx.lineTo(x, vh); camCtx.stroke();
+    }
+    camCtx.setLineDash([]);
+  }
+}
+
+function camStatusText() {
+  if (settings.mode !== 'pose') return '';
+  if (!landmarker) return 'טוען זיהוי גוף…';
+  if (!body.visible) return 'לא רואים אותך 🙈';
+  const names = { '-1': 'נתיב שמאל', 0: 'נתיב אמצע', 1: 'נתיב ימין' };
+  return `${names[body.lane]}${body.ducking ? ' · מתכופפת' : ''}`;
+}
+
+// ---------------------------------------------------------------------------
+// קלט: כל המקורות (מצלמה ומקלדת) עוברים מכאן
+// ---------------------------------------------------------------------------
+const practice = { jump: false, squat: false, left: false, right: false, punchL: false, punchR: false };
+function tick(name) {
+  if (practice[name]) return;
+  practice[name] = true;
+  $('pr-' + name).classList.add('done');
+  if (actx) sfx.carrot();
+}
+
+const input = {
+  lane(l) {
+    if (l === -1) tick('left');
+    if (l === 1) tick('right');
+    if (!G.running) return;
+    if (l !== G.bunny.lane) G.stats.steps++;
+    G.bunny.lane = l;
+  },
+  jump() {
+    tick('jump');
+    if (!G.running || G.paused) return;
+    if (G.bunny.jumpT < 0) {
+      G.bunny.jumpT = 0; G.stats.jumps++; sfx.jump();
+    }
+  },
+  duck(on) {
+    if (on) tick('squat');
+    if (!G.running) return;
+    if (on && !G.bunny.duck) G.stats.squats++;
+    G.bunny.duck = on;
+  },
+  punch(side) {
+    tick(side === 'L' ? 'punchL' : 'punchR');
+    if (!G.running || G.paused) return;
+    G.stats.punches++;
+    G.bunny.punch[side] = performance.now();
+    sfx.swish();
+    popBubble(side);
+  },
+};
+
+const keysDown = new Set();
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const c = e.code;
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(c)) e.preventDefault();
+  keysDown.add(c);
+  if (c === 'Escape' || c === 'KeyP') { if (G.running) togglePause(); return; }
+  if (c === 'ArrowLeft') input.lane(Math.max(-1, (G.running ? G.bunny.lane : 0) - 1));
+  if (c === 'ArrowRight') input.lane(Math.min(1, (G.running ? G.bunny.lane : 0) + 1));
+  if (c === 'ArrowUp' || c === 'Space') input.jump();
+  if (c === 'ArrowDown') input.duck(true);
+  if (c === 'KeyA') input.punch('L');
+  if (c === 'KeyD') input.punch('R');
+});
+window.addEventListener('keyup', e => {
+  keysDown.delete(e.code);
+  if (e.code === 'ArrowDown') input.duck(false);
+});
+
+// ---------------------------------------------------------------------------
+// עולם המשחק
+// ---------------------------------------------------------------------------
+const cv = $('game');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const Z_FAR = 70;
+const DEPTH = 7;
+const JUMP_DUR = 0.8;
+
+// הטלה פרספקטיבית: z הוא המרחק מהארנב (0 = בדיוק בגובה הארנב)
+function proj(z) {
+  const s = DEPTH / (DEPTH + Math.max(z, -DEPTH * 0.6));
+  const horizon = H * 0.36, ground = H * 0.88;
+  return { s, y: horizon + (ground - horizon) * s, half: W * 0.3 * s };
+}
+const laneX = (lane, p) => W / 2 + lane * p.half * 0.66;
+
+const G = {
+  running: false, paused: false, over: false,
+  t: 0, dist: 0, speed: 0, hearts: 3, score: 0,
+  objs: [], parts: [], scenery: [], clouds: [], nextSpawn: 0, spawnIdx: 0,
+  bunny: null, stats: null,
+};
+
+function newBunny() {
+  return { lane: 0, x: 0, jumpT: -1, duck: false, punch: { L: -1e9, R: -1e9 }, hurtUntil: 0, run: 0 };
+}
+
+function resetWorld() {
+  G.t = 0; G.dist = 0; G.speed = 15; G.hearts = 3; G.score = 0;
+  G.objs = []; G.parts = []; G.nextSpawn = 2.2; G.spawnIdx = 0;
+  G.bunny = newBunny();
+  G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0 };
+  G.scenery = [];
+  for (let i = 0; i < 26; i++) G.scenery.push(newScenery(Math.random() * Z_FAR));
+  G.clouds = Array.from({ length: 6 }, () => ({ x: Math.random(), y: Math.random() * 0.22 + 0.04, s: 0.6 + Math.random() * 0.8 }));
+}
+
+function newScenery(z) {
+  const kinds = ['tree', 'tree', 'flower', 'flower', 'bush'];
+  return { z, side: Math.random() < 0.5 ? -1 : 1, off: 1.25 + Math.random() * 1.4, kind: kinds[Math.floor(Math.random() * kinds.length)], hue: Math.floor(Math.random() * 5) };
+}
+
+// סדר הכרות קבוע בהתחלה, אחר כך אקראי
+const INTRO = ['fence', 'carrots', 'branch', 'mushroom', 'bubbleL', 'bubbleR', 'carrots'];
+
+function spawn() {
+  const kind = G.spawnIdx < INTRO.length ? INTRO[G.spawnIdx] : pick([
+    ['fence', 20], ['branch', 18], ['mushroom', 24], ['bubbleL', 10], ['bubbleR', 10], ['carrots', 14], ['heart', G.hearts < 3 ? 4 : 0],
+  ]);
+  G.spawnIdx++;
+  const z = Z_FAR;
+  if (kind === 'fence') {
+    G.objs.push({ type: 'fence', z });
+    if (Math.random() < 0.5) G.objs.push({ type: 'carrot', z, lane: Math.floor(Math.random() * 3) - 1, air: true });
+  } else if (kind === 'branch') {
+    G.objs.push({ type: 'branch', z });
+  } else if (kind === 'mushroom') {
+    // חוסמים נתיב אחד או שניים, ותמיד משאירים נתיב פנוי
+    const free = Math.floor(Math.random() * 3) - 1;
+    const blocked = [-1, 0, 1].filter(l => l !== free);
+    if (G.t < 40 || Math.random() < 0.5) blocked.splice(Math.floor(Math.random() * 2), 1);
+    for (const l of blocked) G.objs.push({ type: 'mushroom', z, lane: l });
+    G.objs.push({ type: 'carrot', z, lane: free, air: false });
+  } else if (kind === 'bubbleL' || kind === 'bubbleR') {
+    G.objs.push({ type: 'bubble', z, side: kind === 'bubbleL' ? 'L' : 'R', wob: Math.random() * 6 });
+  } else if (kind === 'carrots') {
+    const lane = Math.floor(Math.random() * 3) - 1;
+    for (let i = 0; i < 4; i++) G.objs.push({ type: 'carrot', z: z + i * 4, lane, air: false });
+  } else if (kind === 'heart') {
+    G.objs.push({ type: 'heart', z, lane: Math.floor(Math.random() * 3) - 1 });
+  }
+}
+
+function pick(weighted) {
+  const total = weighted.reduce((a, [, w]) => a + w, 0);
+  let r = Math.random() * total;
+  for (const [k, w] of weighted) { r -= w; if (r <= 0) return k; }
+  return weighted[0][0];
+}
+
+function bunnyHeight() {
+  const b = G.bunny;
+  return b.jumpT < 0 ? 0 : Math.sin(Math.PI * clamp(b.jumpT / JUMP_DUR, 0, 1));
+}
+
+function popBubble(side) {
+  let best = null;
+  for (const o of G.objs) {
+    if (o.type !== 'bubble' || o.side !== side || o.popped) continue;
+    if (o.z < -1.5 || o.z > 12) continue;
+    if (!best || o.z < best.z) best = o;
+  }
+  if (!best) return;
+  best.popped = true;
+  G.stats.butterflies++;
+  G.score += 25;
+  sfx.pop();
+  const p = proj(best.z);
+  const x = bubbleX(best, p), y = bubbleY(best, p);
+  burst(x, y, ['#a0e7ff', '#ffd6f5', '#fff6a8', '#c9b8ff'], 18);
+  G.parts.push({ kind: 'butterfly', x, y, vx: (side === 'L' ? -1 : 1) * 60, vy: -140, life: 2.2, age: 0, hue: Math.floor(Math.random() * 4) });
+  G.parts.push({ kind: 'text', x, y: y - 30, text: '+25 🦋', vy: -60, life: 1, age: 0 });
+}
+
+const bubbleX = (o, p) => W / 2 + (o.side === 'L' ? -1 : 1) * p.half * 0.9;
+const bubbleY = (o, p) => p.y - H * 0.3 * p.s + Math.sin(G.t * 3 + o.wob) * 8 * p.s;
+
+function burst(x, y, colors, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = 80 + Math.random() * 160;
+    G.parts.push({ kind: 'dot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.6 + Math.random() * 0.4, age: 0, color: colors[i % colors.length], r: 3 + Math.random() * 4 });
+  }
+}
+
+function hurt(msg) {
+  const b = G.bunny;
+  if (performance.now() < b.hurtUntil) return;
+  b.hurtUntil = performance.now() + 1300;
+  G.hearts--;
+  sfx.oops();
+  toast(msg);
+  if (G.hearts <= 0) endRound(false);
+}
+
+function update(dt) {
+  const b = G.bunny;
+  G.t += dt;
+  G.speed = Math.min(30, 15 + G.t * 0.07);
+  const dz = G.speed * dt;
+  G.dist += dz;
+  G.score += dz * 0.2;
+  b.run += dt * G.speed * 0.9;
+  b.x = lerp(b.x, b.lane, 1 - Math.pow(0.0005, dt));
+  if (b.jumpT >= 0) { b.jumpT += dt; if (b.jumpT > JUMP_DUR) b.jumpT = -1; }
+
+  // יצירת עצמים חדשים
+  G.nextSpawn -= dt;
+  if (G.nextSpawn <= 0) {
+    spawn();
+    G.nextSpawn = Math.max(0.95, 1.7 - G.t * 0.006) * (0.85 + Math.random() * 0.3);
+  }
+
+  const airborne = bunnyHeight() > 0.35;
+  const laneNow = Math.round(b.x);
+  for (const o of G.objs) {
+    const prev = o.z;
+    o.z -= dz;
+    if (prev > 0 && o.z <= 0 && !o.done) {
+      o.done = true;
+      if (o.type === 'fence' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
+      if (o.type === 'branch' && !b.duck) hurt('אופס! צריך להתכופף 🌿');
+      if (o.type === 'mushroom' && o.lane === laneNow) hurt('אופס! פטרייה 🍄');
+      if (o.type === 'carrot' && o.lane === laneNow && (o.air ? airborne : bunnyHeight() < 0.5)) {
+        o.taken = true; G.stats.carrots++; G.score += 10; sfx.carrot();
+        const p = proj(0);
+        burst(laneX(o.lane, p), p.y - H * 0.12, ['#ff9a3d', '#ffd24a'], 8);
+      }
+      if (o.type === 'heart' && o.lane === laneNow) {
+        o.taken = true; G.hearts = Math.min(3, G.hearts + 1); sfx.heart(); toast('❤️ +1');
+      }
+    }
+  }
+  G.objs = G.objs.filter(o => o.z > -6 && !o.taken);
+
+  for (const s of G.scenery) {
+    s.z -= dz;
+    if (s.z < -4) Object.assign(s, newScenery(Z_FAR + Math.random() * 6));
+  }
+  for (const c of G.clouds) { c.x -= dt * 0.008 * c.s; if (c.x < -0.2) c.x = 1.2; }
+
+  for (const p of G.parts) {
+    p.age += dt;
+    p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
+    if (p.kind === 'dot') p.vy += 300 * dt;
+    if (p.kind === 'butterfly') { p.vx += Math.sin(p.age * 4) * 120 * dt; }
+  }
+  G.parts = G.parts.filter(p => p.age < p.life);
+
+  if (G.t >= settings.roundSec) endRound(true);
+}
+
+// ---------------------------------------------------------------------------
+// ציור
+// ---------------------------------------------------------------------------
+function draw() {
+  const horizon = H * 0.36;
+  // שמיים
+  const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, '#8fd3ff'); sky.addColorStop(1, '#e3f6ff');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, horizon + 2);
+  // שמש
+  ctx.fillStyle = '#fff3a6';
+  ctx.beginPath(); ctx.arc(W * 0.82, H * 0.12, H * 0.06, 0, Math.PI * 2); ctx.fill();
+  // עננים
+  for (const c of G.clouds) drawCloud(c.x * W, c.y * H, H * 0.05 * c.s);
+  // גבעות
+  ctx.fillStyle = '#9fdc8a';
+  ctx.beginPath(); ctx.moveTo(0, horizon);
+  for (let x = 0; x <= W; x += 20) ctx.lineTo(x, horizon - 30 - Math.sin(x / W * 7 + 1) * 22 - Math.sin(x / W * 3) * 18);
+  ctx.lineTo(W, horizon); ctx.fill();
+  // דשא
+  const grass = ctx.createLinearGradient(0, horizon, 0, H);
+  grass.addColorStop(0, '#8fd46f'); grass.addColorStop(1, '#5cb84a');
+  ctx.fillStyle = grass; ctx.fillRect(0, horizon, W, H - horizon);
+
+  // השביל
+  const far = proj(Z_FAR), near = proj(-3);
+  ctx.fillStyle = '#f2d9a6';
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - far.half, far.y); ctx.lineTo(W / 2 + far.half, far.y);
+  ctx.lineTo(W / 2 + near.half, near.y); ctx.lineTo(W / 2 - near.half, near.y); ctx.fill();
+  // פסים בשביל שזזים, כדי שירגיש שרצים
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  const off = G.dist % 6;
+  for (let z = Z_FAR - off; z > -3; z -= 6) {
+    const p1 = proj(z), p2 = proj(z - 2.5);
+    for (const l of [-0.5, 0.5]) {
+      const x1 = W / 2 + l * p1.half * 0.66 * 2, x2 = W / 2 + l * p2.half * 0.66 * 2;
+      const w1 = 3 * p1.s, w2 = 3 * p2.s;
+      ctx.beginPath(); ctx.moveTo(x1 - w1, p1.y); ctx.lineTo(x1 + w1, p1.y); ctx.lineTo(x2 + w2, p2.y); ctx.lineTo(x2 - w2, p2.y); ctx.fill();
+    }
+  }
+
+  // עצמים מרחוק לקרוב, והארנב באמצע לפי העומק
+  const items = [];
+  for (const s of G.scenery) items.push({ z: s.z, fn: () => drawScenery(s) });
+  for (const o of G.objs) items.push({ z: o.z, fn: () => drawObj(o) });
+  items.push({ z: 0.01, fn: drawBunny });
+  items.sort((a, b) => b.z - a.z);
+  for (const it of items) if (it.z < Z_FAR + 6) it.fn();
+
+  for (const p of G.parts) drawPart(p);
+}
+
+function drawCloud(x, y, r) {
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2); ctx.arc(x + r * 0.9, y + r * 0.2, r * 0.8, 0, Math.PI * 2);
+  ctx.arc(x - r * 0.9, y + r * 0.25, r * 0.7, 0, Math.PI * 2); ctx.arc(x + r * 0.2, y - r * 0.5, r * 0.75, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+const FLOWER = ['#ff7eb6', '#ffd24a', '#b58cff', '#ff9a3d', '#ffffff'];
+
+function drawScenery(s) {
+  const p = proj(s.z);
+  if (s.z < -3) return;
+  const x = W / 2 + s.side * p.half * s.off, y = p.y, u = H * 0.3 * p.s;
+  if (s.kind === 'tree') {
+    ctx.fillStyle = '#a0703f'; ctx.fillRect(x - u * 0.06, y - u * 0.6, u * 0.12, u * 0.6);
+    ctx.fillStyle = '#4fae5a';
+    ctx.beginPath(); ctx.arc(x, y - u * 0.8, u * 0.36, 0, Math.PI * 2); ctx.arc(x - u * 0.22, y - u * 0.62, u * 0.25, 0, Math.PI * 2); ctx.arc(x + u * 0.22, y - u * 0.62, u * 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff6b6b';
+    for (const [dx, dy] of [[-0.15, -0.85], [0.18, -0.7], [0.02, -0.6]]) { ctx.beginPath(); ctx.arc(x + dx * u, y + dy * u, u * 0.04, 0, Math.PI * 2); ctx.fill(); }
+  } else if (s.kind === 'bush') {
+    ctx.fillStyle = '#5fbf5a';
+    ctx.beginPath(); ctx.arc(x, y - u * 0.12, u * 0.18, 0, Math.PI * 2); ctx.arc(x - u * 0.16, y - u * 0.06, u * 0.13, 0, Math.PI * 2); ctx.arc(x + u * 0.16, y - u * 0.06, u * 0.13, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.strokeStyle = '#3f9a45'; ctx.lineWidth = Math.max(1, u * 0.02);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - u * 0.18); ctx.stroke();
+    ctx.fillStyle = FLOWER[s.hue];
+    for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; ctx.beginPath(); ctx.arc(x + Math.cos(a) * u * 0.045, y - u * 0.2 + Math.sin(a) * u * 0.045, u * 0.035, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(x, y - u * 0.2, u * 0.025, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawObj(o) {
+  if (o.z > Z_FAR + 6 || o.z < -4) return;
+  const p = proj(o.z);
+  const u = H * 0.3 * p.s;
+  const fade = clamp((Z_FAR + 6 - o.z) / 10, 0, 1);
+  ctx.globalAlpha = fade;
+  if (o.type === 'fence') {
+    const x1 = W / 2 - p.half * 0.98, x2 = W / 2 + p.half * 0.98, y = p.y, h = u * 0.42;
+    ctx.fillStyle = '#c98a4b';
+    for (let i = 0; i <= 6; i++) { const x = lerp(x1, x2, i / 6); ctx.fillRect(x - u * 0.035, y - h, u * 0.07, h); }
+    ctx.fillStyle = '#e0a463';
+    ctx.fillRect(x1, y - h * 0.85, x2 - x1, u * 0.07);
+    ctx.fillRect(x1, y - h * 0.45, x2 - x1, u * 0.07);
+    ctx.fillStyle = '#ff7eb6';
+    for (let i = 0; i < 6; i++) { const x = lerp(x1, x2, (i + 0.5) / 6); ctx.beginPath(); ctx.arc(x, y - h * 0.85, u * 0.03, 0, Math.PI * 2); ctx.fill(); }
+  } else if (o.type === 'branch') {
+    const x1 = W / 2 - p.half * 1.1, x2 = W / 2 + p.half * 1.1, y = p.y - u * 0.7;
+    ctx.fillStyle = '#9a6a3a';
+    ctx.fillRect(x1 - u * 0.06, y - u * 0.3, u * 0.12, u * 1.0);
+    ctx.fillRect(x2 - u * 0.06, y - u * 0.3, u * 0.12, u * 1.0);
+    ctx.fillRect(x1, y - u * 0.05, x2 - x1, u * 0.1);
+    ctx.fillStyle = '#58b85a';
+    for (let i = 0; i < 12; i++) {
+      const x = lerp(x1, x2, (i + 0.5) / 12);
+      ctx.beginPath(); ctx.ellipse(x, y + u * 0.1 + (i % 2) * u * 0.06, u * 0.06, u * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (o.type === 'mushroom') {
+    const x = laneX(o.lane, p), y = p.y;
+    ctx.fillStyle = '#fff1dc';
+    ctx.fillRect(x - u * 0.11, y - u * 0.4, u * 0.22, u * 0.4);
+    ctx.fillStyle = '#ff5a6e';
+    ctx.beginPath(); ctx.ellipse(x, y - u * 0.42, u * 0.3, u * 0.24, 0, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#fff';
+    for (const [dx, dy, r] of [[-0.15, -0.5, 0.05], [0.12, -0.56, 0.06], [0.02, -0.6, 0.035], [0.2, -0.46, 0.035]]) { ctx.beginPath(); ctx.arc(x + dx * u, y + dy * u, r * u, 0, Math.PI * 2); ctx.fill(); }
+    // פנים חמודות
+    ctx.fillStyle = '#3a2b4a';
+    ctx.beginPath(); ctx.arc(x - u * 0.045, y - u * 0.26, u * 0.018, 0, Math.PI * 2); ctx.arc(x + u * 0.045, y - u * 0.26, u * 0.018, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2b4a'; ctx.lineWidth = Math.max(1, u * 0.012);
+    ctx.beginPath(); ctx.arc(x, y - u * 0.22, u * 0.03, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  } else if (o.type === 'carrot') {
+    const x = laneX(o.lane, p), y = p.y - u * (o.air ? 0.75 : 0.2) + Math.sin(G.t * 5 + o.z) * u * 0.03;
+    ctx.fillStyle = '#ff8a2a';
+    ctx.beginPath(); ctx.moveTo(x - u * 0.06, y - u * 0.08); ctx.lineTo(x + u * 0.06, y - u * 0.08); ctx.lineTo(x, y + u * 0.14); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3fae4a';
+    ctx.beginPath(); ctx.ellipse(x - u * 0.025, y - u * 0.13, u * 0.018, u * 0.05, -0.4, 0, Math.PI * 2); ctx.ellipse(x + u * 0.025, y - u * 0.13, u * 0.018, u * 0.05, 0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (o.type === 'heart') {
+    const x = laneX(o.lane, p), y = p.y - u * 0.3 + Math.sin(G.t * 4) * u * 0.04;
+    drawHeart(x, y, u * 0.12, '#ff5a8a');
+  } else if (o.type === 'bubble' && !o.popped) {
+    const x = bubbleX(o, p), y = bubbleY(o, p), r = u * 0.2;
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(0.5, 'rgba(190,230,255,.35)'); g.addColorStop(1, 'rgba(200,160,255,.55)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
+    drawButterfly(x, y + r * 0.05, r * 0.45, 0, G.t * 8);
+    // רמז: באיזו יד לתת אגרוף
+    if (o.z < 30) {
+      ctx.font = `800 ${Math.max(12, r * 0.45)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#7c5cff';
+      ctx.fillText(o.side === 'L' ? '👊 שמאל' : 'ימין 👊', x, y + r * 1.5);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawHeart(x, y, r, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y + r * 0.9);
+  ctx.bezierCurveTo(x - r * 1.6, y - r * 0.2, x - r * 0.6, y - r * 1.3, x, y - r * 0.4);
+  ctx.bezierCurveTo(x + r * 0.6, y - r * 1.3, x + r * 1.6, y - r * 0.2, x, y + r * 0.9);
+  ctx.fill();
+}
+
+const WING = [['#ff9ad5', '#ffd6f0'], ['#9ad7ff', '#d9f1ff'], ['#ffd24a', '#fff3b0'], ['#b58cff', '#e4d8ff']];
+function drawButterfly(x, y, r, hue, phase) {
+  const flap = 0.35 + Math.abs(Math.sin(phase)) * 0.65;
+  const [c1, c2] = WING[hue % WING.length];
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.ellipse(x + s * r * 0.5 * flap, y - r * 0.25, r * 0.55 * flap, r * 0.5, s * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c2;
+    ctx.beginPath(); ctx.ellipse(x + s * r * 0.4 * flap, y + r * 0.35, r * 0.35 * flap, r * 0.3, -s * 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = '#4a3a5a';
+  ctx.beginPath(); ctx.ellipse(x, y, r * 0.1, r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawPart(p) {
+  const k = 1 - p.age / p.life;
+  if (p.kind === 'dot') {
+    ctx.globalAlpha = k; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  } else if (p.kind === 'butterfly') {
+    ctx.globalAlpha = Math.min(1, k * 2);
+    drawButterfly(p.x, p.y, H * 0.035, p.hue, p.age * 14);
+  } else if (p.kind === 'text') {
+    ctx.globalAlpha = k; ctx.font = `900 ${H * 0.035}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillStyle = '#7c5cff'; ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// הארנב, במבט מאחור: זנב פרוותי, אוזניים ארוכות
+function drawBunny() {
+  const b = G.bunny;
+  const p = proj(0);
+  const u = H * 0.24;
+  const hgt = bunnyHeight();
+  const x = laneX(b.x, p);
+  const ground = p.y;
+  const lift = hgt * H * 0.2;
+  const runBob = b.jumpT < 0 ? Math.abs(Math.sin(b.run)) * u * 0.05 : 0;
+  const squash = b.duck ? 0.62 : 1;
+  const y = ground - lift - runBob;
+  const blink = performance.now() < b.hurtUntil && Math.floor(performance.now() / 120) % 2 === 0;
+
+  // צל
+  ctx.fillStyle = 'rgba(40, 60, 30, .25)';
+  ctx.beginPath(); ctx.ellipse(x, ground, u * 0.34 * (1 - hgt * 0.4), u * 0.07, 0, 0, Math.PI * 2); ctx.fill();
+  if (blink) return;
+
+  const fur = '#ffffff', shade = '#e9e4f5', pink = '#ffb3c8';
+  // כפות רגליים מתחלפות בריצה
+  const step = b.jumpT < 0 ? Math.sin(b.run) : 0;
+  ctx.fillStyle = shade;
+  ctx.beginPath(); ctx.ellipse(x - u * 0.14, y - u * 0.03 + step * u * 0.03, u * 0.1, u * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + u * 0.14, y - u * 0.03 - step * u * 0.03, u * 0.1, u * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+
+  // גוף
+  const bodyH = u * 0.5 * squash, bodyY = y - u * 0.05 - bodyH / 2;
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.ellipse(x, bodyY, u * 0.27, bodyH / 2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = shade; ctx.lineWidth = 3; ctx.stroke();
+
+  // ידיים, ואגרוף שמושט החוצה בכפפה ורודה
+  const now = performance.now();
+  for (const side of ['L', 'R']) {
+    const s = side === 'L' ? -1 : 1;
+    const pt = clamp((now - b.punch[side]) / 260, 0, 1);
+    const ext = pt < 1 ? Math.sin(pt * Math.PI) : 0;
+    const hx = x + s * (u * 0.26 + ext * u * 0.32), hy = bodyY - bodyH * 0.1 - ext * u * 0.22;
+    if (ext > 0) {
+      ctx.strokeStyle = fur; ctx.lineWidth = u * 0.08; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x + s * u * 0.2, bodyY - bodyH * 0.05); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.fillStyle = '#ff7eb6';
+      ctx.beginPath(); ctx.arc(hx, hy, u * 0.085, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(124,92,255,.5)'; ctx.lineWidth = 3;
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(hx - s * u * (0.14 + i * 0.05), hy - u * 0.06 + i * u * 0.06); ctx.lineTo(hx - s * u * (0.22 + i * 0.05), hy - u * 0.06 + i * u * 0.06); ctx.stroke(); }
+    } else {
+      ctx.fillStyle = shade;
+      ctx.beginPath(); ctx.ellipse(hx, hy + u * 0.02, u * 0.06, u * 0.08, s * 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // זנב
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x, bodyY + bodyH * 0.25, u * 0.09, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = shade; ctx.lineWidth = 2; ctx.stroke();
+
+  // ראש
+  const headR = u * 0.2, headY = bodyY - bodyH / 2 - headR * 0.55;
+  ctx.fillStyle = fur;
+  ctx.beginPath(); ctx.arc(x, headY, headR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = shade; ctx.lineWidth = 3; ctx.stroke();
+
+  // אוזניים: מתנופפות בריצה, נשכבות אחורה בהתכופפות
+  const wig = Math.sin(b.run * 0.5) * 0.08;
+  for (const s of [-1, 1]) {
+    const ang = s * (b.duck ? 1.15 : 0.18 + wig * s) + (hgt > 0 ? -s * 0.1 : 0);
+    ctx.save();
+    ctx.translate(x + s * headR * 0.45, headY - headR * 0.7);
+    ctx.rotate(ang);
+    ctx.fillStyle = fur;
+    ctx.beginPath(); ctx.ellipse(0, -u * 0.17, u * 0.07, u * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = shade; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = pink;
+    ctx.beginPath(); ctx.ellipse(0, -u * 0.17, u * 0.035, u * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ניהול סבב
+// ---------------------------------------------------------------------------
+function updateHud() {
+  $('hearts').textContent = '❤️'.repeat(Math.max(0, G.hearts)) + '🤍'.repeat(3 - Math.max(0, G.hearts));
+  $('score').textContent = Math.floor(G.score).toLocaleString('he-IL');
+  const left = Math.max(0, settings.roundSec - G.t);
+  $('timer').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+}
+
+function startRound() {
+  ensureAudio();
+  actx.resume();
+  resetWorld();
+  G.running = true; G.paused = false; G.over = false;
+  if (settings.mode === 'pose') G.bunny.lane = body.lane;
+  $('hud').hidden = false;
+  showScreen(null);
+  startMusic();
+  toast('יוצאים לדרך! 🐰', 1200);
+}
+
+function togglePause(reason) {
+  if (!G.running) return;
+  G.paused = !G.paused;
+  if (G.paused) {
+    stopMusic();
+    $('pauseTitle').textContent = reason ? 'רגע…' : 'הפסקה';
+    $('pauseText').textContent = reason || 'לחצי "המשך" כשאת מוכנה.';
+    showScreen('screen-pause');
+  } else {
+    startMusic();
+    showScreen(null);
+  }
+}
+
+function endRound(completed) {
+  if (!G.running) return;
+  G.running = false; G.over = true;
+  stopMusic();
+  $('hud').hidden = true;
+  const st = G.stats;
+  $('resTitle').textContent = completed ? 'כל הכבוד! סיימת סבב 🎉' : 'נגמרו הלבבות 💛';
+  const mins = Math.floor(G.t / 60), secs = Math.floor(G.t % 60);
+  $('resSub').textContent = `התאמנת ${mins}:${String(secs).padStart(2, '0')} דקות`;
+  $('resJumps').textContent = st.jumps;
+  $('resSquats').textContent = st.squats;
+  $('resSteps').textContent = st.steps;
+  $('resPunches').textContent = st.punches;
+  $('resButterflies').textContent = st.butterflies;
+  $('resCarrots').textContent = st.carrots;
+  const score = Math.floor(G.score);
+  $('resScore').textContent = score.toLocaleString('he-IL');
+  const best = Number(storageGet('bunny-best') || 0);
+  if (score > best) { storageSet('bunny-best', String(score)); $('resBest').textContent = best ? '🏆 שיא חדש!' : ''; }
+  else $('resBest').textContent = `השיא שלך: ${best.toLocaleString('he-IL')}`;
+  showScreen('screen-results');
+}
+
+// ---------------------------------------------------------------------------
+// לולאה ראשית
+// ---------------------------------------------------------------------------
+let lastFrame = performance.now();
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+
+  if (settings.mode === 'pose' && landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    const res = landmarker.detectForVideo(video, now);
+    lastLandmarks = res.landmarks && res.landmarks[0] || null;
+    handlePose(lastLandmarks, now);
+    drawCam();
+  }
+  $('camStatus').textContent = camStatusText();
+
+  // אם המצלמה לא רואה אותך יותר משנייה וחצי, עוצרים
+  if (G.running && !G.paused && settings.mode === 'pose' && !body.visible && now - body.lostAt > 1500) {
+    togglePause('המצלמה לא רואה אותך. חזרי למרכז ולחצי "המשך".');
+  }
+
+  if (!G.bunny) resetWorld();
+  if (G.running && !G.paused) update(dt);
+  else if (!G.running) { // רקע חי גם בתפריטים
+    G.t += dt; G.dist += dt * 6; G.bunny.run += dt * 6;
+    for (const s of G.scenery) { s.z -= dt * 6; if (s.z < -4) Object.assign(s, newScenery(Z_FAR)); }
+    for (const c of G.clouds) { c.x -= dt * 0.006 * c.s; if (c.x < -0.2) c.x = 1.2; }
+  }
+  draw();
+  if (G.running) updateHud();
+}
+
+// ---------------------------------------------------------------------------
+// כפתורים
+// ---------------------------------------------------------------------------
+function startCalibration() {
+  calib = null;
+  calibState.active = true; calibState.samples = [];
+  $('calibTitle').textContent = 'כיול';
+  $('calibText').textContent = 'עמדי במרכז, מול המצלמה, ואל תזוזי.';
+  $('calibBar').style.width = '0%';
+  $('practice').hidden = true;
+  $('btnGo').disabled = true;
+  for (const k of Object.keys(practice)) { practice[k] = false; $('pr-' + k).classList.remove('done'); }
+  body.lane = 0; body.ducking = false; body.jumpArmed = true;
+  showScreen('screen-calib');
+}
+
+$('btnCamera').onclick = async () => {
+  $('startError').textContent = '';
+  $('btnCamera').disabled = true;
+  ensureAudio();
+  try {
+    await startCamera();
+  } catch {
+    $('startError').textContent = 'לא הצלחנו להפעיל את המצלמה. צריך לאשר לדפדפן גישה למצלמה. אפשר גם לשחק עם המקלדת.';
+    $('btnCamera').disabled = false;
+    return;
+  }
+  try {
+    await loadPose();
+    settings.mode = 'pose';
+    startCalibration();
+  } catch (e) {
+    console.error(e);
+    $('startError').textContent = 'זיהוי הגוף לא נטען. בדקי שיש חיבור לאינטרנט ונסי שוב, או שחקי עם המקלדת.';
+  }
+  $('btnCamera').disabled = false;
+};
+
+$('btnKeys').onclick = () => { settings.mode = 'keys'; startRound(); };
+$('btnGo').onclick = startRound;
+$('btnRecalib').onclick = startCalibration;
+$('btnResume').onclick = () => { body.lostAt = performance.now(); togglePause(); };
+$('btnQuit').onclick = () => { G.paused = false; endRound(true); };
+$('btnAgain').onclick = startRound;
+$('btnHome').onclick = () => { resetWorld(); showScreen('screen-start'); };
+
+document.querySelectorAll('#roundLen button').forEach(b => {
+  b.onclick = () => {
+    settings.roundSec = Number(b.dataset.s);
+    document.querySelectorAll('#roundLen button').forEach(x => x.classList.toggle('selected', x === b));
+  };
+});
+const sens = $('setSens');
+const updSens = () => { settings.sens = Number(sens.value); $('valSens').textContent = `×${settings.sens.toFixed(2)}`; };
+sens.oninput = updSens; updSens();
+
+resetWorld();
+loop();
+
+// חשיפה לבדיקות אוטומטיות בלבד
+window.__bunny = { G, body, settings, input, get calib() { return calib; }, get landmarker() { return landmarker; } };
+</script>
+</body>
+</html>
