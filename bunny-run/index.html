@@ -33,8 +33,9 @@
   .hud[hidden] { display: none; }
   .hud-box { border-radius: 18px; padding: 10px 20px; font-size: 26px; font-weight: 800; }
   #hearts { letter-spacing: 4px; }
+  #zone { position: fixed; top: 84px; width: 100%; text-align: center; font-size: 20px; font-weight: 800; color: #fff; text-shadow: 0 2px 10px rgba(40, 20, 90, .5); pointer-events: none; }
   #toast {
-    position: fixed; top: 20%; width: 100%; text-align: center; font-size: 60px; font-weight: 900;
+    position: fixed; top: 20%; width: 100%; text-align: center; font-size: 56px; font-weight: 900;
     color: #fff; text-shadow: 0 4px 0 rgba(80, 50, 150, .35), 0 10px 40px rgba(80, 50, 150, .45);
     pointer-events: none; opacity: 0; transform: scale(.8); transition: opacity .25s, transform .25s;
   }
@@ -65,7 +66,6 @@
   h2 { margin: 0 0 12px; font-size: 32px; }
   h3 { margin: 18px 0 8px; font-size: 19px; color: var(--muted); }
   p, li { font-size: 17px; line-height: 1.6; }
-  ul { padding-inline-start: 20px; margin: 6px 0; }
   .muted { color: var(--muted); }
   .moves { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
   .move { background: rgba(255, 255, 255, .7); border-radius: 14px; padding: 8px 12px; font-size: 16px; }
@@ -114,6 +114,7 @@
   <div class="hud-box glass" id="score">0</div>
   <div class="hud-box glass" id="timer">3:00</div>
 </div>
+<div id="zone"></div>
 <div id="toast"></div>
 
 <div class="cam" id="cam">
@@ -125,14 +126,14 @@
 <div class="screen right active" id="screen-start">
   <div class="card glass">
     <h1>ארנב רץ</h1>
-    <p class="muted">הארנב רץ בשביל, ואת מזיזה אותו עם הגוף. המצלמה מזהה את התנועות שלך.</p>
+    <p class="muted">הארנב רץ בשביל מתפתל, ואת מזיזה אותו עם הגוף. בדרך יש פרסות דרכים, החלקה על קשת ושיט בנהר.</p>
     <div class="moves">
-      <div class="move"><b>🪵 גדר</b>קופצים</div>
+      <div class="move"><b>🪵 גדר או בול עץ</b>קופצים</div>
       <div class="move"><b>🌿 ענף נמוך</b>מתכופפים (סקוואט)</div>
-      <div class="move"><b>🍄 פטרייה</b>צעד הצידה</div>
+      <div class="move"><b>🍄 פטרייה או סלע</b>צעד הצידה</div>
       <div class="move"><b>🫧 בועה</b>אגרוף באותו צד, ומשתחרר פרפר</div>
-      <div class="move"><b>🥕 גזר</b>אוספים</div>
-      <div class="move"><b>❤️ לב</b>מחזיר חיים</div>
+      <div class="move"><b>🔀 פרסת דרכים</b>צעד לצד הדרך שבוחרים</div>
+      <div class="move"><b>🥕 ⭐ 🌸</b>אוספים בדרך</div>
     </div>
     <p class="muted" style="font-size:15px">עמדי 1.5–2 מטר מהמחשב, כך שרואים אותך מהראש ועד המותניים. התמונה מעובדת רק במחשב שלך.</p>
     <h3>אורך סבב</h3>
@@ -199,7 +200,7 @@
       <div class="stat"><b id="resSteps">0</b>צעדים הצידה</div>
       <div class="stat"><b id="resPunches">0</b>אגרופים</div>
       <div class="stat"><b id="resButterflies">0</b>פרפרים שוחררו</div>
-      <div class="stat"><b id="resCarrots">0</b>גזרים</div>
+      <div class="stat"><b id="resCarrots">0</b>פריטים שנאספו</div>
     </div>
     <p style="font-size:22px; font-weight:800">ניקוד: <span id="resScore">0</span></p>
     <p id="resBest" class="muted"></p>
@@ -225,11 +226,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 const CAPTURE = new URLSearchParams(location.search).has('capture');   // מצב צילום סרטון: פריים אחרי פריים
+const DEMO = new URLSearchParams(location.search).has('demo');         // סרטון דוגמה: קטעים קצרים כדי להראות הכל מהר
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
+const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 const now = () => (CAPTURE ? clock.t * 1000 : performance.now());
 
 function showScreen(id) {
@@ -238,10 +241,10 @@ function showScreen(id) {
 function storageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
 function storageSet(k, v) { try { localStorage.setItem(k, v); } catch { /* אין אחסון */ } }
 
-const settings = { sens: 1, roundSec: 180, mode: 'keys' };
+const settings = { sens: 1, roundSec: DEMO ? 42 : 180, mode: 'keys' };
 const clock = { t: 0 };
 
-function toast(text, ms = 900) {
+function toast(text, ms = 1000) {
   const t = $('toast');
   t.textContent = text; t.classList.add('show');
   clearTimeout(toast.tm);
@@ -290,10 +293,13 @@ const sfx = {
   jump() { if (!actx) return; const t = actx.currentTime; osc(t, 'sine', 300, 0.25, 0.3, master, 800); },
   pop() { if (!actx) return; const t = actx.currentTime; osc(t, 'sine', 900, 0.08, 0.35, master, 1800); noise(t, 4000, 0.06, 0.2, master); osc(t + 0.06, 'triangle', 1320, 0.25, 0.2, master); osc(t + 0.12, 'triangle', 1760, 0.25, 0.15, master); },
   carrot() { if (!actx) return; const t = actx.currentTime; osc(t, 'triangle', 988, 0.1, 0.25, master); osc(t + 0.08, 'triangle', 1319, 0.16, 0.25, master); },
+  star() { if (!actx) return; const t = actx.currentTime; [1319, 1568, 2093].forEach((f, i) => osc(t + i * 0.05, 'sine', f, 0.15, 0.18, master)); },
   heart() { if (!actx) return; const t = actx.currentTime; [784, 988, 1175, 1568].forEach((f, i) => osc(t + i * 0.07, 'triangle', f, 0.18, 0.22, master)); },
   oops() { if (!actx) return; const t = actx.currentTime; osc(t, 'square', 330, 0.3, 0.12, master, 140); },
   swish() { if (!actx) return; noise(actx.currentTime, 2500, 0.08, 0.12, master); },
   land() { if (!actx) return; osc(actx.currentTime, 'sine', 120, 0.1, 0.25, master, 60); },
+  splash() { if (!actx) return; const t = actx.currentTime; noise(t, 800, 0.35, 0.18, master); osc(t, 'sine', 500, 0.2, 0.1, master, 200); },
+  whoosh() { if (!actx) return; const t = actx.currentTime; noise(t, 1200, 0.6, 0.12, master); osc(t, 'sine', 200, 0.6, 0.12, master, 900); },
 };
 
 const MUSIC = { bpm: 124, prog: [[60, 0], [67, 0], [69, 1], [65, 0]] };
@@ -542,13 +548,10 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.95;
 
 const scene = new THREE.Scene();
-const FOG = new THREE.Color(0xbfe4ff);
-scene.fog = new THREE.Fog(FOG, 70, 210);
+scene.fog = new THREE.Fog(0xbfe4ff, 70, 210);
 
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
-camera.position.set(0, 2.6, 6);
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 700);
 
-// השתקפויות רכות לחומרים מבריקים
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.35;
@@ -556,26 +559,23 @@ scene.environmentIntensity = 0.35;
 const hemi = new THREE.HemisphereLight(0xbfdcff, 0x5e8f4a, 0.75);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffecc8, 2.3);
-sun.position.set(-7, 14, 6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 14, bottom: -14, near: 1, far: 50 });
+Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 16, bottom: -16, near: 1, far: 60 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.02;
-sun.target.position.set(0, 0, -6);
 scene.add(sun, sun.target);
 
-// שמיים: כיפה עם מעבר צבעים והילה סביב השמש
 const SUN_DIR = new THREE.Vector3(-0.35, 0.35, -1).normalize();
+const skyU = { top: { value: new THREE.Color(0x2f86e8) }, bottom: { value: new THREE.Color(0xbfe4ff) }, sunDir: { value: SUN_DIR.clone() }, sunCol: { value: new THREE.Color(1, 0.92, 0.7) } };
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(500, 32, 16),
   new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x2f86e8) }, bottom: { value: new THREE.Color(0xbfe4ff) }, sunDir: { value: SUN_DIR } },
+    side: THREE.BackSide, depthWrite: false, fog: false, uniforms: skyU,
     vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 top; uniform vec3 bottom; uniform vec3 sunDir; varying vec3 vDir;
+    fragmentShader: `uniform vec3 top; uniform vec3 bottom; uniform vec3 sunDir; uniform vec3 sunCol; varying vec3 vDir;
       void main(){ float h = clamp(vDir.y * 1.6, 0.0, 1.0); vec3 c = mix(bottom, top, pow(h, 0.7));
-      float s = max(dot(normalize(vDir), sunDir), 0.0); c += vec3(1.0, 0.92, 0.7) * (pow(s, 900.0) * 3.0 + pow(s, 40.0) * 0.18);
+      float s = max(dot(normalize(vDir), sunDir), 0.0); c += sunCol * (pow(s, 900.0) * 3.0 + pow(s, 30.0) * 0.25);
       gl_FragColor = vec4(c, 1.0); }`,
   }),
 );
@@ -583,7 +583,7 @@ scene.add(sky);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.28, 0.4, 0.93);
+const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.3, 0.4, 0.92);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -594,7 +594,6 @@ function resize() {
   composer.setSize(W, H);
   bloom.resolution.set(W / 2, H / 2);
   camera.aspect = W / H;
-  camera.fov = W / H < 1.2 ? 68 : 55;
   camera.updateProjectionMatrix();
   pMat.uniforms.uScale.value = H * 0.5;
 }
@@ -602,10 +601,10 @@ function resize() {
 // ---------------------------------------------------------------------------
 // טקסטורות מצוירות
 // ---------------------------------------------------------------------------
-function canvasTex(size, draw, repeat) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
+function canvasTex(size, draw, repeat, h = size) {
+  const c = document.createElement('canvas'); c.width = size; c.height = h;
   const g = c.getContext('2d');
-  draw(g, size);
+  draw(g, size, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
@@ -621,7 +620,7 @@ const grassTex = canvasTex(512, (g, s) => {
     g.lineWidth = 1 + Math.random();
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + rand(-2, 2), y - l); g.stroke();
   }
-}, [36, 36]);
+}, [1, 1]);
 
 const pathTex = canvasTex(512, (g, s) => {
   g.fillStyle = '#c99760'; g.fillRect(0, 0, s, s);
@@ -636,7 +635,6 @@ const pathTex = canvasTex(512, (g, s) => {
     g.fillStyle = 'rgba(255,255,255,.35)';
     g.beginPath(); g.ellipse(x - r * 0.25, y - r * 0.25, r * 0.4, r * 0.25, 0, 0, Math.PI * 2); g.fill();
   }
-  // שוליים עם דשא שנכנס לשביל
   for (const edge of [0, s]) {
     for (let i = 0; i < 400; i++) {
       const y = Math.random() * s, x = edge + (edge ? -1 : 1) * Math.random() * 34;
@@ -644,13 +642,43 @@ const pathTex = canvasTex(512, (g, s) => {
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + rand(-3, 3), y - 8 - Math.random() * 8); g.stroke();
     }
   }
-}, [1, 40]);
+}, [1, 1]);
+
+const waterTex = canvasTex(256, (g, s) => {
+  const gr = g.createLinearGradient(0, 0, s, 0);
+  gr.addColorStop(0, '#2b9ed6'); gr.addColorStop(0.5, '#56c7f0'); gr.addColorStop(1, '#2b9ed6');
+  g.fillStyle = gr; g.fillRect(0, 0, s, s);
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 3; g.lineCap = 'round';
+  for (let i = 0; i < 70; i++) {
+    const x = Math.random() * s, y = Math.random() * s, l = 10 + Math.random() * 26;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + l / 2, y - 5, x + l, y); g.stroke();
+  }
+}, [1, 1]);
+
+const rainbowTex = canvasTex(256, (g, s) => {
+  const cols = ['#ff4d6d', '#ff9f43', '#ffd93d', '#6bdb5c', '#4dc3ff', '#6c7bff', '#b06bff'];
+  cols.forEach((c, i) => { g.fillStyle = c; g.fillRect(i * s / cols.length, 0, s / cols.length + 1, s); });
+  g.fillStyle = 'rgba(255,255,255,.35)';
+  for (let i = 0; i < 40; i++) { g.beginPath(); g.arc(Math.random() * s, Math.random() * s, 1 + Math.random() * 2.5, 0, Math.PI * 2); g.fill(); }
+}, [1, 1]);
 
 const dotTex = canvasTex(64, (g, s) => {
   const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
   gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.fillRect(0, 0, s, s);
 });
+
+function labelTex(emoji, text) {
+  return canvasTex(512, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.88)';
+    g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, 60); g.fill();
+    g.font = '120px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(emoji, w / 2, h * 0.36);
+    g.font = '900 58px "Segoe UI", Arial, sans-serif'; g.fillStyle = '#4b2ea8'; g.direction = 'rtl';
+    g.fillText(text, w / 2, h * 0.76);
+  }, null, 320);
+}
 
 const WING_COLORS = [['#ff7ac8', '#ffd2ef', '#7c3aed'], ['#38bdf8', '#cdeeff', '#1d4ed8'], ['#ffc93c', '#fff2b3', '#ea580c'], ['#a78bfa', '#ede6ff', '#6d28d9']];
 const wingTex = WING_COLORS.map(([c1, c2, edge]) => canvasTex(128, (g, s) => {
@@ -701,7 +729,6 @@ function furMats(color, len, density = [46, 24]) {
   return mats;
 }
 
-// חלק גוף פרוותי: הגוף עצמו + שכבות פרווה
 function furPart(geo, color, len, density) {
   const base = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({ color, roughness: 0.95, sheen: 1, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.45 }));
   base.castShadow = true; base.receiveShadow = true;
@@ -720,8 +747,12 @@ const MAT = {
   wood: new THREE.MeshStandardMaterial({ color: 0xb5784a, roughness: 0.8 }),
   woodLight: new THREE.MeshStandardMaterial({ color: 0xdca36a, roughness: 0.7 }),
   trunk: new THREE.MeshStandardMaterial({ color: 0x8b5a34, roughness: 0.9 }),
+  log: new THREE.MeshStandardMaterial({ color: 0x9a6438, roughness: 0.85 }),
+  logEnd: new THREE.MeshStandardMaterial({ color: 0xe8c08a, roughness: 0.8 }),
   leaf: new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.75, flatShading: true }),
   leaf2: new THREE.MeshStandardMaterial({ color: 0x74c95a, roughness: 0.75, flatShading: true }),
+  blossom: new THREE.MeshStandardMaterial({ color: 0xffb7d5, roughness: 0.7, flatShading: true }),
+  blossom2: new THREE.MeshStandardMaterial({ color: 0xff9cc6, roughness: 0.7, flatShading: true }),
   pine: new THREE.MeshStandardMaterial({ color: 0x2f8f5b, roughness: 0.8, flatShading: true }),
   cap: new THREE.MeshPhysicalMaterial({ color: 0xff3150, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.12 }),
   cream: new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.6 }),
@@ -734,9 +765,15 @@ const MAT = {
   carrot: new THREE.MeshPhysicalMaterial({ color: 0xff7a1a, roughness: 0.4, clearcoat: 0.6, emissive: 0x401400 }),
   carrotLeaf: new THREE.MeshStandardMaterial({ color: 0x3fb04a, roughness: 0.6 }),
   heart: new THREE.MeshPhysicalMaterial({ color: 0xff2e6e, roughness: 0.2, clearcoat: 1, emissive: 0x80002a, emissiveIntensity: 0.6 }),
+  star: new THREE.MeshPhysicalMaterial({ color: 0xffd23f, roughness: 0.2, metalness: 0.3, clearcoat: 1, emissive: 0xffa000, emissiveIntensity: 0.9 }),
   glove: new THREE.MeshPhysicalMaterial({ color: 0xff4f8b, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }),
   cuff: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
   stone: new THREE.MeshStandardMaterial({ color: 0xd8cbb6, roughness: 0.9, flatShading: true }),
+  rock: new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.85, flatShading: true }),
+  moss: new THREE.MeshStandardMaterial({ color: 0x5fae4a, roughness: 0.9, flatShading: true }),
+  lily: new THREE.MeshStandardMaterial({ color: 0x3e9b45, roughness: 0.6, side: THREE.DoubleSide }),
+  lilyFlower: new THREE.MeshPhysicalMaterial({ color: 0xff9ccd, roughness: 0.4, clearcoat: 0.5, emissive: 0x501030 }),
+  bigLeaf: new THREE.MeshPhysicalMaterial({ color: 0x55b84a, roughness: 0.5, clearcoat: 0.6, side: THREE.DoubleSide }),
   bubble: new THREE.MeshPhysicalMaterial({
     color: 0xffffff, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.32,
     iridescence: 1, iridescenceIOR: 1.33, iridescenceThicknessRange: [150, 900], envMapIntensity: 2.6, depthWrite: false,
@@ -747,8 +784,246 @@ const MAT = {
   mountain: new THREE.MeshStandardMaterial({ color: 0x9db4c8, roughness: 1, flatShading: true }),
   snow: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, flatShading: true }),
   butterflyBody: new THREE.MeshStandardMaterial({ color: 0x3a2a4a, roughness: 0.5 }),
+  bird: new THREE.MeshStandardMaterial({ color: 0x5b6fd6, roughness: 0.6 }),
+  birdBelly: new THREE.MeshStandardMaterial({ color: 0xffe3b0, roughness: 0.6 }),
+  beak: new THREE.MeshStandardMaterial({ color: 0xffb02e, roughness: 0.5 }),
+  path: new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.95 }),
+  water: new THREE.MeshPhysicalMaterial({ map: waterTex, color: 0xd8f4ff, roughness: 0.08, clearcoat: 1, transparent: true, opacity: 0.92, envMapIntensity: 1.4 }),
+  rainbow: new THREE.MeshStandardMaterial({ map: rainbowTex, emissiveMap: rainbowTex, emissive: 0xffffff, emissiveIntensity: 0.55, roughness: 0.4, side: THREE.DoubleSide }),
 };
 const FLOWER_COLORS = [0xff6fae, 0xffd23f, 0xb58cff, 0xff8a3d, 0xffffff, 0x6fd3ff];
+
+// ---------------------------------------------------------------------------
+// השטח: גבעות רכות לכל העולם, והשביל עוקב אחריהן
+// ---------------------------------------------------------------------------
+function terrainH(x, z) {
+  return 1.6 * Math.sin(x * 0.021 + 0.3) * Math.cos(z * 0.019) + 0.6 * Math.sin(x * 0.043 + z * 0.037) + 0.2 * Math.sin(z * 0.08 - x * 0.03);
+}
+
+const TER_SIZE = 260, TER_SEG = 104;
+const terGeo = new THREE.PlaneGeometry(TER_SIZE, TER_SIZE, TER_SEG, TER_SEG);
+terGeo.rotateX(-Math.PI / 2);
+const terBase = terGeo.attributes.position.array.slice();
+const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
+terrain.receiveShadow = true;
+scene.add(terrain);
+const terCenter = { x: NaN, z: NaN };
+function updateTerrain(cx, cz) {
+  const snap = 10;
+  const x0 = Math.round(cx / snap) * snap, z0 = Math.round(cz / snap) * snap;
+  if (x0 === terCenter.x && z0 === terCenter.z) return;
+  terCenter.x = x0; terCenter.z = z0;
+  const pos = terGeo.attributes.position.array, uv = terGeo.attributes.uv.array;
+  for (let i = 0, j = 0; i < pos.length; i += 3, j += 2) {
+    const x = terBase[i] + x0, z = terBase[i + 2] + z0;
+    pos[i] = x; pos[i + 1] = terrainH(x, z) - 0.02; pos[i + 2] = z;
+    uv[j] = x / 7; uv[j + 1] = z / 7;
+  }
+  terGeo.attributes.position.needsUpdate = true;
+  terGeo.attributes.uv.needsUpdate = true;
+  terGeo.computeVertexNormals();
+  terGeo.computeBoundingSphere();
+}
+
+// ---------------------------------------------------------------------------
+// המסלול: עקומה מתפתלת שנבנית תוך כדי ריצה, עם קטעים מיוחדים ופרסות דרכים
+// ---------------------------------------------------------------------------
+const STEP = 0.5;
+const LANE_W = 1.75;
+const HALF_W = 3.1;
+const track = { pts: [{ x: 0, z: 0, th: 0 }], fork: null };
+
+function curvature(s) {
+  const ramp = smooth((s - 30) / 40);
+  const seg = segAt(s);
+  const calm = seg && seg.type === 'rainbow' ? 0.35 : seg && seg.type === 'fork' ? 0 : 1;
+  return ramp * calm * (0.042 * Math.sin(s / 43) + 0.03 * Math.sin(s / 21 + 1.3));
+}
+
+// לוח הקטעים: ריצה רגילה, ובין לבין קשת, נהר או פרסת דרכים
+const segments = [];
+const SPECIALS = ['rainbow', 'fork', 'river'];
+function segAt(s) {
+  while (!segments.length || segments[segments.length - 1].s1 < s + 400) {
+    const prev = segments[segments.length - 1];
+    if (!prev) { segments.push({ type: 'run', s0: -1e4, s1: DEMO ? 95 : 230 }); continue; }
+    if (prev.type === 'run') {
+      const kind = SPECIALS[segments.filter(x => x.type !== 'run').length % SPECIALS.length];
+      const len = kind === 'rainbow' ? 95 : kind === 'river' ? (DEMO ? 100 : 150) : 40;
+      const seg = { type: kind, s0: prev.s1, s1: prev.s1 + len };
+      if (kind === 'fork') seg.at = prev.s1 + 18;
+      segments.push(seg);
+    } else {
+      segments.push({ type: 'run', s0: prev.s1, s1: prev.s1 + (DEMO ? rand(70, 85) : rand(170, 240)) });
+    }
+  }
+  for (let i = segments.length - 1; i >= 0; i--) if (segments[i].s0 <= s) return segments[i];
+  return segments[0];
+}
+
+const knownEnd = () => (track.pts.length - 1) * STEP;
+
+function ensureTrack(sMax) {
+  while (knownEnd() < sMax) {
+    const s = knownEnd();
+    const seg = segAt(s);
+    if (seg.type === 'fork' && !seg.resolved && s >= seg.at) {
+      if (!seg.branches) makeBranches(seg);
+      return;                         // לא ממשיכים לבנות עד שבוחרים דרך
+    }
+    const p = track.pts[track.pts.length - 1];
+    const th = p.th + curvature(s) * STEP;
+    track.pts.push({ x: p.x + Math.sin(th) * STEP, z: p.z - Math.cos(th) * STEP, th });
+  }
+}
+
+// בפרסת הדרכים מחשבים מראש שתי דרכים שמתפצלות
+const BRANCH_LEN = 90;
+function makeBranches(seg) {
+  const start = track.pts[track.pts.length - 1];
+  seg.branches = [-1, 1].map(side => {
+    const pts = [start];
+    for (let i = 1; i <= BRANCH_LEN / STEP; i++) {
+      const d = i * STEP;
+      const k = side * 0.055 * Math.sin(Math.PI * clamp(d / 34, 0, 1));
+      const p = pts[pts.length - 1];
+      const th = p.th + k * STEP;
+      pts.push({ x: p.x + Math.sin(th) * STEP, z: p.z - Math.cos(th) * STEP, th });
+    }
+    return { side, pts };
+  });
+  // שלטים מעל הכניסה לכל דרך
+  seg.signs = seg.branches.map(br => {
+    const theme = br.side < 0 ? THEMES.meadow : THEMES.forest;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex(theme.emoji, theme.name), transparent: true, depthWrite: false }));
+    spr.scale.set(3.4, 2.1, 1);
+    const p = br.pts[Math.round(14 / STEP)];
+    spr.position.set(p.x, terrainH(p.x, p.z) + 3.4, p.z);
+    scene.add(spr);
+    return spr;
+  });
+}
+
+const THEMES = {
+  start: { name: 'עמק הפרפרים', emoji: '🦋', trees: 'mixed' },
+  meadow: { name: 'שדה הגזרים', emoji: '🥕', trees: 'blossom' },
+  forest: { name: 'יער הבועות', emoji: '🫧', trees: 'pine' },
+};
+
+function resolveFork(seg, side) {
+  seg.resolved = true;
+  seg.chosen = side;
+  const br = seg.branches.find(b => b.side === side);
+  for (let i = 1; i < br.pts.length; i++) track.pts.push(br.pts[i]);
+  G.theme = side < 0 ? 'meadow' : 'forest';
+  toast(`${THEMES[G.theme].emoji} ${THEMES[G.theme].name}`, 1500);
+}
+
+// נקודה על המסלול במרחק s. אם s אחרי פרסה שעוד לא הוכרעה, אפשר לבקש ענף מסוים
+function pointAt(s, branchSide = 0, forkSeg = null) {
+  const fork = forkSeg || pendingFork();
+  if (fork && branchSide && s > fork.at) {
+    const pts = fork.branches.find(b => b.side === branchSide).pts;
+    const f = clamp((s - fork.at) / STEP, 0, pts.length - 1.001);
+    const i = Math.floor(f), t = f - i;
+    return lerpPt(pts[i], pts[i + 1], t);
+  }
+  if (s <= 0) { const p = track.pts[0]; return { x: p.x, z: p.z - s, th: 0 }; }
+  const f = Math.min(s / STEP, track.pts.length - 1.001);
+  const i = Math.floor(f), t = f - i;
+  return lerpPt(track.pts[i], track.pts[i + 1], t);
+}
+function lerpPt(a, b, t) { return { x: lerp(a.x, b.x, t), z: lerp(a.z, b.z, t), th: lerp(a.th, b.th, t) }; }
+function pendingFork() {
+  const end = knownEnd();
+  const seg = segAt(end);
+  return seg.type === 'fork' && seg.branches && !seg.resolved ? seg : null;
+}
+
+// גובה מעל השטח בקטעים מיוחדים (הקשת מתרוממת כמו גשר)
+function liftAt(s) {
+  const seg = segAt(s);
+  if (seg.type !== 'rainbow') return 0;
+  const u = (s - seg.s0) / (seg.s1 - seg.s0);
+  return 5.5 * Math.sin(Math.PI * u) * smooth(u * 6) * smooth((1 - u) * 6);
+}
+
+const _v = new THREE.Vector3();
+function worldAt(s, lat, up = 0, out = _v, branchSide = 0) {
+  const p = pointAt(s, branchSide);
+  const x = p.x + Math.cos(p.th) * lat, z = p.z + Math.sin(p.th) * lat;
+  return out.set(x, terrainH(x, z) + liftAt(s) + up, z);
+}
+const headingAt = (s, side = 0) => pointAt(s, side).th;
+
+// סרטים (Ribbon) לשביל, לנהר ולקשת: נבנים מחדש בכל פריים לאורך הקטע שנראה
+const MAX_ROWS = 320, COLS = 6;
+function makeRibbon(material, y = 0.05) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_ROWS * COLS * 3), 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(MAX_ROWS * COLS * 2), 2));
+  const idx = [];
+  for (let r = 0; r < MAX_ROWS - 1; r++) for (let c = 0; c < COLS - 1; c++) {
+    const a = r * COLS + c, b = a + 1, d = a + COLS, e = d + 1;
+    idx.push(a, d, b, b, d, e);
+  }
+  geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, material);
+  m.receiveShadow = true; m.frustumCulled = false; m.userData.y = y;
+  scene.add(m);
+  return m;
+}
+function fillRibbon(m, s0, s1, side = 0, uvLen = 6, forkSeg = null) {
+  const geo = m.geometry, pos = geo.attributes.position.array, uv = geo.attributes.uv.array;
+  const rows = Math.min(MAX_ROWS, Math.max(0, Math.floor((s1 - s0) / 1) + 1));
+  if (rows < 2) { m.visible = false; return; }
+  m.visible = true;
+  for (let r = 0; r < rows; r++) {
+    const s = Math.min(s0 + r, s1);
+    const p = pointAt(s, side, forkSeg);
+    const cx = Math.cos(p.th), cz = Math.sin(p.th), lift = liftAt(s);
+    for (let c = 0; c < COLS; c++) {
+      const lat = -HALF_W + (2 * HALF_W) * c / (COLS - 1);
+      const x = p.x + cx * lat, z = p.z + cz * lat;
+      const k = (r * COLS + c);
+      pos[k * 3] = x; pos[k * 3 + 1] = terrainH(x, z) + lift + m.userData.y; pos[k * 3 + 2] = z;
+      uv[k * 2] = c / (COLS - 1); uv[k * 2 + 1] = s / uvLen;
+    }
+  }
+  geo.setDrawRange(0, (rows - 1) * (COLS - 1) * 6);
+  geo.attributes.position.needsUpdate = true; geo.attributes.uv.needsUpdate = true;
+  geo.computeVertexNormals();
+}
+const ribbons = {
+  path: [makeRibbon(MAT.path), makeRibbon(MAT.path), makeRibbon(MAT.path)],
+  branch: [makeRibbon(MAT.path), makeRibbon(MAT.path)],
+  water: [makeRibbon(MAT.water, 0.02)],
+  rainbow: [makeRibbon(MAT.rainbow, 0.12)],
+};
+
+function updateRibbons(dist) {
+  const from = dist - 14, to = Math.min(dist + 150, knownEnd());
+  const used = { path: 0, water: 0, rainbow: 0 };
+  let s = from;
+  while (s < to) {
+    const seg = segAt(s);
+    const end = Math.min(seg.s1, to);
+    const kind = seg.type === 'river' ? 'water' : seg.type === 'rainbow' ? 'rainbow' : 'path';
+    const list = ribbons[kind];
+    if (used[kind] < list.length) fillRibbon(list[used[kind]++], s, end, 0, kind === 'water' ? 8 : 6);
+    s = end + 0.001;
+  }
+  for (const k of Object.keys(used)) for (let i = used[k]; i < ribbons[k].length; i++) ribbons[k][i].visible = false;
+  // שני הענפים של פרסת דרכים: נראים עד שהיא מאחורינו
+  const fork = segments.find(f => f.type === 'fork' && f.branches && dist < f.at + 70 && dist > f.at - 200);
+  ribbons.branch.forEach((m, i) => {
+    if (!fork) { m.visible = false; return; }
+    const side = fork.branches[i].side;
+    if (fork.resolved && side === fork.chosen) { m.visible = false; return; }
+    fillRibbon(m, fork.at, Math.min(fork.at + BRANCH_LEN - 1, dist + 150), side, 6, fork);
+  });
+  if (fork && fork.resolved && dist > fork.at + 70) { fork.signs.forEach(sp => scene.remove(sp)); }
+}
 
 // ---------------------------------------------------------------------------
 // הארנב
@@ -756,7 +1031,7 @@ const FLOWER_COLORS = [0xff6fae, 0xffd23f, 0xb58cff, 0xff8a3d, 0xffffff, 0x6fd3f
 const FUR = 0xf4eee6;
 function buildBunny() {
   const root = new THREE.Group();
-  const bodyG = new THREE.Group();            // מתכווץ ונמתח בקפיצות
+  const bodyG = new THREE.Group();
   root.add(bodyG);
   const parts = {};
 
@@ -773,7 +1048,7 @@ function buildBunny() {
     const cheek = furPart(new THREE.SphereGeometry(0.16, 32, 20), FUR, 0.03, [24, 12]);
     cheek.position.set(s * 0.15, -0.1, -0.2); headG.add(cheek);
     const blush = new THREE.Mesh(new THREE.CircleGeometry(0.06, 20), MAT.blush);
-    blush.position.set(s * 0.2, -0.08, -0.33); blush.rotation.y = Math.PI + s * 0.5; headG.add(blush);
+    blush.position.set(s * 0.2, -0.08, -0.34); blush.rotation.y = Math.PI + s * 0.5; headG.add(blush);
   }
   const nose = new THREE.Mesh(new THREE.SphereGeometry(0.05, 20, 14), MAT.nose);
   nose.scale.set(1.3, 0.9, 0.8); nose.position.set(0, -0.03, -0.385); headG.add(nose);
@@ -786,7 +1061,6 @@ function buildBunny() {
     eye.add(ball, glint, glint2); headG.add(eye); parts.eyes.push(eye);
   }
 
-  // אוזניים על ציר, כדי שיתנופפו וייקפלו
   parts.ears = [];
   for (const s of [-1, 1]) {
     const pivot = new THREE.Group(); pivot.position.set(s * 0.13, 0.24, 0.02); headG.add(pivot);
@@ -802,7 +1076,6 @@ function buildBunny() {
   tail.position.set(0, 0.42, 0.44); bodyG.add(tail);
   parts.tail = tail;
 
-  // כפות רגליים גדולות
   parts.feet = [];
   for (const s of [-1, 1]) {
     const foot = new THREE.Group(); foot.position.set(s * 0.22, 0.09, -0.02);
@@ -813,7 +1086,6 @@ function buildBunny() {
     bodyG.add(foot); parts.feet.push(foot);
   }
 
-  // ידיים עם כפפות אגרוף ורודות
   parts.arms = {};
   for (const [side, s] of [['L', -1], ['R', 1]]) {
     const shoulder = new THREE.Group(); shoulder.position.set(s * 0.34, 0.82, -0.12); bodyG.add(shoulder);
@@ -828,6 +1100,19 @@ function buildBunny() {
     parts.arms[side] = shoulder;
   }
 
+  // עלה גדול שהארנב שט עליו בנהר
+  const leafShape = new THREE.Shape();
+  leafShape.moveTo(0, -1.0);
+  leafShape.bezierCurveTo(0.85, -0.6, 0.75, 0.6, 0, 1.05);
+  leafShape.bezierCurveTo(-0.75, 0.6, -0.85, -0.6, 0, -1.0);
+  const leaf = new THREE.Mesh(new THREE.ShapeGeometry(leafShape, 24), MAT.bigLeaf);
+  leaf.rotation.x = -Math.PI / 2; leaf.position.y = 0.02; leaf.receiveShadow = true; leaf.castShadow = true;
+  const vein = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.01, 1.9), new THREE.MeshStandardMaterial({ color: 0x9be07f }));
+  vein.position.y = 0.035;
+  const leafG = new THREE.Group(); leafG.add(leaf, vein); leafG.visible = false;
+  root.add(leafG);
+  parts.leaf = leafG;
+
   root.userData = { bodyG, parts };
   return root;
 }
@@ -835,10 +1120,8 @@ function buildBunny() {
 // ---------------------------------------------------------------------------
 // עצמים בעולם
 // ---------------------------------------------------------------------------
-const LANE_W = 1.75;
-const Z_FAR = 95;
+const Z_FAR = 90;
 const JUMP_DUR = 0.82;
-
 function shadowed(m) { m.castShadow = true; m.receiveShadow = true; return m; }
 
 function buildFence() {
@@ -853,7 +1136,6 @@ function buildFence() {
   for (const y of [0.42, 0.8]) {
     const rail = shadowed(new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.13, 0.08), MAT.woodLight)); rail.position.set(0, y, 0.09); g.add(rail);
   }
-  // שרשרת פרחים על הגדר
   const fg = new THREE.IcosahedronGeometry(0.07, 1);
   for (let i = 0; i < 16; i++) {
     const f = new THREE.Mesh(fg, new THREE.MeshPhysicalMaterial({ color: FLOWER_COLORS[i % FLOWER_COLORS.length], roughness: 0.4, clearcoat: 0.5 }));
@@ -877,7 +1159,6 @@ function buildBranch() {
     l.scale.set(1, 1.4, 0.7); l.rotation.set(Math.random(), Math.random(), Math.random());
     g.add(l);
   }
-  // פירות קטנים וזוהרים
   for (let i = 0; i < 7; i++) {
     const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffd23f, emissive: 0xffa000, emissiveIntensity: 1.2 }));
     b.position.set(-2.6 + i * 0.86, 1.0, 0.12); g.add(b);
@@ -902,7 +1183,6 @@ function buildMushroom() {
     d.rotateX(Math.PI / 2);
     inner.add(d);
   }
-  // פרצוף חמוד מול המצלמה
   for (const s of [-1, 1]) {
     const e = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), MAT.eye); e.position.set(s * 0.12, 0.66, 0.38); e.scale.set(1, 1.2, 0.6); inner.add(e);
     const gl = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), MAT.shine); gl.position.set(s * 0.12 - 0.015, 0.685, 0.415); inner.add(gl);
@@ -911,6 +1191,36 @@ function buildMushroom() {
   const smile = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.014, 8, 20, Math.PI), MAT.eye);
   smile.rotation.z = Math.PI; smile.position.set(0, 0.57, 0.41); inner.add(smile);
   g.userData.inner = inner;
+  return g;
+}
+
+function buildRiverLog() {
+  const g = new THREE.Group();
+  const l = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 6.2, 18), MAT.log)); l.rotation.z = Math.PI / 2; l.position.y = 0.18; g.add(l);
+  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.CircleGeometry(0.3, 18), MAT.logEnd); e.position.set(s * 3.101, 0.18, 0); e.rotation.y = s * Math.PI / 2; g.add(e); }
+  for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), MAT.moss); m.position.set(-2.4 + i * 1.2, 0.42, rand(-0.1, 0.1)); m.scale.y = 0.5; g.add(m); }
+  return g;
+}
+
+function buildRock() {
+  const g = new THREE.Group();
+  const r = shadowed(new THREE.Mesh(new THREE.DodecahedronGeometry(0.75, 1), MAT.rock)); r.scale.set(1, 0.85, 0.9); r.position.y = 0.45; g.add(r);
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 1), MAT.moss); m.scale.set(1.1, 0.35, 1); m.position.y = 1.0; g.add(m);
+  return g;
+}
+
+function buildLily() {
+  const g = new THREE.Group();
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.5, 24, 0.3, Math.PI * 2 - 0.6), MAT.lily); pad.rotation.x = -Math.PI / 2; pad.position.y = 0.04; g.add(pad);
+  const f = new THREE.Group();
+  for (let i = 0; i < 6; i++) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 8), MAT.lilyFlower);
+    const a = i / 6 * Math.PI * 2; p.scale.set(0.6, 0.4, 1.2); p.position.set(Math.cos(a) * 0.1, 0.16, Math.sin(a) * 0.1); p.rotation.y = -a; f.add(p);
+  }
+  const c = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), MAT.star); c.position.y = 0.2; f.add(c);
+  g.add(f);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xff9ccd, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.position.y = 0.3; glow.scale.set(1, 1, 1); g.add(glow);
   return g;
 }
 
@@ -926,6 +1236,24 @@ function buildCarrot() {
   return g;
 }
 
+const starShape = (() => {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.16 : 0.38, a = i / 10 * Math.PI * 2 + Math.PI / 2;
+    if (i) s.lineTo(Math.cos(a) * r, Math.sin(a) * r); else s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  return s;
+})();
+const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.08, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.04, bevelSegments: 3 });
+starGeo.center();
+function buildStar() {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(starGeo, MAT.star));
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xffe27a, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(1.3, 1.3, 1); g.add(glow);
+  return g;
+}
+
 const heartShape = (() => {
   const s = new THREE.Shape();
   s.moveTo(0, -0.3);
@@ -933,11 +1261,11 @@ const heartShape = (() => {
   s.bezierCurveTo(0.3, 0.45, 0.55, 0.05, 0, -0.3);
   return s;
 })();
+const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 6, curveSegments: 24 });
+heartGeo.center();
 function buildHeart() {
   const g = new THREE.Group();
-  const geo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 6, curveSegments: 24 });
-  geo.center();
-  const m = new THREE.Mesh(geo, MAT.heart); m.castShadow = true; g.add(m);
+  const m = new THREE.Mesh(heartGeo, MAT.heart); m.castShadow = true; g.add(m);
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xff5a8a, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
   glow.scale.set(1.4, 1.4, 1); g.add(glow);
   return g;
@@ -979,12 +1307,14 @@ function buildTree(kind) {
       const c = shadowed(new THREE.Mesh(new THREE.ConeGeometry(1.3 - i * 0.3, 1.6, 8), MAT.pine)); c.position.y = 1.5 + i * 0.85; g.add(c);
     }
   } else {
+    const blossom = kind === 'blossom';
     const t = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 2, 10), MAT.trunk)); t.position.y = 1; g.add(t);
     const blobs = [[0, 2.6, 0, 1.15], [-0.7, 2.2, 0.2, 0.8], [0.7, 2.25, -0.1, 0.85], [0.1, 3.2, -0.2, 0.75]];
     for (const [x, y, z, r] of blobs) {
-      const b = shadowed(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), Math.random() < 0.5 ? MAT.leaf : MAT.leaf2)); b.position.set(x, y, z); g.add(b);
+      const m = blossom ? (Math.random() < 0.5 ? MAT.blossom : MAT.blossom2) : (Math.random() < 0.5 ? MAT.leaf : MAT.leaf2);
+      const b = shadowed(new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), m)); b.position.set(x, y, z); g.add(b);
     }
-    if (Math.random() < 0.6) {
+    if (!blossom && Math.random() < 0.6) {
       const fruitMat = new THREE.MeshPhysicalMaterial({ color: Math.random() < 0.5 ? 0xff4a4a : 0xffc93c, roughness: 0.3, clearcoat: 1 });
       for (let i = 0; i < 6; i++) {
         const f = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), fruitMat);
@@ -994,13 +1324,57 @@ function buildTree(kind) {
     }
   }
   g.scale.setScalar(rand(0.8, 1.35));
+  g.userData.kind = kind;
+  return g;
+}
+
+// סנאי פרוותי עם זנב ענק
+const SQ = 0xc8743a, SQ_BELLY = 0xf7dcc0;
+function buildSquirrel() {
+  const root = new THREE.Group();
+  const g = new THREE.Group(); root.add(g);
+  const bodyM = furPart(new THREE.SphereGeometry(0.22, 32, 20), SQ, 0.03); bodyM.scale.set(0.9, 1.15, 1); bodyM.position.y = 0.28; g.add(bodyM);
+  const belly = furPart(new THREE.SphereGeometry(0.16, 24, 16), SQ_BELLY, 0.02, [24, 12]); belly.position.set(0, 0.26, -0.1); g.add(belly);
+  const head = furPart(new THREE.SphereGeometry(0.16, 32, 20), SQ, 0.025); head.position.set(0, 0.58, -0.05); g.add(head);
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.12, 10), new THREE.MeshStandardMaterial({ color: SQ, roughness: 0.9 }));
+    ear.position.set(s * 0.09, 0.74, -0.03); ear.rotation.z = -s * 0.25; g.add(ear);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 10), MAT.eye); eye.position.set(s * 0.07, 0.61, -0.18); g.add(eye);
+    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 6), MAT.shine); gl.position.set(s * 0.07 - 0.01, 0.625, -0.21); g.add(gl);
+  }
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 10, 8), MAT.eye); nose.position.set(0, 0.55, -0.21); g.add(nose);
+  // זנב: שרשרת כדורים פרוותיים בקשת
+  const tail = new THREE.Group(); tail.position.set(0, 0.2, 0.18); g.add(tail);
+  for (let i = 0; i < 5; i++) {
+    const a = i / 4;
+    const p = furPart(new THREE.SphereGeometry(0.13 + a * 0.05, 24, 16), SQ, 0.07, [24, 12]);
+    p.position.set(0, Math.sin(a * 2.4) * 0.55, 0.1 + Math.sin(a * 1.6) * 0.25 - a * a * 0.2);
+    tail.add(p);
+  }
+  root.userData = { g, tail };
+  return root;
+}
+
+// ציפור קטנה שעפה בלהקה
+function buildBird() {
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), MAT.bird); b.scale.set(0.8, 0.75, 1.3); g.add(b);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), MAT.birdBelly); belly.position.set(0, -0.05, -0.04); belly.scale.set(0.8, 0.7, 1.1); g.add(belly);
+  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.12, 8), MAT.beak); beak.rotation.x = -Math.PI / 2; beak.position.z = -0.27; g.add(beak);
+  const wings = [];
+  for (const s of [-1, 1]) {
+    const pv = new THREE.Group(); pv.position.x = s * 0.1;
+    const w = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8), MAT.bird); w.scale.set(1.4, 0.15, 0.7); w.position.x = s * 0.22; pv.add(w);
+    g.add(pv); wings.push(pv);
+  }
+  g.userData.wings = wings;
   return g;
 }
 
 // ---------------------------------------------------------------------------
-// חלקיקים: ניצוצות, קונפטי ואבק
+// חלקיקים: ניצוצות, קונפטי, אבק וגחליליות
 // ---------------------------------------------------------------------------
-const PMAX = 2500;
+const PMAX = 3000;
 const pGeo = new THREE.BufferGeometry();
 const pPos = new Float32Array(PMAX * 3), pCol = new Float32Array(PMAX * 3), pSize = new Float32Array(PMAX), pAlpha = new Float32Array(PMAX);
 pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
@@ -1021,7 +1395,7 @@ let parts = [];
 const tmpColor = new THREE.Color();
 
 function emit(pos, opts) {
-  const { n = 20, colors = [0xffffff], speed = 3, up = 1, size = 0.25, life = 0.8, gravity = -4, spread = 1, drag = 0.9 } = opts;
+  const { n = 20, colors = [0xffffff], speed = 3, up = 1, size = 0.25, life = 0.8, gravity = -4, spread = 1, drag = 0.9, flicker = false } = opts;
   for (let i = 0; i < n && parts.length < PMAX; i++) {
     const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI - Math.PI / 2;
     const v = speed * (0.4 + Math.random() * 0.6);
@@ -1029,7 +1403,7 @@ function emit(pos, opts) {
     parts.push({
       x: pos.x + rand(-0.1, 0.1) * spread, y: pos.y + rand(-0.1, 0.1) * spread, z: pos.z + rand(-0.1, 0.1) * spread,
       vx: Math.cos(a) * Math.cos(e) * v, vy: Math.sin(e) * v * 0.6 + up, vz: Math.sin(a) * Math.cos(e) * v,
-      r: tmpColor.r, g: tmpColor.g, b: tmpColor.b, size: size * (0.6 + Math.random() * 0.8), life: life * (0.7 + Math.random() * 0.6), age: 0, gravity, drag,
+      r: tmpColor.r, g: tmpColor.g, b: tmpColor.b, size: size * (0.6 + Math.random() * 0.8), life: life * (0.7 + Math.random() * 0.6), age: 0, gravity, drag, flicker,
     });
   }
 }
@@ -1046,7 +1420,7 @@ function updateParticles(dt) {
     pCol[n * 3] = p.r; pCol[n * 3 + 1] = p.g; pCol[n * 3 + 2] = p.b;
     const k = p.age / p.life;
     pSize[n] = p.size * (k < 0.15 ? k / 0.15 : 1);
-    pAlpha[n] = 1 - k * k;
+    pAlpha[n] = (1 - k * k) * (p.flicker ? 0.5 + 0.5 * Math.sin(p.age * 9 + p.x) : 1);
     n++;
   }
   pGeo.setDrawRange(0, n);
@@ -1054,100 +1428,146 @@ function updateParticles(dt) {
 }
 
 // ---------------------------------------------------------------------------
-// העולם: קרקע, שביל, נוף
+// נוף: רקע רחוק, עצים, דשא, פרחים ואבנים
 // ---------------------------------------------------------------------------
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
-ground.rotation.x = -Math.PI / 2; ground.position.z = -100; ground.receiveShadow = true;
-scene.add(ground);
-const path = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 300), new THREE.MeshStandardMaterial({ map: pathTex, roughness: 0.95 }));
-path.rotation.x = -Math.PI / 2; path.position.set(0, 0.01, -100); path.receiveShadow = true;
-pathTex.repeat.set(1, 50);
-scene.add(path);
-
-// גבעות והרים רחוקים
-for (const [x, z, sx, sy, m] of [[-60, -170, 55, 14, MAT.hill], [40, -180, 60, 18, MAT.hill2], [0, -210, 70, 12, MAT.hill], [-110, -150, 40, 20, MAT.hill2], [110, -160, 45, 16, MAT.hill]]) {
+const farGroup = new THREE.Group();          // נע עם הארנב, כך שהוא תמיד באופק
+scene.add(farGroup);
+for (const [x, z, sx, sy, m] of [[-60, -170, 55, 14, MAT.hill], [40, -180, 60, 18, MAT.hill2], [0, -210, 70, 12, MAT.hill], [-110, -150, 40, 20, MAT.hill2], [110, -160, 45, 16, MAT.hill], [150, 40, 60, 18, MAT.hill], [-150, 20, 60, 16, MAT.hill2], [20, 190, 70, 14, MAT.hill]]) {
   const h = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), m);
-  h.scale.set(sx, sy, sx * 0.5); h.position.set(x, -2, z); scene.add(h);
+  h.scale.set(sx, sy, sx * 0.5); h.position.set(x, -3, z); h.lookAt(0, -3, 0); farGroup.add(h);
 }
-for (const [x, z, s] of [[-80, -260, 60], [30, -280, 75], [120, -250, 55]]) {
-  const mt = new THREE.Mesh(new THREE.ConeGeometry(s * 0.8, s, 7), MAT.mountain); mt.position.set(x, s / 2 - 4, z); scene.add(mt);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(s * 0.8 * 0.3, s * 0.3, 7), MAT.snow); cap.position.set(x, s - 4 - s * 0.15 + 0.5, z); scene.add(cap);
+for (const [x, z, s] of [[-80, -260, 60], [30, -280, 75], [120, -250, 55], [260, -40, 70], [-250, 60, 65], [60, 260, 70]]) {
+  const mt = new THREE.Mesh(new THREE.ConeGeometry(s * 0.8, s, 7), MAT.mountain); mt.position.set(x, s / 2 - 6, z); farGroup.add(mt);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(s * 0.8 * 0.3, s * 0.3, 7), MAT.snow); cap.position.set(x, s - 6 - s * 0.15 + 0.5, z); farGroup.add(cap);
 }
-
-// עננים
 const clouds = [];
-for (let i = 0; i < 9; i++) {
+for (let i = 0; i < 12; i++) {
   const c = new THREE.Group();
   for (let j = 0; j < 6; j++) {
     const p = new THREE.Mesh(new THREE.IcosahedronGeometry(rand(2.5, 4.5), 2), MAT.cloud);
     p.position.set(j * 3 - 7.5 + rand(-1, 1), rand(-0.8, 1.5), rand(-1.5, 1.5)); p.scale.y = 0.75; c.add(p);
   }
-  c.position.set(rand(-120, 120), rand(28, 48), rand(-200, -90));
+  const a = Math.random() * Math.PI * 2, r = rand(90, 200);
+  c.position.set(Math.cos(a) * r, rand(28, 48), Math.sin(a) * r);
   c.userData.v = rand(0.6, 1.4);
-  scene.add(c); clouds.push(c);
+  farGroup.add(c); clouds.push(c);
 }
 
-// נוף שזז לצד השביל
+// בחירת מקום לאורך המסלול. אחרי פרסה שלא הוכרעה בוחרים אחד הענפים
+function trackSpot(s, latMin, latMax) {
+  const fork = pendingFork();
+  const side = fork && s > fork.at ? (Math.random() < 0.5 ? -1 : 1) : 0;
+  if (fork && side && s > fork.at + BRANCH_LEN - 2) return null;
+  if (!fork && s > knownEnd()) return null;
+  const lat = (Math.random() < 0.5 ? -1 : 1) * rand(latMin, latMax);
+  const p = worldAt(s, lat, 0, new THREE.Vector3(), side);
+  if (fork && s > fork.at - 4) {
+    // לא לשים עצים על הענף השני
+    const other = fork.branches.find(b => b.side !== side) || fork.branches[0];
+    for (let i = 0; i < other.pts.length; i += 4) {
+      const q = other.pts[i];
+      if (Math.hypot(q.x - p.x, q.z - p.z) < HALF_W + 1.2) return null;
+    }
+  }
+  return p;
+}
+
 const scenery = [];
-function placeScenery(o, z) {
-  const side = Math.random() < 0.5 ? -1 : 1;
-  o.position.set(side * rand(4.6, 22), 0, z);
-  o.rotation.y = Math.random() * Math.PI * 2;
+function treeKind() {
+  const t = THEMES[G.theme || 'start'].trees;
+  if (t === 'pine') return Math.random() < 0.8 ? 'pine' : 'round';
+  if (t === 'blossom') return Math.random() < 0.7 ? 'blossom' : 'round';
+  return Math.random() < 0.35 ? 'pine' : 'round';
 }
-for (let i = 0; i < 46; i++) {
-  const t = buildTree(Math.random() < 0.35 ? 'pine' : 'round');
-  placeScenery(t, -Math.random() * 130 + 8);
-  scene.add(t); scenery.push(t);
+function placeTree(t, s) {
+  for (let tries = 0; tries < 6; tries++) {
+    const p = trackSpot(s + tries * 2, 4.8, 22);
+    if (p) { t.position.copy(p); t.rotation.y = Math.random() * 6.28; t.userData.s = s; t.visible = true; return true; }
+  }
+  t.visible = false; t.userData.s = s; return false;
 }
 
-// דשא, פרחים ואבנים בהמון מופעים
 const tuftGeo = mergeGeometries([-0.06, 0, 0.06].map((x, i) => { const g = new THREE.ConeGeometry(0.03, 0.3 + i * 0.05, 3); g.rotateZ(x * 3); g.translate(x, 0.15, (i - 1) * 0.03); return g; }));
 const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshStandardMaterial({ color: 0x3f9a35, roughness: 0.85 }), 1600);
 const flowerGeo = mergeGeometries([0, 1, 2, 3, 4].map(i => { const a = i / 5 * Math.PI * 2; const g = new THREE.SphereGeometry(0.06, 10, 6); g.scale(1, 0.45, 1); g.translate(Math.cos(a) * 0.07, 0.34, Math.sin(a) * 0.07); return g; }));
-const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 0.4 }), 320);
+const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 0.4 }), 360);
 const stemGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.34, 5); stemGeo.translate(0, 0.17, 0);
 const flowerCenterGeo = new THREE.SphereGeometry(0.04, 10, 8); flowerCenterGeo.translate(0, 0.35, 0);
-const stems = new THREE.InstancedMesh(mergeGeometries([stemGeo, flowerCenterGeo]), new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.7 }), 320);
-const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), MAT.stone, 180);
+const stems = new THREE.InstancedMesh(mergeGeometries([stemGeo, flowerCenterGeo]), new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.7 }), 360);
+const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), MAT.stone, 220);
 stones.castShadow = true; stones.receiveShadow = true;
+for (const m of [tufts, flowers, stems, stones]) { m.frustumCulled = false; scene.add(m); }
+for (let i = 0; i < flowers.count; i++) flowers.setColorAt(i, new THREE.Color(FLOWER_COLORS[i % FLOWER_COLORS.length]));
 const inst = { tufts: [], flowers: [], stones: [] };
 const dummy = new THREE.Object3D();
-for (let i = 0; i < tufts.count; i++) inst.tufts.push({ x: (Math.random() < 0.5 ? -1 : 1) * rand(3.15, 16), z: rand(-120, 8), s: rand(0.6, 1.5), r: Math.random() * 3 });
-for (let i = 0; i < flowers.count; i++) {
-  inst.flowers.push({ x: (Math.random() < 0.5 ? -1 : 1) * rand(3.3, 14), z: rand(-120, 8), s: rand(0.7, 1.3), r: 0 });
-  flowers.setColorAt(i, new THREE.Color(FLOWER_COLORS[i % FLOWER_COLORS.length]));
-}
-for (let i = 0; i < stones.count; i++) inst.stones.push({ x: (i % 2 ? -1 : 1) * rand(3.05, 3.35), z: -i * (128 / stones.count) + 8, s: rand(0.6, 1.3), r: Math.random() * 3 });
-scene.add(tufts, flowers, stems, stones);
 
-function updateInstances(dz) {
-  for (const [mesh, list] of [[tufts, inst.tufts], [flowers, inst.flowers], [stems, inst.flowers], [stones, inst.stones]]) {
-    const advance = mesh !== stems;
-    list.forEach((it, i) => {
-      if (advance) { it.z += dz; if (it.z > 8) it.z -= 128; }
-      dummy.position.set(it.x, 0, it.z);
-      dummy.rotation.set(0, it.r, 0);
-      dummy.scale.setScalar(it.s);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-    });
-    mesh.instanceMatrix.needsUpdate = true;
+function placeInst(it, s, kind) {
+  it.s = s;
+  if (kind === 'stones') {
+    const fork = pendingFork();
+    if ((fork && s > fork.at) || s > knownEnd()) { it.pos = null; return; }
+    const lat = it.side * rand(3.05, 3.35);
+    it.pos = worldAt(s, lat, 0, new THREE.Vector3());
+  } else {
+    it.pos = trackSpot(s, kind === 'flowers' ? 3.4 : 3.3, kind === 'flowers' ? 14 : 16);
   }
+  it.sc = rand(0.6, 1.4); it.r = Math.random() * 6.28;
+}
+function writeInst(mesh, list) {
+  list.forEach((it, i) => {
+    if (it.pos) { dummy.position.copy(it.pos); dummy.scale.setScalar(it.sc); } else { dummy.position.set(0, -50, 0); dummy.scale.setScalar(0.001); }
+    dummy.rotation.set(0, it.r, 0);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
 }
 
-// פרפרים שמסתובבים בנוף
 const ambientButterflies = [];
-for (let i = 0; i < 6; i++) {
-  const b = buildButterfly(i);
-  b.userData.home = new THREE.Vector3((i % 2 ? -1 : 1) * rand(4, 8), rand(1, 2.5), rand(-40, -5));
-  b.position.copy(b.userData.home);
-  scene.add(b); ambientButterflies.push(b);
-}
+for (let i = 0; i < 7; i++) { const b = buildButterfly(i); scene.add(b); ambientButterflies.push(b); }
 
 function flapButterfly(b, t, speed = 18) {
   const a = Math.sin(t * speed + b.userData.phase) * 1.1;
   b.userData.wings[0].rotation.y = a;
   b.userData.wings[1].rotation.y = -a;
+}
+
+// הצבה ראשונית של כל הנוף סביב תחילת המסלול
+function populateWorld() {
+  ensureTrack(220);
+  for (const t of scenery) placeTree(t, rand(-15, 150));
+  inst.tufts.forEach(it => placeInst(it, rand(-15, 150), 'tufts'));
+  inst.flowers.forEach(it => placeInst(it, rand(-15, 150), 'flowers'));
+  inst.stones.forEach((it, i) => placeInst(it, -15 + (i >> 1) * (165 / (inst.stones.length / 2)), 'stones'));
+  ambientButterflies.forEach(b => { b.userData.s = rand(5, 60); b.userData.lat = (Math.random() < 0.5 ? -1 : 1) * rand(4, 8); b.userData.h = rand(1, 2.5); });
+  writeAllInst();
+}
+function writeAllInst() { writeInst(tufts, inst.tufts); writeInst(flowers, inst.flowers); writeInst(stems, inst.flowers); writeInst(stones, inst.stones); }
+
+for (let i = 0; i < 54; i++) { const t = buildTree(i % 3 === 0 ? 'pine' : 'round'); scene.add(t); scenery.push(t); }
+for (let i = 0; i < tufts.count; i++) inst.tufts.push({});
+for (let i = 0; i < flowers.count; i++) inst.flowers.push({});
+for (let i = 0; i < stones.count; i++) inst.stones.push({ side: i % 2 ? -1 : 1 });
+
+// מחזור: מה שנשאר מאחור עובר קדימה
+function recycleWorld(dist) {
+  let dirty = false;
+  for (const t of scenery) {
+    if (t.userData.s < dist - 12 || (!t.visible && t.userData.s < dist + 60)) {
+      const kind = treeKind();
+      if (kind !== t.userData.kind) {
+        const nt = buildTree(kind); scene.remove(t); scene.add(nt);
+        scenery[scenery.indexOf(t)] = nt; placeTree(nt, dist + rand(110, 150));
+      } else placeTree(t, dist + rand(110, 150));
+    }
+  }
+  for (const [list, kind] of [[inst.tufts, 'tufts'], [inst.flowers, 'flowers']]) {
+    for (const it of list) if (it.s < dist - 10 || (!it.pos && it.s < dist + 60)) { placeInst(it, dist + rand(110, 150), kind); dirty = true; }
+  }
+  const step = 165 / (inst.stones.length / 2);
+  for (const it of inst.stones) if (it.s < dist - 15 || (!it.pos && it.s < dist + 140)) { placeInst(it, it.s < dist - 15 ? it.s + 165 : it.s, 'stones'); dirty = true; }
+  if (dirty) writeAllInst();
+  void step;
 }
 
 // ---------------------------------------------------------------------------
@@ -1158,62 +1578,41 @@ scene.add(bunnyMesh);
 
 const G = {
   running: false, paused: false, t: 0, dist: 0, speed: 0, hearts: 3, score: 0,
-  objs: [], released: [], nextSpawn: 0, spawnIdx: 0, shake: 0,
-  bunny: null, stats: null,
+  objs: [], released: [], critters: [], birds: [], nextSpawn: 0, nextCritter: 4, nextBirds: 6, spawnIdx: 0, shake: 0,
+  bunny: null, stats: null, theme: 'start', seg: null, camBlend: 0, dayK: 0,
 };
 
 function newBunny() {
-  return { lane: 0, x: 0, vx: 0, jumpT: -1, duck: false, duckK: 0, punch: { L: -1e9, R: -1e9 }, hurtUntil: 0, run: 0, face: Math.PI, blinkAt: 2, blinkStart: 0 };
+  return { lane: 0, x: 0, vx: 0, jumpT: -1, duck: false, duckK: 0, punch: { L: -1e9, R: -1e9 }, hurtUntil: 0, run: 0, face: Math.PI, blinkAt: 2, blinkStart: 0, roll: 0 };
 }
 
 function clearObjs() {
   for (const o of G.objs) scene.remove(o.mesh);
   for (const b of G.released) scene.remove(b.mesh);
-  G.objs = []; G.released = [];
+  for (const c of G.critters) scene.remove(c.mesh);
+  for (const b of G.birds) scene.remove(b.mesh);
+  G.objs = []; G.released = []; G.critters = []; G.birds = [];
 }
 
 function resetWorld() {
   clearObjs();
-  G.t = 0; G.dist = 0; G.speed = 11; G.hearts = 3; G.score = 0;
-  G.nextSpawn = 2.4; G.spawnIdx = 0; G.shake = 0;
+  for (const seg of segments) if (seg.signs) seg.signs.forEach(sp => scene.remove(sp));
+  segments.length = 0;
+  track.pts = [{ x: 0, z: 0, th: 0 }];
+  G.t = 0; G.dist = 0; G.speed = 11; G.hearts = 3; G.score = 0; G.theme = 'start';
+  G.nextSpawn = 2.4; G.spawnIdx = 0; G.shake = 0; G.nextCritter = 3; G.nextBirds = 5; G.seg = null;
   G.bunny = newBunny();
   G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0 };
+  populateWorld();
 }
 
-const BUILDERS = { fence: buildFence, branch: buildBranch, mushroom: buildMushroom, carrot: buildCarrot, heart: buildHeart, bubble: buildBubble };
-function addObj(type, props, z = Z_FAR) {
-  const o = { type, z, mesh: BUILDERS[type](), ...props };
+const BUILDERS = { fence: buildFence, branch: buildBranch, mushroom: buildMushroom, carrot: buildCarrot, heart: buildHeart, bubble: buildBubble, star: buildStar, lily: buildLily, log: buildRiverLog, rock: buildRock };
+function addObj(type, props, s) {
+  const o = { type, s, mesh: BUILDERS[type](), born: clock.t, ...props };
   scene.add(o.mesh);
   G.objs.push(o);
   positionObj(o);
   return o;
-}
-
-const INTRO = ['fence', 'carrots', 'branch', 'mushroom', 'bubbleL', 'bubbleR', 'carrots'];
-function spawn() {
-  const kind = G.spawnIdx < INTRO.length ? INTRO[G.spawnIdx] : pick([
-    ['fence', 20], ['branch', 18], ['mushroom', 24], ['bubbleL', 11], ['bubbleR', 11], ['carrots', 14], ['heart', G.hearts < 3 ? 4 : 0],
-  ]);
-  G.spawnIdx++;
-  if (kind === 'fence') {
-    addObj('fence', {});
-    if (Math.random() < 0.6) addObj('carrot', { lane: Math.floor(Math.random() * 3) - 1, air: true });
-  } else if (kind === 'branch') {
-    addObj('branch', {});
-  } else if (kind === 'mushroom') {
-    const free = Math.floor(Math.random() * 3) - 1;
-    const blocked = [-1, 0, 1].filter(l => l !== free);
-    if (G.t < 40 || Math.random() < 0.5) blocked.splice(Math.floor(Math.random() * 2), 1);
-    for (const l of blocked) addObj('mushroom', { lane: l });
-    addObj('carrot', { lane: free, air: false });
-  } else if (kind === 'bubbleL' || kind === 'bubbleR') {
-    addObj('bubble', { side: kind === 'bubbleL' ? 'L' : 'R', wob: Math.random() * 6 });
-  } else if (kind === 'carrots') {
-    const lane = Math.floor(Math.random() * 3) - 1;
-    for (let i = 0; i < 5; i++) addObj('carrot', { lane, air: false }, Z_FAR + i * 3);
-  } else if (kind === 'heart') {
-    addObj('heart', { lane: Math.floor(Math.random() * 3) - 1 });
-  }
 }
 
 function pick(weighted) {
@@ -1222,32 +1621,109 @@ function pick(weighted) {
   for (const [k, w] of weighted) { r -= w; if (r <= 0) return k; }
   return weighted[0][0];
 }
+const randLane = () => Math.floor(Math.random() * 3) - 1;
 
-const laneToX = l => l * LANE_W;
+const INTRO = ['fence', 'carrots', 'branch', 'mushroom', 'bubbleL', 'bubbleR'];
+function spawn() {
+  const fork = pendingFork();
+  const limit = fork ? fork.at - 16 : knownEnd() - 2;
+  const s = Math.min(G.dist + Z_FAR, limit);
+  if (s < G.dist + 30) return;
+  const seg = segAt(s);
+  const near = segAt(s + 4), before = segAt(s - 4);
+  if (near !== seg || before !== seg) return;                    // לא על גבול בין קטעים
+  if (seg.type === 'fork' && s > seg.at - 16) return;            // שקט ליד הפרסה
+
+  if (seg.type === 'rainbow') {
+    // על הקשת: שורות כוכבים שמזגזגות בין הנתיבים
+    let lane = randLane();
+    for (let i = 0; i < 5; i++) { addObj('star', { lane }, s + i * 2.6); if (Math.random() < 0.45) lane = clamp(lane + (Math.random() < 0.5 ? -1 : 1), -1, 1); }
+    if (Math.random() < 0.3) addObj('bubble', { side: Math.random() < 0.5 ? 'L' : 'R', wob: Math.random() * 6 }, s + 6);
+    return;
+  }
+  if (seg.type === 'river') {
+    const kind = pick([['log', 30], ['rock', 34], ['lily', 22], ['bubble', 14]]);
+    if (kind === 'log') addObj('log', {}, s);
+    else if (kind === 'rock') {
+      const free = randLane();
+      const blocked = [-1, 0, 1].filter(l => l !== free);
+      if (Math.random() < 0.5) blocked.splice(Math.floor(Math.random() * 2), 1);
+      for (const l of blocked) addObj('rock', { lane: l }, s);
+      addObj('lily', { lane: free }, s);
+    } else if (kind === 'lily') { const lane = randLane(); for (let i = 0; i < 4; i++) addObj('lily', { lane }, s + i * 3); }
+    else addObj('bubble', { side: Math.random() < 0.5 ? 'L' : 'R', wob: Math.random() * 6 }, s);
+    return;
+  }
+
+  const theme = G.theme;
+  const kind = G.spawnIdx < INTRO.length ? INTRO[G.spawnIdx] : pick([
+    ['fence', 20], ['branch', 18], ['mushroom', 24],
+    ['bubbleL', theme === 'forest' ? 22 : 11], ['bubbleR', theme === 'forest' ? 22 : 11],
+    ['carrots', theme === 'meadow' ? 30 : 14], ['heart', G.hearts < 3 ? 4 : 0],
+  ]);
+  G.spawnIdx++;
+  if (kind === 'fence') {
+    addObj('fence', {}, s);
+    if (Math.random() < 0.6) addObj('carrot', { lane: randLane(), air: true }, s);
+  } else if (kind === 'branch') {
+    addObj('branch', {}, s);
+  } else if (kind === 'mushroom') {
+    const free = randLane();
+    const blocked = [-1, 0, 1].filter(l => l !== free);
+    if (G.t < 40 || Math.random() < 0.5) blocked.splice(Math.floor(Math.random() * 2), 1);
+    for (const l of blocked) addObj('mushroom', { lane: l }, s);
+    addObj('carrot', { lane: free, air: false }, s);
+  } else if (kind === 'bubbleL' || kind === 'bubbleR') {
+    addObj('bubble', { side: kind === 'bubbleL' ? 'L' : 'R', wob: Math.random() * 6 }, s);
+  } else if (kind === 'carrots') {
+    const lane = randLane();
+    for (let i = 0; i < 5; i++) addObj('carrot', { lane, air: false }, s + i * 3);
+  } else if (kind === 'heart') {
+    addObj('heart', { lane: randLane() }, s);
+  }
+}
+
+const laneLat = l => l * LANE_W;
 function bunnyHeight() {
   const b = G.bunny;
   return b.jumpT < 0 ? 0 : Math.sin(Math.PI * clamp(b.jumpT / JUMP_DUR, 0, 1));
 }
 
+const _q = new THREE.Vector3();
 function positionObj(o) {
-  const m = o.mesh, z = -o.z, t = clock.t;
-  if (o.type === 'fence' || o.type === 'branch') m.position.set(0, 0, z);
-  else if (o.type === 'mushroom') {
-    m.position.set(laneToX(o.lane), 0, z);
-    const k = 1 + Math.sin(t * 5 + o.lane) * 0.03;
-    m.userData.inner.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k));
+  const m = o.mesh, t = clock.t;
+  const th = headingAt(o.s);
+  const grow = smooth((t - o.born) / 0.35);
+  m.scale.setScalar(Math.max(0.001, grow));
+  m.rotation.set(0, -th, 0);
+  if (o.type === 'fence' || o.type === 'branch' || o.type === 'log') {
+    m.position.copy(worldAt(o.s, 0, o.type === 'log' ? Math.sin(t * 2 + o.s) * 0.05 : 0));
+    if (o.type === 'log') m.rotation.z = Math.sin(t * 1.5 + o.s) * 0.04;
+  } else if (o.type === 'mushroom' || o.type === 'rock') {
+    m.position.copy(worldAt(o.s, laneLat(o.lane)));
+    if (o.type === 'mushroom') {
+      const k = 1 + Math.sin(t * 5 + o.lane) * 0.03;
+      m.userData.inner.scale.set(1 / Math.sqrt(k), k, 1 / Math.sqrt(k));
+    }
   } else if (o.type === 'carrot') {
-    m.position.set(laneToX(o.lane), (o.air ? 1.75 : 0.55) + Math.sin(t * 4 + o.z) * 0.08, z);
+    m.position.copy(worldAt(o.s, laneLat(o.lane), (o.air ? 1.75 : 0.55) + Math.sin(t * 4 + o.s) * 0.08));
     m.rotation.y = t * 2.5;
+  } else if (o.type === 'star') {
+    m.position.copy(worldAt(o.s, laneLat(o.lane), 0.75 + Math.sin(t * 4 + o.s) * 0.1));
+    m.rotation.y = t * 3;
+  } else if (o.type === 'lily') {
+    m.position.copy(worldAt(o.s, laneLat(o.lane), Math.sin(t * 2 + o.s) * 0.03));
+    m.rotation.y = t * 0.5 + o.s;
   } else if (o.type === 'heart') {
-    m.position.set(laneToX(o.lane), 0.9 + Math.sin(t * 3) * 0.1, z);
+    m.position.copy(worldAt(o.s, laneLat(o.lane), 0.9 + Math.sin(t * 3) * 0.1));
     m.rotation.y = t * 2;
   } else if (o.type === 'bubble') {
     // הבועה נסחפת לעבר הארנב כשהיא מתקרבת, בצד של היד הנכונה
     const s = o.side === 'L' ? -1 : 1;
-    const close = clamp(1 - o.z / 22, 0, 1);
-    const bx = laneToX(G.bunny.x) + s * 1.15;
-    m.position.set(lerp(s * 3.2, bx, close * close), 1.15 + Math.sin(t * 2.4 + o.wob) * 0.15, z);
+    const z = o.s - G.dist;
+    const close = clamp(1 - z / 22, 0, 1);
+    const lat = lerp(s * 3.2, laneLat(G.bunny.x) + s * 1.15, close * close);
+    m.position.copy(worldAt(o.s, lat, 1.15 + Math.sin(t * 2.4 + o.wob) * 0.15));
     const wob = 1 + Math.sin(t * 6 + o.wob) * 0.04;
     m.userData.sphere.scale.set(wob, 2 - wob, wob);
     m.userData.sphere.rotation.y = t * 0.6;
@@ -1259,8 +1735,9 @@ function popBubble(side) {
   let best = null;
   for (const o of G.objs) {
     if (o.type !== 'bubble' || o.side !== side || o.gone) continue;
-    if (o.z < -1.5 || o.z > 9) continue;
-    if (!best || o.z < best.z) best = o;
+    const z = o.s - G.dist;
+    if (z < -1.5 || z > 9) continue;
+    if (!best || o.s < best.s) best = o;
   }
   if (!best) return;
   G.stats.butterflies++;
@@ -1269,12 +1746,12 @@ function popBubble(side) {
   const pos = best.mesh.position.clone();
   emit(pos, { n: 40, colors: [0xa0e7ff, 0xffd6f5, 0xfff6a8, 0xc9b8ff, 0xffffff], speed: 4.5, up: 0.5, size: 0.22, life: 0.9, gravity: -2 });
   emit(pos, { n: 14, colors: [0xffffff], speed: 1.5, up: 0.8, size: 0.5, life: 0.5, gravity: 0 });
-  // הפרפר יוצא לחופשי ועף למעלה
   const bf = best.mesh.userData.butterfly;
   best.mesh.remove(bf);
   bf.position.copy(pos); bf.scale.setScalar(1.3);
   scene.add(bf);
-  G.released.push({ mesh: bf, vx: (side === 'L' ? -1 : 1) * 1.4, vy: 2.4, age: 0 });
+  const th = headingAt(G.dist), s = side === 'L' ? -1 : 1;
+  G.released.push({ mesh: bf, vx: Math.cos(th) * s * 1.4 + Math.sin(th) * 4, vz: Math.sin(th) * s * 1.4 - Math.cos(th) * 4, vy: 2.4, age: 0 });
   scene.remove(best.mesh);
   best.gone = true;
   floatText('+25 🦋', pos);
@@ -1297,8 +1774,110 @@ function hurt(msg) {
   G.shake = 0.35;
   sfx.oops();
   toast(msg);
-  emit(bunnyMesh.position.clone().setY(1.9), { n: 12, colors: [0xffe14d, 0xffffff], speed: 2, up: 1.2, size: 0.3, life: 0.9, gravity: -1 });
+  emit(bunnyMesh.position.clone().setY(bunnyMesh.position.y + 1.9), { n: 12, colors: [0xffe14d, 0xffffff], speed: 2, up: 1.2, size: 0.3, life: 0.9, gravity: -1 });
   if (G.hearts <= 0) endRound(false);
+}
+
+function collect(o, label, color, sound) {
+  o.gone = true; scene.remove(o.mesh);
+  G.stats.carrots++; G.score += 10; sound();
+  emit(o.mesh.position, { n: 18, colors: [color, 0xffe14d, 0xffffff], speed: 2.5, up: 1.5, size: 0.2, life: 0.6 });
+  if (label) floatText(label, o.mesh.position);
+}
+
+// ---------------------------------------------------------------------------
+// עולם חי: סנאים וציפורים
+// ---------------------------------------------------------------------------
+function spawnCritter() {
+  const s = G.dist + rand(40, 60);
+  if (s > knownEnd() || pendingFork()) return;
+  const segType = segAt(s).type;
+  if (segType === 'rainbow') return;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const mesh = buildSquirrel();
+  scene.add(mesh);
+  G.critters.push({ mesh, s, lat: side * rand(4, 4.6), side, state: 'idle', t: 0, hop: Math.random() * 6 });
+}
+function updateCritters(dt) {
+  for (const c of G.critters) {
+    c.t += dt;
+    const near = c.s - G.dist;
+    if (c.state === 'idle' && near < 9) { c.state = 'run'; c.t = 0; }
+    if (c.state === 'run') { c.s += G.speed * 0.98 * dt; if (c.t > 2.8) { c.state = 'leave'; c.t = 0; } }
+    if (c.state === 'leave') { c.s += G.speed * 0.5 * dt; c.lat += c.side * 4 * dt; }
+    const moving = c.state !== 'idle';
+    c.hop += dt * (moving ? 14 : 0);
+    const hopY = moving ? Math.abs(Math.sin(c.hop)) * 0.35 : 0;
+    c.mesh.position.copy(worldAt(c.s, c.lat, hopY));
+    const th = headingAt(c.s);
+    c.mesh.rotation.y = -th + (c.state === 'idle' ? -c.side * Math.PI / 2 : c.state === 'leave' ? -c.side * 0.7 : 0);
+    const { g, tail } = c.mesh.userData;
+    g.scale.y = moving ? 1 + Math.cos(c.hop * 2) * 0.08 : 1 + Math.sin(c.t * 3) * 0.03;
+    tail.rotation.x = Math.sin(c.t * (moving ? 12 : 3)) * 0.18;
+    g.rotation.x = c.state === 'idle' ? Math.sin(c.t * 2) * 0.08 : -0.2;
+  }
+  G.critters = G.critters.filter(c => {
+    if (c.s < G.dist - 10 || (c.state === 'leave' && c.t > 2.5)) { scene.remove(c.mesh); return false; }
+    return true;
+  });
+}
+
+function spawnBirds() {
+  const th = headingAt(G.dist);
+  const fx = Math.sin(th), fz = -Math.cos(th), rx = Math.cos(th), rz = Math.sin(th);
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  const base = bunnyMesh.position.clone().add(new THREE.Vector3(fx * 35 - rx * dir * 40, 9 + Math.random() * 4, fz * 35 - rz * dir * 40));
+  const vel = new THREE.Vector3(rx * dir * 9 + fx * 2, 0.3, rz * dir * 9 + fz * 2);
+  for (let i = 0; i < 6; i++) {
+    const mesh = buildBird();
+    const off = new THREE.Vector3(-Math.abs(i - 2.5) * 1.2 * dir * rx + rand(-0.3, 0.3), rand(-0.4, 0.4), -Math.abs(i - 2.5) * 1.2 * dir * rz + (i - 2.5) * 1.1);
+    mesh.position.copy(base).add(off);
+    mesh.lookAt(mesh.position.clone().sub(vel));
+    scene.add(mesh);
+    G.birds.push({ mesh, vel, age: 0, phase: Math.random() * 6 });
+  }
+}
+function updateBirds(dt) {
+  for (const b of G.birds) {
+    b.age += dt;
+    b.mesh.position.addScaledVector(b.vel, dt);
+    b.mesh.position.y += Math.sin(b.age * 2 + b.phase) * 0.01;
+    const a = Math.sin(b.age * 16 + b.phase) * 0.9;
+    b.mesh.userData.wings[0].rotation.z = a; b.mesh.userData.wings[1].rotation.z = -a;
+  }
+  G.birds = G.birds.filter(b => { if (b.age > 10) { scene.remove(b.mesh); return false; } return true; });
+}
+
+// ---------------------------------------------------------------------------
+// יום שהופך לשקיעה במהלך הסבב
+// ---------------------------------------------------------------------------
+const SKY_KEYS = [
+  { k: 0, top: 0x2f86e8, bottom: 0xbfe4ff, fog: 0xbfe4ff, sun: 0xffecc8, sunI: 2.3, hemiS: 0xbfdcff, hemiG: 0x5e8f4a, hemiI: 0.75, elev: 0.35, sunCol: [1, 0.92, 0.7] },
+  { k: 0.62, top: 0x3d7fd8, bottom: 0xffdcae, fog: 0xffd9aa, sun: 0xffc98a, sunI: 2.1, hemiS: 0xd8d0ff, hemiG: 0x6a8a45, hemiI: 0.7, elev: 0.2, sunCol: [1, 0.8, 0.5] },
+  { k: 0.9, top: 0x3a3c8c, bottom: 0xff9e8c, fog: 0xf5a690, sun: 0xff9a66, sunI: 1.5, hemiS: 0xa49ade, hemiG: 0x5a5a40, hemiI: 0.6, elev: 0.08, sunCol: [1, 0.6, 0.4] },
+  { k: 1, top: 0x2d2f78, bottom: 0xff8f86, fog: 0xe8958a, sun: 0xff8c5a, sunI: 1.3, hemiS: 0x9890d8, hemiG: 0x50503a, hemiI: 0.55, elev: 0.05, sunCol: [1, 0.55, 0.35] },
+];
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+function mixHex(a, b, t, out) { return out.copy(_ca.set(a)).lerp(_cb.set(b), t); }
+const sunOffset = new THREE.Vector3();
+function updateSky(k) {
+  let i = 0;
+  while (i < SKY_KEYS.length - 2 && k > SKY_KEYS[i + 1].k) i++;
+  const A = SKY_KEYS[i], B = SKY_KEYS[i + 1];
+  const t = smooth((k - A.k) / (B.k - A.k));
+  mixHex(A.top, B.top, t, skyU.top.value);
+  mixHex(A.bottom, B.bottom, t, skyU.bottom.value);
+  mixHex(A.fog, B.fog, t, scene.fog.color);
+  mixHex(A.sun, B.sun, t, sun.color);
+  sun.intensity = lerp(A.sunI, B.sunI, t);
+  mixHex(A.hemiS, B.hemiS, t, hemi.color);
+  mixHex(A.hemiG, B.hemiG, t, hemi.groundColor);
+  hemi.intensity = lerp(A.hemiI, B.hemiI, t);
+  skyU.sunCol.value.setRGB(lerp(A.sunCol[0], B.sunCol[0], t), lerp(A.sunCol[1], B.sunCol[1], t), lerp(A.sunCol[2], B.sunCol[2], t));
+  const elev = lerp(A.elev, B.elev, t);
+  skyU.sunDir.value.set(-0.35, elev, -1).normalize();
+  sunOffset.set(-0.5, Math.max(0.35, elev * 2), 0.35).normalize().multiplyScalar(22);
+  MAT.cloud.emissive.copy(scene.fog.color);
 }
 
 // ---------------------------------------------------------------------------
@@ -1307,74 +1886,92 @@ function hurt(msg) {
 function update(dt) {
   const b = G.bunny;
   G.t += dt;
-  G.speed = Math.min(22, 11 + G.t * 0.055);
-  const dz = G.speed * dt;
-  G.dist += dz;
-  G.score += dz * 0.3;
+  const seg = segAt(G.dist);
+  const boost = seg.type === 'rainbow' ? 1.3 : seg.type === 'river' ? 0.9 : 1;
+  G.speed = lerp(G.speed, Math.min(22, 11 + G.t * 0.055) * boost, 1 - Math.pow(0.3, dt));
+  const ds = G.speed * dt;
+  G.dist += ds;
+  G.score += ds * 0.3;
+  ensureTrack(G.dist + 160);
+
+  // הודעות כשנכנסים לקטע חדש
+  if (seg !== G.seg) {
+    G.seg = seg;
+    if (seg.type === 'rainbow') { toast('🌈 החלקה על הקשת!', 1400); sfx.whoosh(); }
+    if (seg.type === 'river') { toast('🍃 שיט על עלה בנהר!', 1400); sfx.splash(); }
+  }
+  const fork = pendingFork();
+  if (fork && !fork.warned && fork.at - G.dist < 45) { fork.warned = true; toast('🔀 פרסת דרכים! צעדי שמאלה או ימינה', 2200); }
+  if (fork && G.dist >= fork.at) resolveFork(fork, b.lane > 0 ? 1 : -1);
 
   G.nextSpawn -= dt;
   if (G.nextSpawn <= 0) {
     spawn();
-    G.nextSpawn = Math.max(0.95, 1.75 - G.t * 0.006) * (0.85 + Math.random() * 0.3);
+    G.nextSpawn = Math.max(0.95, 1.75 - G.t * 0.006) * (0.85 + Math.random() * 0.3) * (seg.type === 'rainbow' ? 0.8 : 1);
   }
+  G.nextCritter -= dt; if (G.nextCritter <= 0) { spawnCritter(); G.nextCritter = rand(6, 11); }
+  G.nextBirds -= dt; if (G.nextBirds <= 0) { spawnBirds(); G.nextBirds = rand(14, 22); }
 
   const airborne = bunnyHeight() > 0.35;
   const laneNow = Math.round(b.x);
   for (const o of G.objs) {
     if (o.gone) continue;
-    const prev = o.z;
-    o.z -= dz;
+    const prevZ = o.s - (G.dist - ds), z = o.s - G.dist;
     positionObj(o);
-    if (prev > 0 && o.z <= 0 && !o.done) {
+    if (prevZ > 0 && z <= 0 && !o.done) {
       o.done = true;
       if (o.type === 'fence' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
+      if (o.type === 'log' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
       if (o.type === 'branch' && b.duckK < 0.5) hurt('אופס! צריך להתכופף 🌿');
       if (o.type === 'mushroom' && o.lane === laneNow) hurt('אופס! פטרייה 🍄');
-      if (o.type === 'carrot' && o.lane === laneNow && (o.air ? airborne : bunnyHeight() < 0.5)) {
-        o.gone = true; scene.remove(o.mesh);
-        G.stats.carrots++; G.score += 10; sfx.carrot();
-        emit(o.mesh.position, { n: 18, colors: [0xffb347, 0xffe14d, 0xffffff], speed: 2.5, up: 1.5, size: 0.2, life: 0.6 });
-      }
+      if (o.type === 'rock' && o.lane === laneNow) hurt('אופס! סלע 🪨');
+      if (o.type === 'carrot' && o.lane === laneNow && (o.air ? airborne : bunnyHeight() < 0.5)) collect(o, '', 0xffb347, sfx.carrot);
+      if (o.type === 'star' && o.lane === laneNow) collect(o, '⭐', 0xffe27a, sfx.star);
+      if (o.type === 'lily' && o.lane === laneNow) collect(o, '🌸', 0xff9ccd, sfx.star);
       if (o.type === 'heart' && o.lane === laneNow) {
         o.gone = true; scene.remove(o.mesh);
         G.hearts = Math.min(3, G.hearts + 1); sfx.heart(); toast('❤️ +1');
         emit(o.mesh.position, { n: 30, colors: [0xff5a8a, 0xffb3c8, 0xffffff], speed: 3, up: 1.5, size: 0.25, life: 0.8 });
       }
     }
-    if (o.z < -8 && !o.gone) { scene.remove(o.mesh); o.gone = true; }
+    if (z < -8 && !o.gone) { scene.remove(o.mesh); o.gone = true; }
   }
   G.objs = G.objs.filter(o => !o.gone);
 
-  scrollWorld(dz, dt);
+  // שובל ניצוצות על הקשת, ופתיתי מים בנהר
+  if (seg.type === 'rainbow' && Math.random() < 0.7) emit(bunnyMesh.position, { n: 2, colors: [0xff7ad9, 0x7ad7ff, 0xfff07a], speed: 0.6, up: 0.4, size: 0.22, life: 0.7, gravity: 0 });
+  if (seg.type === 'river' && Math.random() < 0.35) emit(bunnyMesh.position, { n: 1, colors: [0xffffff, 0xbfeaff], speed: 1.2, up: 1, size: 0.18, life: 0.5, gravity: -5 });
+  // גחליליות בשקיעה
+  if (G.dayK > 0.75 && Math.random() < 0.5) {
+    const p = worldAt(G.dist + rand(4, 40), (Math.random() < 0.5 ? -1 : 1) * rand(3.5, 10), rand(0.5, 2.5), new THREE.Vector3());
+    emit(p, { n: 1, colors: [0xd8ff7a, 0xfff27a], speed: 0.3, up: 0.1, size: 0.16, life: 3, gravity: 0, drag: 1, flicker: true });
+  }
+
+  updateCritters(dt);
   if (G.t >= settings.roundSec) endRound(true);
 }
 
-// תנועת הנוף, גם בזמן משחק וגם ברקע של התפריטים
-function scrollWorld(dz, dt) {
-  grassTex.offset.y += dz / (300 / 36);
-  pathTex.offset.y += dz / (300 / 50);
-  for (const s of scenery) {
-    s.position.z += dz;
-    if (s.position.z > 10) placeScenery(s, s.position.z - 140);
-  }
-  updateInstances(dz);
-  for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > 140) c.position.x = -140; }
+function updateAmbient(dt) {
+  const t = clock.t;
+  waterTex.offset.y += dt * 0.35;
+  for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > 220) c.position.x = -220; }
   for (const bf of ambientButterflies) {
-    const h = bf.userData.home, ph = bf.userData.phase;
-    h.z += dz;
-    if (h.z > 8) h.z -= 60;
-    bf.position.set(h.x + Math.sin(clock.t * 0.8 + ph) * 1.2, h.y + Math.sin(clock.t * 1.3 + ph) * 0.4, h.z);
-    bf.rotation.y = Math.cos(clock.t * 0.8 + ph) > 0 ? 0.6 : -0.6;
-    flapButterfly(bf, clock.t);
+    const u = bf.userData;
+    if (u.s < G.dist - 6) { u.s = G.dist + rand(30, 60); u.lat = (Math.random() < 0.5 ? -1 : 1) * rand(4, 8); }
+    if (u.s > knownEnd()) { bf.visible = false; continue; }
+    bf.visible = true;
+    bf.position.copy(worldAt(u.s, u.lat + Math.sin(t * 0.8 + u.phase) * 1.2, u.h + Math.sin(t * 1.3 + u.phase) * 0.4));
+    bf.rotation.y = -headingAt(u.s) + (Math.cos(t * 0.8 + u.phase) > 0 ? 0.6 : -0.6);
+    flapButterfly(bf, t);
   }
   for (const r of G.released) {
     r.age += dt;
-    r.mesh.position.x += r.vx * dt; r.mesh.position.y += r.vy * dt; r.mesh.position.z += dz * 0.3 - dt * 1.5;
-    r.vx += Math.sin(r.age * 5) * dt * 3;
+    r.mesh.position.x += r.vx * dt; r.mesh.position.y += r.vy * dt; r.mesh.position.z += r.vz * dt;
     r.mesh.userData.mat.opacity = clamp(2.5 - r.age, 0, 1);
-    flapButterfly(r.mesh, clock.t, 22);
+    flapButterfly(r.mesh, t, 22);
   }
   G.released = G.released.filter(r => { if (r.age > 2.5) { scene.remove(r.mesh); return false; } return true; });
+  updateBirds(dt);
   updateParticles(dt);
 }
 
@@ -1383,8 +1980,10 @@ function animateBunny(dt, running) {
   const b = G.bunny;
   const { bodyG, parts: p } = bunnyMesh.userData;
   const t = clock.t;
+  const seg = segAt(G.dist);
+  const riding = running && seg.type === 'river';
+  const sliding = running && seg.type === 'rainbow';
 
-  // מעבר חלק בין נתיבים, עם הטיה לצד התנועה
   const prevX = b.x;
   b.x = lerp(b.x, b.lane, 1 - Math.pow(0.0004, dt));
   b.vx = (b.x - prevX) / Math.max(dt, 1e-3);
@@ -1394,92 +1993,117 @@ function animateBunny(dt, running) {
     if (b.jumpT > JUMP_DUR) {
       b.jumpT = -1;
       sfx.land();
-      emit(bunnyMesh.position.clone().setY(0.1), { n: 16, colors: [0xf3e2c4, 0xffffff], speed: 2, up: 0.4, size: 0.35, life: 0.5, gravity: 0, drag: 0.7 });
+      if (riding) sfx.splash();
+      emit(bunnyMesh.position, { n: 16, colors: riding ? [0xffffff, 0xbfeaff] : [0xf3e2c4, 0xffffff], speed: 2, up: riding ? 1.5 : 0.4, size: 0.35, life: 0.5, gravity: riding ? -5 : 0, drag: 0.7 });
     }
   }
   const jh = bunnyHeight();
-  b.duckK = lerp(b.duckK, b.duck && jh === 0 ? 1 : 0, 1 - Math.pow(0.0001, dt));
+  b.duckK = lerp(b.duckK, (b.duck && jh === 0 ? 1 : 0) + (sliding || riding ? 0.15 : 0), 1 - Math.pow(0.0001, dt));
 
-  // ריצה של ארנב: קפיצונים קטנים עם כיווץ ומתיחה
+  // ריצה של ארנב: קפיצונים קטנים. בנהר ועל הקשת אין קפיצונים, רק נדנוד
+  const hopping = running && !riding && !sliding;
   b.run += dt * (running ? 8 + G.speed * 0.35 : 0);
-  const hop = running && jh === 0 ? Math.abs(Math.sin(b.run)) : 0;
-  const squash = running && jh === 0 ? 1 + Math.cos(b.run * 2) * 0.05 : 1 + Math.sin(t * 2.2) * 0.015;
+  const hop = hopping && jh === 0 ? Math.abs(Math.sin(b.run)) : 0;
+  const squash = hopping && jh === 0 ? 1 + Math.cos(b.run * 2) * 0.05 : 1 + Math.sin(t * 2.2) * 0.015;
+  const bob = riding ? Math.sin(t * 3) * 0.04 : 0;
 
-  bunnyMesh.position.set(laneToX(b.x), jh * 1.75 + hop * 0.16, 0);
+  const lat = laneLat(b.x);
+  const th = headingAt(G.dist);
+  bunnyMesh.position.copy(worldAt(G.dist, lat, jh * 1.75 + hop * 0.16 + bob + (riding ? 0.05 : 0)));
   const stretch = jh > 0 ? 1 + Math.cos(Math.PI * clamp(b.jumpT / JUMP_DUR, 0, 1)) * 0.12 : 1;
   const sy = squash * stretch * (1 - b.duckK * 0.4);
   bodyG.scale.set(1 / Math.sqrt(sy), sy, 1 / Math.sqrt(sy));
-  bunnyMesh.rotation.z = clamp(-b.vx * 0.06, -0.35, 0.35);
-  bunnyMesh.rotation.x = jh > 0 ? -0.15 * Math.sin(Math.PI * b.jumpT / JUMP_DUR) : (running ? -0.06 : 0);
 
-  // בתפריט הארנב מסתובב אלייך, ובמשחק רץ קדימה
+  // הטיה: לצד התנועה ופנימה לתוך הפנייה
+  const k = curvature(G.dist);
+  b.roll = lerp(b.roll, clamp(-b.vx * 0.06 - k * (running ? 5 : 0), -0.4, 0.4), 1 - Math.pow(0.01, dt));
   b.face = lerp(b.face, running ? 0 : Math.PI, 1 - Math.pow(0.02, dt));
-  bunnyMesh.rotation.y = b.face;
+  // שיפוע השביל: הארנב נוטה קדימה בירידה ואחורה בעלייה
+  const ahead = worldAt(G.dist + 1.5, lat, 0, _q).y, behind = worldAt(G.dist - 1.5, lat, 0, new THREE.Vector3()).y;
+  const pitch = Math.atan2(ahead - behind, 3);
+  bunnyMesh.rotation.set(0, 0, 0);
+  bunnyMesh.rotateY(-th + b.face);
+  bunnyMesh.rotateX((jh > 0 ? -0.15 * Math.sin(Math.PI * b.jumpT / JUMP_DUR) : (hopping ? -0.06 : 0)) + pitch * (running ? 1 : 0));
+  bunnyMesh.rotateZ(b.roll + (riding ? Math.sin(t * 2.4) * 0.05 : 0));
 
-  // אוזניים: מתנופפות בריצה, עפות אחורה בקפיצה, נשכבות בהתכופפות
+  p.leaf.visible = riding;
+  p.leaf.rotation.y = Math.sin(t * 1.3) * 0.05;
+
   p.ears.forEach((e, i) => {
     const s = i ? 1 : -1;
     const flap = running ? Math.sin(b.run + i * 0.6) * 0.12 : Math.sin(t * 2 + i) * 0.05;
     const twitch = i === 1 && !running ? Math.max(0, Math.sin(t * 1.7) - 0.9) * 3 : 0;
-    e.rotation.x = b.duckK * 1.25 + jh * 0.7 + flap + (running ? 0.15 : 0);
+    e.rotation.x = b.duckK * 1.25 + jh * 0.7 + flap + (running ? 0.15 : 0) + (sliding ? 0.8 : 0);
     e.rotation.z = -s * (0.14 + b.duckK * 0.25) + twitch;
   });
-
   p.feet.forEach(f => {
-    f.rotation.x = running ? -Math.sin(b.run) * 0.5 : 0;
-    f.position.z = -0.02 + (running ? Math.cos(b.run) * 0.06 : 0);
+    f.rotation.x = hopping ? -Math.sin(b.run) * 0.5 : 0;
+    f.position.z = -0.02 + (hopping ? Math.cos(b.run) * 0.06 : 0);
   });
   p.tail.scale.setScalar(1 + Math.sin(t * 9) * 0.04);
-  p.head.rotation.z = running ? Math.sin(b.run) * 0.03 : Math.sin(t * 1.3) * 0.06;
+  p.head.rotation.z = hopping ? Math.sin(b.run) * 0.03 : Math.sin(t * 1.3) * 0.06;
 
-  // מצמוץ
   if (t > b.blinkAt) { b.blinkAt = t + rand(2, 4.5); b.blinkStart = t; }
   const blink = t - b.blinkStart < 0.14 ? 0.1 : 1;
   p.eyes.forEach(e => { e.scale.y = blink; });
 
-  // ידיים ואגרופים
   const tm = now();
   for (const side of ['L', 'R']) {
     const s = side === 'L' ? -1 : 1;
     const sh = p.arms[side];
     const pt = clamp((tm - b.punch[side]) / 280, 0, 1);
     const ext = pt < 1 ? Math.sin(pt * Math.PI) : 0;
-    const swing = running ? Math.sin(b.run + (s > 0 ? Math.PI : 0)) * 0.35 : 0;
-    const wave = !running && side === 'R' ? Math.max(0, Math.sin(t * 0.9)) : 0;   // נפנוף שלום בתפריט
+    const swing = hopping ? Math.sin(b.run + (s > 0 ? Math.PI : 0)) * 0.35 : 0;
+    const wave = !running && side === 'R' ? Math.max(0, Math.sin(t * 0.9)) : 0;
+    const balance = sliding ? 0.9 : 0;                 // ידיים לצדדים בהחלקה
     sh.rotation.x = -ext * 1.55 + swing - wave * 0.4;
-    sh.rotation.z = s * (0.25 + ext * 0.75 + wave * (2.3 + Math.sin(t * 9) * 0.35));
+    sh.rotation.z = s * (0.25 + ext * 0.75 + wave * (2.3 + Math.sin(t * 9) * 0.35) + balance);
     sh.rotation.y = -s * ext * 0.4;
   }
-
-  // מהבהב כשנפגע
   bunnyMesh.visible = !(tm < b.hurtUntil && Math.floor(tm / 110) % 2 === 0);
 }
 
-// המצלמה עוקבת אחרי הארנב בעדינות
-const camTarget = new THREE.Vector3(), lookTarget = new THREE.Vector3(), lookNow = new THREE.Vector3(0, 1, -6);
+// המצלמה: מאחורי הארנב לאורך המסלול, נוטה בפניות
+const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), menuPos = new THREE.Vector3(), menuLook = new THREE.Vector3();
+const camState = { lat: 0, roll: 0, y: 0 };
 function updateCamera(dt, running) {
-  const bx = laneToX(G.bunny.x);
-  if (running) {
-    camTarget.set(bx * 0.55, 2.5 + bunnyHeight() * 0.35, 5.6);
-    lookTarget.set(bx * 0.75, 1.1, -7);
-  } else {
-    // בתפריט: מבט קרוב על הארנב שמסתכל עלייך
-    camTarget.set(bx + 1.25 + Math.sin(clock.t * 0.3) * 0.2, 1.65, 3.7);
-    lookTarget.set(bx + 1.3, 1.0, 0);
-  }
-  const k = 1 - Math.pow(0.03, dt);
-  camera.position.lerp(camTarget, k);
-  lookNow.lerp(lookTarget, k);
+  const b = G.bunny;
+  const lat = laneLat(b.x);
+  const kk = 1 - Math.pow(0.02, dt);
+  camState.lat = lerp(camState.lat, lat * 0.55, kk);
+  const k = curvature(G.dist + 4);
+  camState.roll = lerp(camState.roll, clamp(k * 7, -0.22, 0.22), 1 - Math.pow(0.05, dt));
+  const seg = segAt(G.dist);
+  const high = seg.type === 'rainbow' ? 1.2 : 0;
+  camState.y = lerp(camState.y, 2.5 + bunnyHeight() * 0.35 + high, kk);
+
+  // מאחור: נקודה על המסלול 6 יחידות אחורה, כך שבפנייה רואים את השביל מתעקל
+  worldAt(G.dist - 6, camState.lat, camState.y, camPos);
+  worldAt(G.dist + 8, lat * 0.75, 1.0, camLook);
+  // בתפריט: מבט קרוב על הארנב שמסתכל עלייך
+  worldAt(G.dist - 3.7, lat + 1.25 + Math.sin(clock.t * 0.3) * 0.2, 1.65, menuPos);
+  worldAt(G.dist, lat + 1.3, 1.0, menuLook);
+
+  G.camBlend = lerp(G.camBlend, running ? 1 : 0, 1 - Math.pow(0.08, dt));
+  camera.position.lerpVectors(menuPos, camPos, G.camBlend);
+  const look = new THREE.Vector3().lerpVectors(menuLook, camLook, G.camBlend);
   if (G.shake > 0) {
     G.shake = Math.max(0, G.shake - dt);
     camera.position.x += rand(-1, 1) * G.shake * 0.4;
     camera.position.y += rand(-1, 1) * G.shake * 0.3;
   }
-  camera.lookAt(lookNow);
+  camera.lookAt(look);
+  camera.rotateZ(camState.roll * G.camBlend);
   const fov = (W / H < 1.2 ? 68 : 55) + (running ? (G.speed - 11) * 0.35 : 0);
-  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = lerp(camera.fov, fov, k); camera.updateProjectionMatrix(); }
-  sun.position.set(bx - 7, 14, 6);
-  sun.target.position.set(bx, 0, -6);
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = lerp(camera.fov, fov, kk); camera.updateProjectionMatrix(); }
+
+  const bp = bunnyMesh.position;
+  sun.position.copy(bp).add(sunOffset);
+  worldAt(G.dist + 7, 0, 0, sun.target.position);
+  sun.position.copy(sun.target.position).add(sunOffset);
+  farGroup.position.set(bp.x, 0, bp.z);
+  sky.position.copy(camera.position);
+  updateTerrain(bp.x, bp.z);
 }
 
 // ---------------------------------------------------------------------------
@@ -1490,6 +2114,8 @@ function updateHud() {
   $('score').textContent = Math.floor(G.score).toLocaleString('he-IL');
   const left = Math.max(0, settings.roundSec - G.t);
   $('timer').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+  const th = THEMES[G.theme];
+  $('zone').textContent = `${th.emoji} ${th.name}`;
 }
 
 function startRound() {
@@ -1524,6 +2150,7 @@ function endRound(completed) {
   G.running = false; G.paused = false;
   stopMusic();
   $('hud').hidden = true;
+  $('zone').textContent = '';
   const st = G.stats;
   $('resTitle').textContent = completed ? 'כל הכבוד! סיימת סבב 🎉' : 'נגמרו הלבבות 💛';
   const mins = Math.floor(G.t / 60), secs = Math.floor(G.t % 60);
@@ -1539,7 +2166,8 @@ function endRound(completed) {
   const best = Number(storageGet('bunny-best') || 0);
   if (score > best) { storageSet('bunny-best', String(score)); $('resBest').textContent = best ? '🏆 שיא חדש!' : ''; }
   else $('resBest').textContent = `השיא שלך: ${best.toLocaleString('he-IL')}`;
-  clearObjs();
+  for (const o of G.objs) scene.remove(o.mesh);
+  G.objs = [];
   G.bunny.jumpT = -1; G.bunny.duck = false;
   showScreen('screen-results');
 }
@@ -1564,8 +2192,10 @@ function frame(dt) {
 
   const running = G.running && !G.paused;
   if (running) update(dt);
-  else if (!G.running) scrollWorld(dt * 2.5, dt);
-  if (!G.paused) animateBunny(dt, running);
+  G.dayK = G.running ? G.t / settings.roundSec : lerp(G.dayK, 0, 1 - Math.pow(0.2, dt));
+  updateSky(G.dayK);
+  if (!G.paused) { recycleWorld(G.dist); updateAmbient(dt); animateBunny(dt, running); }
+  updateRibbons(G.dist);
   updateCamera(dt, running);
   composer.render(dt);
   if (G.running) updateHud();
@@ -1639,7 +2269,7 @@ resize();
 if (!CAPTURE) loop();
 
 // חשיפה לבדיקות ולצילום סרטון בלבד
-window.__bunny = { G, body, settings, input, frame, get calib() { return calib; }, get landmarker() { return landmarker; }, clock };
+window.__bunny = { G, body, settings, input, frame, segments, track, segAt, get calib() { return calib; }, get landmarker() { return landmarker; }, clock };
 </script>
 </body>
 </html>
