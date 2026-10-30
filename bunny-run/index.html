@@ -263,6 +263,7 @@
     <div class="row" style="margin-top:12px">
       <button id="btnGo" disabled>🐰 יוצאים לדרך!</button>
       <button class="secondary" id="btnRecalib">כיול מחדש</button>
+      <button class="secondary" id="btnResetTune" style="font-size:14px">איפוס הלמידה</button>
     </div>
   </div>
 </div>
@@ -300,10 +301,12 @@
     <p style="font-size:22px; font-weight:800">ניקוד: <span id="resScore">0</span></p>
     <p id="resBest" class="muted"></p>
     <p id="resEarned" style="font-size:19px; font-weight:800"></p>
+    <p id="resLearn" class="muted"></p>
     <div class="row" style="justify-content:center">
       <button id="btnBonus">🎮 מיני-משחק בונוס</button>
       <button class="secondary" id="btnAgain">עוד סבב</button>
       <button class="secondary" id="btnHome">למפה</button>
+      <button class="secondary" id="btnExport">📤 שמירת נתוני זיהוי</button>
     </div>
   </div>
 </div>
@@ -409,10 +412,11 @@ const clock = { t: 0 };
 // התקדמות שנשמרת בדפדפן: גזרים, פריטים מהחנות וכוכבים בכל עולם
 const SAVE_KEY = 'bunny-save-v1';
 const save = (() => {
-  const d = { carrots: 0, owned: ['gloves-pink'], equipped: { hat: null, face: null, back: null, neck: null, gloves: 'gloves-pink' }, worlds: {} };
+  const d = { carrots: 0, owned: ['gloves-pink'], equipped: { hat: null, face: null, back: null, neck: null, gloves: 'gloves-pink' }, worlds: {},
+    tune: { jump: 1, squat: 1, lane: 1, punch: 1 }, learn: { sessions: 0, misses: {}, adjusted: {} } };
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s) return { ...d, ...s, equipped: { ...d.equipped, ...(s.equipped || {}) }, worlds: { ...(s.worlds || {}) } };
+    if (s) return { ...d, ...s, equipped: { ...d.equipped, ...(s.equipped || {}) }, worlds: { ...(s.worlds || {}) }, tune: { ...d.tune, ...(s.tune || {}) }, learn: { ...d.learn, ...(s.learn || {}) } };
   } catch { /* אין אחסון או נתונים פגומים */ }
   return d;
 })();
@@ -574,9 +578,66 @@ const body = {
 let calib = null;
 const calibState = { active: false, samples: [] };
 
+// הספים כוללים כיוונון אישי שהמשחק לומד מהתנועות שלך
 function thresholds() {
-  const k = 1 / settings.sens;
-  return { jump: 0.14 * k, squat: 0.45 * k, lane: 0.55 * k, punch: 4.5 * k };
+  const k = 1 / settings.sens, tn = save.tune;
+  return { jump: 0.14 * k * tn.jump, squat: 0.45 * k * tn.squat, lane: 0.55 * k * tn.lane, punch: 4.5 * k * tn.punch };
+}
+
+// ---------------------------------------------------------------------------
+// למידה: שומרים את מה שהמצלמה מזהה, ומכווננים את הספים כשתנועה "כמעט" נקלטה
+// ---------------------------------------------------------------------------
+const TUNE_MIN = 0.55;
+const MOVE_NAMES = { jump: 'קפיצה', squat: 'סקוואט', lane: 'צעד הצידה', punch: 'אגרוף' };
+const dlog = { started: new Date().toISOString(), samples: [], events: [], outcomes: [] };
+const peaks = { jump: [], squat: [], lane: [], punch: [] };
+function trackPeak(kind, t, v) {
+  const a = peaks[kind];
+  a.push([t, v]);
+  while (a.length && t - a[0][0] > 1500) a.shift();
+}
+const peakOf = kind => peaks[kind].reduce((m, p) => Math.max(m, p[1]), 0);
+const r3 = v => Math.round(v * 1000) / 1000;
+function logEvent(type, extra = {}) {
+  if (dlog.events.length < 8000) dlog.events.push({ t: Math.round(performance.now()), type, mode: settings.mode, ...extra });
+}
+// פספוס של מכשול: אם התנועה הגיעה לפחות לחצי מהסף, הסף כנראה גבוה מדי בשבילך
+function learnFromMiss(kind) {
+  if (settings.mode !== 'pose' || !calib) return;
+  const th = thresholds()[kind];
+  const peak = peakOf(kind);
+  const ratio = peak / th;
+  dlog.outcomes.push({ t: Math.round(performance.now()), kind, peak: r3(peak), th: r3(th), ratio: r3(ratio) });
+  save.learn.misses[kind] = (save.learn.misses[kind] || 0) + 1;
+  if (ratio >= 0.5 && ratio < 1) {
+    save.tune[kind] = Math.max(TUNE_MIN, save.tune[kind] * 0.92);
+    save.learn.adjusted[kind] = (save.learn.adjusted[kind] || 0) + 1;
+    (G.tuned = G.tuned || {})[kind] = true;
+    body.tuneFlash = performance.now(); body.tuneKind = kind;
+  }
+  persist();
+}
+function logOk(kind) { if (settings.mode === 'pose') dlog.outcomes.push({ t: Math.round(performance.now()), kind, ok: true, peak: r3(peakOf(kind)) }); }
+
+function exportDetections() {
+  const data = {
+    app: 'bunny-run', version: 1, exported: new Date().toISOString(), session: dlog.started,
+    device: { mobile: MOBILE, ua: navigator.userAgent, video: [video.videoWidth, video.videoHeight] },
+    settings: { sens: settings.sens, roundSec: settings.roundSec, mode: settings.mode },
+    tune: save.tune, learn: save.learn, calib, stats: G.stats,
+    outcomes: dlog.outcomes, events: dlog.events, samples: dlog.samples,
+  };
+  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `bunny-detections-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function saveLastSession() {
+  try {
+    localStorage.setItem('bunny-detect-last', JSON.stringify({ session: dlog.started, tune: save.tune, outcomes: dlog.outcomes.slice(-300), samples: dlog.samples.slice(-4000) }));
+  } catch { /* אין מקום: לא נורא */ }
 }
 
 function handlePose(lm, t) {
@@ -690,6 +751,14 @@ function detectMoves(t) {
   });
   // מיקום הידיים ביחס לכתפיים, בשביל מיני-המשחקים
   body.hands = body.wrists.map(w => w && { x: (w.x - calib.sx) / calib.sw, y: (w.y - calib.sy) / calib.sw });
+  // שיאי התנועות בשנייה וחצי האחרונות, כדי לדעת אם פספוס היה "כמעט"
+  trackPeak('jump', t, rise);
+  trackPeak('squat', t, dy);
+  if (body.lane === 0) trackPeak('lane', t, Math.abs(dx));
+  trackPeak('punch', t, Math.max(...body.wrists.map(w => (w && w.y < body.sy + body.sw * 0.6 ? w.speed : 0))));
+  if (dlog.samples.length < 30000 && (G.running || mini.active || !$('practice').hidden)) {
+    dlog.samples.push([Math.round(t), r3(rise), r3(dy), r3(dx), r3(body.wrists[0] ? body.wrists[0].speed : -1), r3(body.wrists[1] ? body.wrists[1].speed : -1), body.armsUp ? 1 : 0, body.running ? 1 : 0, body.hipsOk ? 1 : 0]);
+  }
 
   if (Math.abs(dy) < 0.12 && body.jumpArmed && !body.ducking) {
     calib.sy = lerp(calib.sy, body.sy, 0.01);
@@ -728,6 +797,7 @@ function camStatusText() {
   if (!landmarker) return 'טוען זיהוי גוף…';
   if (!body.visible) return 'לא רואים אותך 🙈';
   if (now() - (body.jumpFlash || -1e9) < 600) return 'קפיצה! ⬆️';
+  if (performance.now() - (body.tuneFlash || -1e9) < 2500) return `🧠 למדתי: ${MOVE_NAMES[body.tuneKind]} רגישה יותר`;
   const names = { '-1': 'נתיב שמאל', 0: 'נתיב אמצע', 1: 'נתיב ימין' };
   return `${names[body.lane]}${body.ducking ? ' · מתכופפת' : ''}`;
 }
@@ -745,6 +815,7 @@ function tick(name) {
 
 const input = {
   lane(l) {
+    logEvent('lane', { l });
     if (l === -1) tick('left');
     if (l === 1) tick('right');
     if (G.running && l !== G.bunny.lane) G.stats.steps++;
@@ -752,6 +823,7 @@ const input = {
     G.bunny.lane = l;
   },
   jump() {
+    logEvent('jump', { rise: r3(peakOf('jump')) });
     tick('jump');
     if (G.paused) return;
     mini.onMove('jump');
@@ -763,11 +835,13 @@ const input = {
     }
   },
   duck(on) {
+    logEvent(on ? 'squat' : 'stand');
     if (on) { tick('squat'); mini.onMove('squat'); }
     if (G.running && on && !G.bunny.duck) G.stats.squats++;
     G.bunny.duck = on;
   },
   punch(side, upper = false) {
+    logEvent('punch', { side, upper });
     tick(upper ? 'upper' : side === 'L' ? 'punchL' : 'punchR');
     if (G.paused) return;
     mini.onMove(side === 'L' ? 'punchL' : 'punchR');
@@ -2636,7 +2710,7 @@ function resetWorld() {
   G.nextSpawn = 2.4; G.spawnIdx = 0; G.shake = 0; G.nextCritter = 3; G.nextBirds = 5; G.seg = null;
   G.bunny = newBunny();
   G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0, claps: 0, reaches: 0, turbo: 0, mitts: 0, bigBubbles: 0 };
-  G.power = null; G.combo = 0; G.hitsTaken = 0; G.missionDone = false; G.wasTurbo = false;
+  G.power = null; G.combo = 0; G.hitsTaken = 0; G.missionDone = false; G.wasTurbo = false; G.tuned = {}; G.nextFiller = 0.8;
   removeCoach();
   populateWorld();
 }
@@ -2658,12 +2732,28 @@ function pick(weighted) {
 }
 const randLane = () => Math.floor(Math.random() * 3) - 1;
 
-const INTRO = ['fence', 'carrots', 'branch', 'mushroom', 'bubbleL', 'bubbleR'];
-function spawn() {
+const INTRO = ['fence', 'carrots', 'branch', 'mushroom', 'bubbleL', 'bell', 'bubbleR'];
+
+// בין המכשולים: גזרים, כוכבים ובועות בנתיבים פנויים, כדי שתמיד יהיה משהו לעשות
+function spawnFiller() {
+  const fork = pendingFork();
+  const s = Math.min(G.dist + Z_FAR - 4, fork ? fork.at - 16 : knownEnd() - 2);
+  if (s < G.dist + 20 || segAt(s).type !== 'run' || segAt(s + 6).type !== 'run') return;
+  const busy = new Set(G.objs.filter(o => Math.abs(o.s - s) < 5 && ['mushroom', 'rock', 'frog', 'ball', 'puddle', 'tramp'].includes(o.type)).flatMap(o => o.lanes || [o.lane]));
+  if (G.objs.some(o => Math.abs(o.s - s) < 4 && ['fence', 'branch', 'swing', 'bigbubble', 'bell'].includes(o.type))) return;
+  const free = [-1, 0, 1].filter(l => !busy.has(l));
+  if (!free.length) return;
+  const lane = pickOne(free);
+  const r = Math.random();
+  if (r < 0.55) { addObj('carrot', { lane, air: false }, s); addObj('carrot', { lane, air: false }, s + 2.6); }
+  else if (r < 0.75) addObj('star', { lane }, s);
+  else if (!G.objs.some(o => o.type === 'bubble' && Math.abs(o.s - s) < 10)) addObj('bubble', { side: Math.random() < 0.5 ? 'L' : 'R', wob: Math.random() * 6 }, s);
+}
+function spawn(at) {
   const fork = pendingFork();
   const limit = fork ? fork.at - 16 : knownEnd() - 2;
-  const s = Math.min(G.dist + Z_FAR, limit);
-  if (s < G.dist + 30) return;
+  const s = at ?? Math.min(G.dist + Z_FAR, limit);
+  if (at == null && s < G.dist + 30) return;
   const seg = segAt(s);
   const near = segAt(s + 4), before = segAt(s - 4);
   if (near !== seg || before !== seg) return;                    // לא על גבול בין קטעים
@@ -3099,8 +3189,10 @@ function update(dt) {
   G.nextSpawn -= dt;
   if (G.nextSpawn <= 0) {
     spawn();
-    G.nextSpawn = Math.max(0.95, 1.75 - G.t * 0.006) * (0.85 + Math.random() * 0.3) * (seg.type === 'rainbow' ? 0.8 : 1);
+    G.nextSpawn = Math.max(0.8, 1.3 - G.t * 0.004) * (0.85 + Math.random() * 0.3) * (seg.type === 'rainbow' ? 0.8 : 1);
   }
+  G.nextFiller -= dt;
+  if (G.nextFiller <= 0) { spawnFiller(); G.nextFiller = rand(0.55, 0.9); }
   G.nextCritter -= dt; if (G.nextCritter <= 0) { spawnCritter(); G.nextCritter = rand(6, 11); }
   G.nextBirds -= dt; if (G.nextBirds <= 0) { spawnBirds(); G.nextBirds = rand(14, 22); }
 
@@ -3117,17 +3209,16 @@ function update(dt) {
       if (['fence', 'branch', 'mushroom', 'log', 'rock', 'ball', 'swing', 'puddle', 'frog'].includes(o.type)) queueMicrotask(() => {
         if (G.hitsTaken === before && G.running) { G.combo++; if (G.combo % 7 === 0) { say(pickOne(PRAISE), 1300); b.cheerUntil = clock.t + 0.8; } }
       });
-      if (o.type === 'fence' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
-      if (o.type === 'log' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
-      if (o.type === 'branch' && b.duckK < 0.5) hurt('אופס! צריך להתכופף 🌿');
-      if (o.type === 'mushroom' && o.lane === laneNow) hurt('אופס! פטרייה 🍄');
-      if (o.type === 'rock' && o.lane === laneNow) hurt('אופס! סלע 🪨');
-      if (o.type === 'ball' && o.lane === laneNow && !airborne) hurt('אופס! כדור מתגלגל ⚽');
-      if (o.type === 'swing' && Math.round(o.weightLat / LANE_W) === laneNow && !airborne) hurt('אופס! הנדנדה 🪢');
-      if (o.type === 'puddle' && o.lanes.includes(laneNow) && !airborne) { hurt('אופס! שלולית 💦'); sfx.splash(); emit(bunnyMesh.position, { n: 30, colors: [0xbfeaff, 0xffffff], speed: 3, up: 2.5, size: 0.25, life: 0.7, gravity: -7 }); }
-      if (o.type === 'frog' && Math.round(o.lat / LANE_W) === laneNow && !airborne) hurt('אופס! צפרדע 🐸');
+      if (o.type === 'fence' || o.type === 'log') { if (!airborne) { hurt('אופס! צריך לקפוץ 🪵'); learnFromMiss('jump'); } else logOk('jump'); }
+      if (o.type === 'branch') { if (b.duckK < 0.5) { hurt('אופס! צריך להתכופף 🌿'); learnFromMiss('squat'); } else logOk('squat'); }
+      if (o.type === 'mushroom' && o.lane === laneNow) { const c = body.lane === 0; hurt('אופס! פטרייה 🍄'); if (c) learnFromMiss('lane'); }
+      if (o.type === 'rock' && o.lane === laneNow) { const c = body.lane === 0; hurt('אופס! סלע 🪨'); if (c) learnFromMiss('lane'); }
+      if (o.type === 'ball' && o.lane === laneNow && !airborne) { hurt('אופס! כדור מתגלגל ⚽'); learnFromMiss('jump'); }
+      if (o.type === 'swing' && Math.round(o.weightLat / LANE_W) === laneNow && !airborne) { hurt('אופס! הנדנדה 🪢'); learnFromMiss('jump'); }
+      if (o.type === 'puddle' && o.lanes.includes(laneNow) && !airborne) { hurt('אופס! שלולית 💦'); learnFromMiss('jump'); sfx.splash(); emit(bunnyMesh.position, { n: 30, colors: [0xbfeaff, 0xffffff], speed: 3, up: 2.5, size: 0.25, life: 0.7, gravity: -7 }); }
+      if (o.type === 'frog' && Math.round(o.lat / LANE_W) === laneNow && !airborne) { hurt('אופס! צפרדע 🐸'); learnFromMiss('jump'); }
       if (o.type === 'tramp' && o.lane === laneNow && !airborne) { startJump(b, 1.25, 3.3); o.bounced = clock.t; sfx.jump(); sfx.whoosh(); say('בוינג! 🤸', 1000); }
-      if (o.type === 'bigbubble' && !o.popped) { hurt('אופס! צריך לפוצץ את הבועה 🫧'); popBig(o, false); }
+      if (o.type === 'bigbubble' && !o.popped) { hurt('אופס! צריך לפוצץ את הבועה 🫧'); learnFromMiss('punch'); popBig(o, false); }
       if (o.type === 'carrot' && (o.lane === laneNow || o.mag) && (o.air ? airborne : bunnyHeight() < 0.5 || o.mag)) collect(o, '', 0xffb347, sfx.carrot);
       const alt = b.fly + bunnyHeight() * (b.jumpH || 1.75);
       if (o.type === 'star' && o.lane === laneNow && (!o.height || Math.abs(alt + 0.75 - o.height) < 1.3)) collect(o, '⭐', 0xffe27a, sfx.star);
@@ -3146,7 +3237,7 @@ function update(dt) {
       }
     }
     if (o.type === 'carrot' && G.power && G.power.type === 'magnet' && z < 14 && z > 0) o.mag = true;
-    if (o.type === 'bubble' && !o.gone && z < -1.5 && !o.missed) { o.missed = true; }
+    if (o.type === 'bubble' && !o.gone && z < -1.5 && !o.missed) { o.missed = true; learnFromMiss('punch'); }
     if (z < -8 && !o.gone) { scene.remove(o.mesh); o.gone = true; }
   }
   G.objs = G.objs.filter(o => !o.gone);
@@ -3415,6 +3506,10 @@ function startRound(world) {
   applyWorld(world && world.id ? world : (G.world || WORLDS[0]));
   resetWorld();
   G.bunny.lane = lane; G.bunny.x = lane;
+  // מתחילים עם מסלול מלא: המכשול הראשון מגיע אחרי כשתי שניות
+  for (let s = 10; s < 28; s += 2.6) addObj('carrot', { lane, air: false }, s);
+  for (let s = 34; s < Z_FAR - 6; s += rand(10, 13)) spawn(s);
+  G.nextSpawn = 0.4;
   G.running = true; G.paused = false;
   $('hud').hidden = false;
   showScreen(null);
@@ -3460,6 +3555,12 @@ function endRound(completed) {
   $('resReaches').textContent = st.reaches;
   $('resTurbo').textContent = Math.round(st.turbo);
   $('resMitts').textContent = st.mitts;
+  save.learn.sessions = (save.learn.sessions || 0) + 1;
+  const tuned = Object.keys(G.tuned || {});
+  $('resLearn').textContent = tuned.length
+    ? `🧠 המשחק למד אותך: ${tuned.map(k => `${MOVE_NAMES[k]} נקלטת עכשיו ${Math.round((1 - save.tune[k]) * 100)}% בקלות יותר`).join(' · ')}`
+    : '';
+  saveLastSession();
   $('resBig').textContent = st.bigBubbles;
   const mins = Math.floor(G.t / 60), secs = Math.floor(G.t % 60);
   $('resSub').textContent = `התאמנת ${mins}:${String(secs).padStart(2, '0')} דקות`;
@@ -3867,6 +3968,8 @@ $('btnCamera').onclick = async () => {
 $('btnKeys').onclick = () => { ensureAudio(); settings.mode = 'keys'; showMap(); };
 $('btnGo').onclick = showMap;
 $('btnShop').onclick = showShop;
+$('btnExport').onclick = exportDetections;
+$('btnResetTune').onclick = () => { save.tune = { jump: 1, squat: 1, lane: 1, punch: 1 }; persist(); toast('הלמידה אופסה', 1000); };
 $('btnShopBack').onclick = showMap;
 $('btnMiniGo').onclick = startMini;
 $('btnMiniBack').onclick = showMap;
