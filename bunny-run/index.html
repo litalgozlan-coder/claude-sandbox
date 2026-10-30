@@ -104,7 +104,7 @@
   .world.locked { opacity: .55; }
   .topbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
   .coins { font-size: 22px; font-weight: 900; background: rgba(255, 255, 255, .8); border-radius: 14px; padding: 6px 14px; }
-  .minis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .minis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .minis button { font-size: 15px; padding: 10px 6px; }
   .shop { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; max-height: 52vh; overflow: auto; padding: 4px; }
   .item { background: rgba(255, 255, 255, .75); border-radius: 16px; padding: 10px; text-align: center; font-size: 15px; }
@@ -218,6 +218,7 @@
       <div class="move"><b>🌿 ענף נמוך</b>סקוואט</div>
       <div class="move"><b>🍄 מכשול בנתיב</b>צעד הצידה</div>
       <div class="move"><b>🫧 בועה</b>אגרוף באותו צד</div>
+      <div class="move"><b>🥊 אזור אגרוף</b>אגרופים לכפפות המאמן</div>
       <div class="move"><b>🏃 אזור טורבו</b>ריצה במקום</div>
       <div class="move"><b>🎈 בלון</b>ידיים למעלה ולמטה</div>
       <div class="move"><b>🔔 פעמון</b>מחיאת כף</div>
@@ -229,7 +230,7 @@
       <button id="btnCamera">📷 הפעלת מצלמה</button>
       <button class="secondary desktop-only" id="btnKeys">משחק עם מקלדת</button>
     </div>
-    <p class="muted desktop-only" style="font-size:14px">מקלדת: ← → נתיב · ↑ או רווח קפיצה · ↓ התכופפות · A / D אגרוף · W ידיים למעלה · C מחיאת כף · R ריצה במקום</p>
+    <p class="muted desktop-only" style="font-size:14px">מקלדת: ← → נתיב · ↑ או רווח קפיצה · ↓ התכופפות · A / D אגרוף · Q / E אגרוף למעלה · W ידיים למעלה · C מחיאת כף · R ריצה במקום</p>
     <p class="error" id="startError"></p>
   </div>
 </div>
@@ -251,6 +252,7 @@
         <li id="pr-arms">ידיים למעלה</li>
         <li id="pr-clap">מחיאת כף</li>
         <li id="pr-run">ריצה במקום</li>
+        <li id="pr-upper">אגרוף למעלה</li>
       </ul>
       <div class="settings" style="margin-top:12px">
         <label for="setSens">רגישות</label>
@@ -292,6 +294,8 @@
       <div class="stat"><b id="resClaps">0</b>מחיאות כף</div>
       <div class="stat"><b id="resReaches">0</b>הרמות ידיים</div>
       <div class="stat"><b id="resTurbo">0</b>שניות טורבו</div>
+      <div class="stat"><b id="resMitts">0</b>פגיעות בכפפות</div>
+      <div class="stat"><b id="resBig">0</b>בועות ענק</div>
     </div>
     <p style="font-size:22px; font-weight:800">ניקוד: <span id="resScore">0</span></p>
     <p id="resBest" class="muted"></p>
@@ -316,6 +320,7 @@
       <button class="secondary" data-mini="stars">⭐ תפיסת כוכבים</button>
       <button class="secondary" data-mini="simon">🐰 הארנב אומר</button>
       <button class="secondary" data-mini="pump">🎈 ניפוח בלונים</button>
+      <button class="secondary" data-mini="mitts">🥊 אימון כפפות</button>
     </div>
     <div class="row" style="margin-top:14px; justify-content:space-between">
       <div class="seg" id="roundLen">
@@ -594,7 +599,8 @@ function handlePose(lm, t) {
     const prev = body.wrists[i];
     const speed = prev ? Math.hypot(w.x - prev.x, w.y - prev.y) / dt / body.sw : 0;
     const vx = prev ? (w.x - prev.x) / dt / body.sw : 0;
-    body.wrists[i] = { x: w.x, y: w.y, speed, vx };
+    const vy = prev ? (w.y - prev.y) / dt / body.sw : 0;
+    body.wrists[i] = { x: w.x, y: w.y, speed, vx, vy };
   });
   if (calibState.active) { stepCalibration(); return; }
   if (calib) detectMoves(t);
@@ -638,7 +644,9 @@ function detectMoves(t) {
     const raised = w.y < body.sy + body.sw * 0.6;
     if (w.speed > th.punch && raised && t - body.punchAt[i] > 350) {
       body.punchAt[i] = t;
-      input.punch(i === 0 ? 'L' : 'R');
+      // אגרוף למעלה: היד עפה כלפי מעלה ונגמרת מעל הכתף
+      const upper = w.vy < -2.5 && w.y < body.sy - body.sw * 0.25;
+      input.punch(i === 0 ? 'L' : 'R', upper);
     }
   });
   // ידיים למעלה: שתי כפות הידיים מעל הראש
@@ -713,7 +721,7 @@ function camStatusText() {
 // ---------------------------------------------------------------------------
 // קלט: מצלמה ומקלדת עוברים מכאן
 // ---------------------------------------------------------------------------
-const practice = { jump: false, squat: false, left: false, right: false, punchL: false, punchR: false, arms: false, clap: false, run: false };
+const practice = { jump: false, squat: false, left: false, right: false, punchL: false, punchR: false, arms: false, clap: false, run: false, upper: false };
 function tick(name) {
   if (practice[name]) return;
   practice[name] = true;
@@ -734,9 +742,9 @@ const input = {
     if (G.paused) return;
     mini.onMove('jump');
     if (G.bunny.jumpT < 0) {
-      G.bunny.jumpT = 0; sfx.jump();
+      startJump(G.bunny); sfx.jump();
       if (G.running) G.stats.jumps++;
-    } else if (G.bunny.jumpT > JUMP_DUR * 0.55) {
+    } else if (G.bunny.jumpT > (G.bunny.jumpDur || JUMP_DUR) * 0.55) {
       G.bunny.jumpQueued = true;
     }
   },
@@ -745,13 +753,15 @@ const input = {
     if (G.running && on && !G.bunny.duck) G.stats.squats++;
     G.bunny.duck = on;
   },
-  punch(side) {
-    tick(side === 'L' ? 'punchL' : 'punchR');
+  punch(side, upper = false) {
+    tick(upper ? 'upper' : side === 'L' ? 'punchL' : 'punchR');
     if (G.paused) return;
     mini.onMove(side === 'L' ? 'punchL' : 'punchR');
-    G.bunny.punch[side] = now();
+    if (upper) mini.onMove(side === 'L' ? 'upperL' : 'upperR');
+    if (upper) G.bunny.upper[side] = now(); else G.bunny.punch[side] = now();
     sfx.swish();
-    if (G.running) { G.stats.punches++; popBubble(side); }
+    coachHit(side, upper);
+    if (G.running) { G.stats.punches++; popBubble(side); punchBigBubble(); }
   },
   arms(on) {
     if (on) tick('arms');
@@ -787,6 +797,8 @@ window.addEventListener('keydown', e => {
   if (c === 'ArrowDown') input.duck(true);
   if (c === 'KeyA') input.punch('L');
   if (c === 'KeyD') input.punch('R');
+  if (c === 'KeyQ') input.punch('L', true);
+  if (c === 'KeyE') input.punch('R', true);
   if (c === 'KeyW') input.arms(true);
   if (c === 'KeyC') input.clap();
   if (c === 'KeyR') input.run(true);
@@ -1231,20 +1243,20 @@ const track = { pts: [{ x: 0, z: 0, th: 0 }], fork: null };
 function curvature(s) {
   const ramp = smooth((s - 30) / 40);
   const seg = segAt(s);
-  const calm = seg && (seg.type === 'rainbow' || seg.type === 'turbo') ? 0.3 : seg && seg.type === 'fork' ? 0 : 1;
+  const calm = seg && (seg.type === 'rainbow' || seg.type === 'turbo' || seg.type === 'boxing') ? 0.3 : seg && seg.type === 'fork' ? 0 : 1;
   return ramp * calm * (0.042 * Math.sin(s / 43) + 0.03 * Math.sin(s / 21 + 1.3));
 }
 
 // לוח הקטעים: ריצה רגילה, ובין לבין קשת, נהר או פרסת דרכים
 const segments = [];
-const SPECIALS = ['turbo', 'rainbow', 'balloon', 'fork', 'turbo', 'river', 'balloon'];
+const SPECIALS = ['boxing', 'turbo', 'rainbow', 'boxing', 'balloon', 'fork', 'turbo', 'boxing', 'river', 'balloon'];
 function segAt(s) {
   while (!segments.length || segments[segments.length - 1].s1 < s + 400) {
     const prev = segments[segments.length - 1];
     if (!prev) { segments.push({ type: 'run', s0: -1e4, s1: DEMO ? 95 : 230 }); continue; }
     if (prev.type === 'run') {
       const kind = SPECIALS[segments.filter(x => x.type !== 'run').length % SPECIALS.length];
-      const len = { rainbow: 95, river: DEMO ? 100 : 150, fork: 40, turbo: 130, balloon: 120 }[kind];
+      const len = { rainbow: 95, river: DEMO ? 100 : 150, fork: 40, turbo: 130, balloon: 120, boxing: 110 }[kind];
       const seg = { type: kind, s0: prev.s1, s1: prev.s1 + len };
       if (kind === 'fork') seg.at = prev.s1 + 18;
       segments.push(seg);
@@ -1794,6 +1806,224 @@ function buildBell() {
   glow.scale.set(2.4, 2.4, 1); glow.position.y = 2.85; g.add(glow);
   g.userData = { swing };
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// מכשולים נוספים: כדור מתגלגל, נדנדה, שלולית, צפרדע קופצת, טרמפולינה, בועת ענק
+// ---------------------------------------------------------------------------
+function buildBall() {
+  const g = new THREE.Group();
+  const id = G.world ? G.world.id : 'meadow';
+  const mat = {
+    meadow: new THREE.MeshStandardMaterial({ color: 0xe8c55a, roughness: 0.95, flatShading: true }),
+    beach: new THREE.MeshPhysicalMaterial({ map: umbrellaTex, roughness: 0.35, clearcoat: 1 }),
+    snow: MAT.snowW,
+    candy: gumMat(GUM_COLORS[Math.floor(Math.random() * GUM_COLORS.length)]),
+  }[id];
+  const ball = shadowed(new THREE.Mesh(id === 'meadow' ? new THREE.IcosahedronGeometry(0.48, 2) : new THREE.SphereGeometry(0.46, 28, 20), mat));
+  const holder = new THREE.Group(); holder.add(ball); g.add(holder);
+  g.userData.ball = holder;
+  return g;
+}
+function buildSwing() {
+  const g = new THREE.Group();
+  const id = G.world ? G.world.id : 'meadow';
+  for (const s of [-1, 1]) { const p = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 3.6, 10), id === 'candy' ? MAT.cane : MAT.wood)); p.position.set(s * 3.3, 1.8, 0); g.add(p); }
+  const bar = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 6.8, 10), id === 'candy' ? MAT.candyPink : MAT.woodLight)); bar.rotation.z = Math.PI / 2; bar.position.y = 3.55; g.add(bar);
+  const rope = new THREE.Group(); rope.position.y = 3.5; g.add(rope);
+  const r = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.65, 6), MAT.rope); r.position.y = -1.32; rope.add(r);
+  const wm = { meadow: new THREE.MeshPhysicalMaterial({ color: 0xff7ab8, roughness: 0.4, clearcoat: 0.6 }), beach: MAT.coconut, snow: MAT.ice, candy: MAT.swirl }[id];
+  const weight = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 18), wm)); weight.position.y = -2.75; rope.add(weight);
+  if (id === 'meadow') for (let i = 0; i < 6; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), MAT.leaf2); const a = i / 6 * 6.28; p.position.set(Math.cos(a) * 0.38, -2.75 + Math.sin(a) * 0.38, 0.1); rope.add(p); }
+  g.userData.rope = rope;
+  return g;
+}
+function buildPuddle() {
+  const g = new THREE.Group();
+  const id = G.world ? G.world.id : 'meadow';
+  const mat = new THREE.MeshPhysicalMaterial({ color: id === 'candy' ? 0x7a3e1d : id === 'snow' ? 0x9fd8ff : 0x5ab8ea, roughness: 0.05, clearcoat: 1, transparent: true, opacity: 0.85 });
+  const d = new THREE.Mesh(new THREE.CircleGeometry(1, 40), mat); d.rotation.x = -Math.PI / 2; d.scale.set(2.0, 1.4, 1); d.receiveShadow = true; g.add(d);
+  for (let i = 0; i < 3; i++) { const r = new THREE.Mesh(new THREE.RingGeometry(0.2 + i * 0.35, 0.24 + i * 0.35, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })); r.rotation.x = -Math.PI / 2; r.position.set(rand(-0.8, 0.8), 0.01, rand(-0.4, 0.4)); g.add(r); }
+  return g;
+}
+function buildFrog() {
+  const root = new THREE.Group(); const g = new THREE.Group(); root.add(g);
+  const green = new THREE.MeshPhysicalMaterial({ color: 0x5fd068, roughness: 0.35, clearcoat: 0.8 });
+  const b = shadowed(new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 18), green)); b.scale.set(1.15, 0.75, 1); b.position.y = 0.32; g.add(b);
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.3, 18, 12), MAT.cream); belly.scale.set(1.1, 0.6, 0.5); belly.position.set(0, 0.26, 0.2); g.add(belly);
+  for (const s of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), green); e.position.set(s * 0.2, 0.62, 0.05); g.add(e);
+    const w = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 10), MAT.belly); w.position.set(s * 0.2, 0.66, 0.13); g.add(w);
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), MAT.eye); p.position.set(s * 0.2, 0.67, 0.21); g.add(p);
+    const leg = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 8), green); leg.scale.set(1, 0.5, 1.4); leg.position.set(s * 0.38, 0.1, -0.05); g.add(leg);
+    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.05, 12), MAT.blush); bl.position.set(s * 0.28, 0.38, 0.37); g.add(bl);
+  }
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.018, 8, 20, Math.PI), MAT.eye); smile.rotation.z = Math.PI; smile.position.set(0, 0.4, 0.4); g.add(smile);
+  root.userData.g = g;
+  return root;
+}
+function buildTramp() {
+  const g = new THREE.Group();
+  const frame = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.08, 12, 32), new THREE.MeshPhysicalMaterial({ color: 0x3a8bff, roughness: 0.3, clearcoat: 1 })));
+  frame.rotation.x = Math.PI / 2; frame.position.y = 0.34; g.add(frame);
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.58, 32), new THREE.MeshStandardMaterial({ color: 0xff4f8b, roughness: 0.6, emissive: 0x501030 }));
+  pad.rotation.x = -Math.PI / 2; pad.position.y = 0.32; g.add(pad);
+  for (let i = 0; i < 4; i++) { const a = i / 4 * 6.28 + 0.78; const l = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.34, 6), MAT.pole); l.position.set(Math.cos(a) * 0.55, 0.17, Math.sin(a) * 0.55); g.add(l); }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: dotTex, color: 0xff9ad5, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(2, 2, 1); glow.position.y = 0.5; g.add(glow);
+  g.userData.pad = pad;
+  return g;
+}
+function buildBigBubble() {
+  const g = new THREE.Group();
+  const s = new THREE.Mesh(new THREE.SphereGeometry(2.3, 48, 32), MAT.bubble); s.renderOrder = 2;
+  const inner = new THREE.Group();
+  for (let i = 0; i < 3; i++) { const bf = buildButterfly(i); bf.scale.setScalar(1.2); inner.add(bf); }
+  g.add(inner, s);
+  const sign = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex('🥊', '3 אגרופים!'), transparent: true, depthWrite: false }));
+  sign.scale.set(2.2, 1.35, 1); sign.position.y = 2.6; g.add(sign);
+  g.userData = { sphere: s, inner, sign };
+  return g;
+}
+// בועת הענק: צריך שלושה אגרופים לפני שמגיעים אליה
+function punchBigBubble() {
+  const o = G.objs.find(x => x.type === 'bigbubble' && !x.popped && x.s - G.dist < 16 && x.s - G.dist > 0);
+  if (!o) return;
+  o.hits++; o.hitAt = clock.t;
+  sfx.pop();
+  if (o.hits >= 3) popBig(o, true);
+}
+function popBig(o, earned) {
+  o.popped = true;
+  const pos = o.mesh.position.clone();
+  sfx.bigPop();
+  emit(pos, { n: 90, colors: [0xa0e7ff, 0xffd6f5, 0xfff6a8, 0xc9b8ff, 0xffffff], speed: 7, up: 1, size: 0.3, life: 1.1, gravity: -2, spread: 6 });
+  for (const bf of [...o.mesh.userData.inner.children]) {
+    const wp = new THREE.Vector3(); bf.getWorldPosition(wp);
+    o.mesh.userData.inner.remove(bf); bf.position.copy(wp); scene.add(bf);
+    G.released.push({ mesh: bf, vx: rand(-3, 3), vz: rand(-3, 3), vy: rand(2, 3.5), age: 0 });
+  }
+  scene.remove(o.mesh); o.gone = true;
+  if (earned) {
+    G.stats.bigBubbles++; G.stats.butterflies += 3; G.score += 60 * scoreMult();
+    floatText('+60 🫧', pos);
+    say(pickOne(['בום! 💥', 'איזה כוח! 🥊', 'שחררת 3 פרפרים! 🦋']), 1300);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// מאמן הדובי עם כפפות המטרה: באזור האגרוף ובמיני-משחק
+// ---------------------------------------------------------------------------
+const CUE_TEXT = { L: 'אגרוף שמאל!', R: 'אגרוף ימין!', UL: 'אגרוף למעלה ביד שמאל!', UR: 'אגרוף למעלה ביד ימין!' };
+function buildCoach() {
+  const root = new THREE.Group();
+  const BR = 0xb98250, LT = 0xf0d2a8;
+  const torso = furPart(new THREE.SphereGeometry(0.44, 36, 24), BR, 0.04); torso.scale.set(1, 1.1, 0.95); torso.position.y = 0.62; root.add(torso);
+  const belly = furPart(new THREE.SphereGeometry(0.3, 28, 18), LT, 0.03, [30, 16]); belly.position.set(0, 0.58, -0.22); belly.scale.set(1, 1.1, 0.6); root.add(belly);
+  const head = furPart(new THREE.SphereGeometry(0.32, 36, 24), BR, 0.035); head.position.y = 1.26; root.add(head);
+  for (const s of [-1, 1]) {
+    const ear = furPart(new THREE.SphereGeometry(0.11, 18, 12), BR, 0.03, [16, 8]); ear.position.set(s * 0.24, 1.52, 0); root.add(ear);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), MAT.eye); e.position.set(s * 0.11, 1.32, -0.28); root.add(e);
+    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.015, 8, 6), MAT.shine); gl.position.set(s * 0.11 - 0.012, 1.345, -0.32); root.add(gl);
+    const bl = new THREE.Mesh(new THREE.CircleGeometry(0.05, 14), MAT.blush); bl.position.set(s * 0.19, 1.2, -0.29); bl.rotation.y = Math.PI + s * 0.4; root.add(bl);
+    const leg = furPart(new THREE.SphereGeometry(0.14, 18, 12), BR, 0.03, [16, 8]); leg.scale.set(1, 0.7, 1.3); leg.position.set(s * 0.2, 0.1, -0.05); root.add(leg);
+  }
+  const muzzle = furPart(new THREE.SphereGeometry(0.13, 20, 14), LT, 0.02, [16, 8]); muzzle.position.set(0, 1.18, -0.27); root.add(muzzle);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), MAT.eye); nose.position.set(0, 1.22, -0.39); root.add(nose);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 10, 28), MAT.scarfRed); band.rotation.x = Math.PI / 2 - 0.15; band.position.y = 1.42; root.add(band);
+  const whistle = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.1, 10), MAT.gold); whistle.rotation.x = Math.PI / 2; whistle.position.set(0, 0.85, -0.42); root.add(whistle);
+  const mitts = {}, arms = {};
+  for (const side of ['L', 'R']) {
+    const m = new THREE.Group();
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xff3150, roughness: 0.3, clearcoat: 1, emissive: 0xff5070, emissiveIntensity: 0 });
+    const disc = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 28), mat)); disc.rotation.x = Math.PI / 2; m.add(disc);
+    const target = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), new THREE.MeshBasicMaterial({ color: 0xffffff })); target.position.z = 0.062; m.add(target);
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), new THREE.MeshBasicMaterial({ color: 0xff3150 })); dot.position.z = 0.064; m.add(dot);
+    m.userData.mat = mat;
+    mitts[side] = m; scene.add(m);
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1, 10), new THREE.MeshStandardMaterial({ color: BR, roughness: 1 }));
+    arms[side] = arm; scene.add(arm);
+  }
+  root.userData = { mitts, arms };
+  return root;
+}
+function makeCoach(mode, seg) {
+  removeCoach();
+  const mesh = buildCoach(); scene.add(mesh);
+  G.coach = { mesh, mode, seg, cue: null, cueAt: 0, nextCue: clock.t + 1.2, combo: 0, win: 1.3, lat: laneLat(G.bunny.x) };
+}
+function removeCoach() {
+  const c = G.coach; if (!c) return;
+  scene.remove(c.mesh);
+  for (const k of ['L', 'R']) { scene.remove(c.mesh.userData.mitts[k]); scene.remove(c.mesh.userData.arms[k]); }
+  G.coach = null;
+}
+const _up = new THREE.Vector3(0, 1, 0), _a = new THREE.Vector3(), _b = new THREE.Vector3();
+function updateCoach(dt, active) {
+  const c = G.coach; if (!c) return;
+  const t = clock.t;
+  // בריצה הדובי גדול ועומד רחוק יותר, כדי שיראו אותו מעל הארנב
+  let s, lat;
+  const k = c.mode === 'mini' ? 1 : 1.6;
+  if (c.mode === 'mini') { s = G.dist - 0.5; lat = laneLat(G.bunny.x) + 2.0; }
+  else { s = Math.max(c.seg.s0 + 8, G.dist + 7.5); c.lat = lerp(c.lat, laneLat(G.bunny.x), 1 - Math.pow(0.02, dt)); lat = c.lat; }
+  c.s = s;
+  const hop = Math.abs(Math.sin(t * 5)) * 0.07;
+  c.mesh.position.copy(worldAt(s, lat, hop));
+  c.mesh.scale.setScalar(k);
+  const th = headingAt(s);
+  c.mesh.rotation.set(0, -th + Math.PI, 0);       // פונה לארנב
+  // תזמון: כפפה חדשה נדלקת, ואם לא פגעו בזמן היא נכבית
+  if (active) {
+    if (!c.cue && t > c.nextCue) {
+      let cue; do { cue = pickOne(['L', 'R', 'L', 'R', 'UL', 'UR']); } while (cue === c.last && Math.random() < 0.6);
+      c.cue = cue; c.last = cue; c.cueAt = t;
+    } else if (c.cue && t - c.cueAt > c.win) {
+      c.cue = null; c.combo = 0; c.nextCue = t + 0.35;
+    }
+  } else c.cue = null;
+  const cs = Math.cos(th), sn = Math.sin(th);
+  for (const side of ['L', 'R']) {
+    const sg = side === 'L' ? -1 : 1;
+    const m = c.mesh.userData.mitts[side], arm = c.mesh.userData.arms[side];
+    const lit = c.cue && c.cue.endsWith(side);
+    const high = lit && c.cue.startsWith('U');
+    const fwd = c.mode === 'mini' ? (lit ? 0.3 : 0.25) : (lit ? 0.6 : 0.35) * k;
+    const target = worldAt(s - fwd, lat + sg * (lit ? 0.5 : 0.45) * k, (lit ? (high ? 1.85 : 1.2) : 0.85) * k + hop, _a);
+    m.position.lerp(target, 1 - Math.pow(0.0001, dt));
+    m.rotation.set(0, -th + Math.PI, 0);
+    m.scale.setScalar(lerp(m.scale.x, (lit ? (c.mode === 'mini' ? 1.1 : 1.3) : 1) * k, 0.25));
+    m.userData.mat.emissiveIntensity = lit ? 0.5 + 0.4 * Math.sin(t * 14) : 0;
+    const sh = worldAt(s - 0.05 * k, lat + sg * 0.36 * k, 0.95 * k + hop, _b);
+    const dir = new THREE.Vector3().subVectors(m.position, sh);
+    const len = dir.length();
+    arm.position.copy(sh).addScaledVector(dir, 0.5);
+    arm.scale.set(k, len, k);
+    arm.quaternion.setFromUnitVectors(_up, dir.normalize());
+    void cs; void sn;
+  }
+}
+// אגרוף: האם פגע בכפפה המאירה
+function coachHit(side, upper) {
+  const c = G.coach;
+  if (!c || !c.cue) return;
+  if (!c.cue.endsWith(side) || (c.cue.startsWith('U') && !upper)) return;
+  const m = c.mesh.userData.mitts[side];
+  c.cue = null; c.combo++; c.nextCue = clock.t + Math.max(0.25, 0.55 - c.combo * 0.015); c.win = Math.max(0.85, c.win * 0.985);
+  sfx.ding();
+  emit(m.position, { n: 22, colors: [0xffe27a, 0xffffff, 0xff7ab8], speed: 3.5, up: 0.8, size: 0.22, life: 0.6, gravity: -2 });
+  if (G.running) { G.stats.mitts++; G.score += Math.round(15 * (1 + Math.min(c.combo, 20) * 0.1)) * scoreMult(); }
+  if (mini.active && mini.type === 'mitts') mini.score++;
+  if (c.combo > 0 && c.combo % 6 === 0) say(pickOne(['רצף מטורף! 🔥', 'אלופה! 🥊', 'איזה קצב! ⚡']), 1100);
+}
+function updateCoachRun(seg, dt) {
+  const next = segAt(G.dist + 40);
+  const boxingSeg = seg.type === 'boxing' ? seg : next.type === 'boxing' ? next : null;
+  if (boxingSeg && (!G.coach || G.coach.seg !== boxingSeg)) { makeCoach('run', boxingSeg); say('המאמן מחכה! 🥊', 1500); }
+  if (G.coach && G.coach.mode === 'run') {
+    if (G.dist > G.coach.seg.s1 + 2) { removeCoach(); return; }
+    updateCoach(dt, seg.type === 'boxing' && G.coach.seg.s1 - G.dist > 4);
+  }
 }
 
 const POWERS = {
@@ -2371,7 +2601,7 @@ const G = {
 };
 
 function newBunny() {
-  return { lane: 0, x: 0, vx: 0, jumpT: -1, duck: false, duckK: 0, punch: { L: -1e9, R: -1e9 }, hurtUntil: 0, run: 0, face: Math.PI, blinkAt: 2, blinkStart: 0, roll: 0,
+  return { lane: 0, x: 0, vx: 0, jumpT: -1, jumpDur: JUMP_DUR, jumpH: 1.75, duck: false, duckK: 0, punch: { L: -1e9, R: -1e9 }, upper: { L: -1e9, R: -1e9 }, hurtUntil: 0, run: 0, face: Math.PI, blinkAt: 2, blinkStart: 0, roll: 0,
     fly: 0, armsUp: false, clapAt: -1e9, turboIn: false, cheerUntil: 0, waveUntil: 0, armL: 0, armR: 0 };
 }
 
@@ -2391,12 +2621,13 @@ function resetWorld() {
   G.t = 0; G.dist = 0; G.speed = 11; G.hearts = 3; G.score = 0; G.theme = 'start';
   G.nextSpawn = 2.4; G.spawnIdx = 0; G.shake = 0; G.nextCritter = 3; G.nextBirds = 5; G.seg = null;
   G.bunny = newBunny();
-  G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0, claps: 0, reaches: 0, turbo: 0 };
+  G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0, claps: 0, reaches: 0, turbo: 0, mitts: 0, bigBubbles: 0 };
   G.power = null; G.combo = 0; G.hitsTaken = 0; G.missionDone = false; G.wasTurbo = false;
+  removeCoach();
   populateWorld();
 }
 
-const BUILDERS = { fence: buildFence, branch: buildBranch, mushroom: buildMushroom, carrot: buildCarrot, heart: buildHeart, bubble: buildBubble, star: buildStar, lily: buildLily, log: buildRiverLog, rock: buildRock, bell: buildBell, gift: buildGift };
+const BUILDERS = { ball: buildBall, swing: buildSwing, puddle: buildPuddle, frog: buildFrog, tramp: buildTramp, bigbubble: buildBigBubble, fence: buildFence, branch: buildBranch, mushroom: buildMushroom, carrot: buildCarrot, heart: buildHeart, bubble: buildBubble, star: buildStar, lily: buildLily, log: buildRiverLog, rock: buildRock, bell: buildBell, gift: buildGift };
 function addObj(type, props, s) {
   const o = { type, s, mesh: BUILDERS[type](), born: clock.t, ...props };
   scene.add(o.mesh);
@@ -2429,6 +2660,11 @@ function spawn() {
     let lane = randLane();
     for (let i = 0; i < 5; i++) { addObj('star', { lane }, s + i * 2.6); if (Math.random() < 0.45) lane = clamp(lane + (Math.random() < 0.5 ? -1 : 1), -1, 1); }
     if (Math.random() < 0.3) addObj('bubble', { side: Math.random() < 0.5 ? 'L' : 'R', wob: Math.random() * 6 }, s + 6);
+    return;
+  }
+  if (seg.type === 'boxing') {
+    // באזור האגרוף המאמן מחזיק כפפות; בדרך רק גזרים
+    if (Math.random() < 0.5) { const lane = randLane(); for (let i = 0; i < 4; i++) addObj('carrot', { lane, air: false }, s + i * 2.5); }
     return;
   }
   if (seg.type === 'turbo') {
@@ -2464,7 +2700,21 @@ function spawn() {
     ['bubbleL', theme === 'forest' ? 20 : 10], ['bubbleR', theme === 'forest' ? 20 : 10],
     ['carrots', theme === 'meadow' ? 26 : 12], ['heart', G.hearts < 3 ? 4 : 0],
     ['bell', 10], ['gift', 6], ['jumpChain', G.t > 25 ? 8 : 0], ['squatTunnel', G.t > 25 ? 7 : 0], ['slalom', G.t > 25 ? 8 : 0], ['boxing', G.t > 25 ? 7 : 0],
+    ['ball', 10], ['swing', G.t > 15 ? 8 : 0], ['puddle', 8], ['frog', G.t > 15 ? 8 : 0], ['tramp', 5], ['bigbubble', 9], ['jumpDuck', G.t > 30 ? 6 : 0],
   ]);
+  if (kind === 'ball') { addObj('ball', { lane: randLane(), roll: rand(5, 8) }, s); return; }
+  if (kind === 'swing') { addObj('swing', { phase: Math.random() * 6 }, s); return; }
+  if (kind === 'puddle') { const a = Math.random() < 0.5 ? -1 : 0; addObj('puddle', { lanes: [a, a + 1] }, s); addObj('carrot', { lane: a === -1 ? 1 : -1, air: false }, s); return; }
+  if (kind === 'frog') { const a = randLane(); const b2 = a === 1 ? 0 : a === -1 ? 0 : (Math.random() < 0.5 ? -1 : 1); addObj('frog', { lanes: [a, b2], phase: Math.random() * 3 }, s); return; }
+  if (kind === 'tramp') {
+    const lane = randLane(), dur = 1.25, len = G.speed * dur;
+    addObj('tramp', { lane }, s);
+    for (let i = 1; i <= 3; i++) addObj('star', { lane, height: 0.75 + 3.3 * Math.sin(Math.PI * i / 4) }, s + len * i / 4);
+    return;
+  }
+  if (kind === 'bigbubble') { addObj('bigbubble', { hits: 0 }, s); G.nextSpawn += 0.6; return; }
+  // קפיצה ומיד אחריה סקוואט
+  if (kind === 'jumpDuck') { addObj('fence', {}, s); addObj('branch', {}, s + G.speed * (JUMP_DUR + 0.35)); G.nextSpawn += 1.2; return; }
   G.spawnIdx++;
   if (kind === 'bell') { addObj('bell', {}, s); return; }
   if (kind === 'gift') { addObj('gift', { lane: randLane(), power: pick([['magnet', 1], ['shield', 1], ['double', 1]]) }, s); return; }
@@ -2499,8 +2749,9 @@ function spawn() {
 const laneLat = l => l * LANE_W;
 function bunnyHeight() {
   const b = G.bunny;
-  return b.jumpT < 0 ? 0 : Math.sin(Math.PI * clamp(b.jumpT / JUMP_DUR, 0, 1));
+  return b.jumpT < 0 ? 0 : Math.sin(Math.PI * clamp(b.jumpT / (b.jumpDur || JUMP_DUR), 0, 1));
 }
+function startJump(b, dur = JUMP_DUR, h = 1.75) { b.jumpT = 0; b.jumpDur = dur; b.jumpH = h; }
 
 const _q = new THREE.Vector3();
 function positionObj(o) {
@@ -2528,6 +2779,33 @@ function positionObj(o) {
   } else if (o.type === 'bell') {
     m.position.copy(worldAt(o.s, 0));
     m.userData.swing.rotation.x = o.rang ? Math.sin((t - o.rang) * 14) * 0.6 * Math.exp(-(t - o.rang) * 2) : Math.sin(t * 2) * 0.05;
+  } else if (o.type === 'ball') {
+    m.position.copy(worldAt(o.s, laneLat(o.lane), 0.45));
+    m.userData.ball.rotation.x = -o.s * 2.2;
+  } else if (o.type === 'swing') {
+    m.position.copy(worldAt(o.s, 0));
+    const a = Math.sin(t * 2.4 + o.phase) * 0.95;
+    m.userData.rope.rotation.z = a;
+    o.weightLat = -Math.sin(a) * 2.6;
+  } else if (o.type === 'puddle') {
+    m.position.copy(worldAt(o.s, (o.lanes[0] + o.lanes[1]) / 2 * LANE_W, 0.03));
+  } else if (o.type === 'frog') {
+    // הצפרדע קופצת בין שני נתיבים, ומתכווצת רגע לפני כל קפיצה
+    const cyc = (t + o.phase) % 1.8, k = smooth((cyc - 1.2) / 0.5);
+    const from = Math.floor((t + o.phase) / 1.8) % 2;
+    const la = o.lanes[from], lb = o.lanes[1 - from];
+    o.lat = lerp(laneLat(la), laneLat(lb), k);
+    m.position.copy(worldAt(o.s, o.lat, Math.sin(Math.PI * k) * 0.8));
+    m.userData.g.scale.set(1, cyc > 0.9 && cyc < 1.2 ? 0.75 : 1, 1);
+  } else if (o.type === 'tramp') {
+    m.position.copy(worldAt(o.s, laneLat(o.lane)));
+    m.userData.pad.position.y = 0.32 + (o.bounced ? Math.sin((t - o.bounced) * 25) * 0.08 * Math.exp(-(t - o.bounced) * 4) : 0);
+  } else if (o.type === 'bigbubble') {
+    m.position.copy(worldAt(o.s, 0, 1.5));
+    const w = 1 + Math.sin(t * 5) * 0.03 + (o.hitAt ? Math.sin((t - o.hitAt) * 30) * 0.08 * Math.exp(-(t - o.hitAt) * 5) : 0);
+    m.userData.sphere.scale.set(w * 1.35, (2 - w) * 0.85, w * 0.7);
+    m.userData.sphere.rotation.y = t * 0.3;
+    m.userData.inner.children.forEach((bf, i) => { bf.position.set(Math.sin(t + i * 2) * 1.2, Math.cos(t * 1.3 + i) * 0.4, 0); flapButterfly(bf, t, 10); });
   } else if (o.type === 'gift') {
     m.position.copy(worldAt(o.s, laneLat(o.lane), 0.7 + Math.sin(t * 3 + o.s) * 0.12));
     m.userData.inner.rotation.y = t * 1.5;
@@ -2779,7 +3057,7 @@ function update(dt) {
   if (turboOn) G.stats.turbo += dt;
   if (turboOn && !G.wasTurbo) { say('וווו! טורבו! 🔥', 1400); sfx.whoosh(); }
   G.wasTurbo = turboOn;
-  const boost = (seg.type === 'rainbow' ? 1.3 : seg.type === 'river' ? 0.9 : 1) * (turboOn ? 1.6 : 1);
+  const boost = (seg.type === 'rainbow' ? 1.3 : seg.type === 'river' ? 0.9 : seg.type === 'boxing' ? 0.55 : 1) * (turboOn ? 1.6 : 1);
   G.speed = lerp(G.speed, Math.min(22, 11 + G.t * 0.055) * boost, 1 - Math.pow(turboOn ? 0.05 : 0.3, dt));
   const ds = G.speed * dt;
   G.dist += ds;
@@ -2798,6 +3076,7 @@ function update(dt) {
     if (seg.type === 'river') { toast('🍃 שיט על עלה בנהר!', 1400); sfx.splash(); }
     if (seg.type === 'turbo') { toast('🏃 אזור טורבו! רוצי במקום', 1600); }
     if (seg.type === 'balloon') { toast('🎈 טיסה בבלון!', 1400); say('ידיים למעלה כדי לעלות! 🙌', 2200); }
+    if (seg.type === 'boxing') { toast('🥊 אזור אגרוף!', 1400); }
   }
   const fork = pendingFork();
   if (fork && !fork.warned && fork.at - G.dist < 45) { fork.warned = true; toast('🔀 פרסת דרכים! צעדי שמאלה או ימינה', 2200); }
@@ -2815,12 +3094,13 @@ function update(dt) {
   const laneNow = Math.round(b.x);
   for (const o of G.objs) {
     if (o.gone) continue;
-    const prevZ = o.s - (G.dist - ds), z = o.s - G.dist;
+    if (o.type === 'ball' && o.s - G.dist < 60) o.s -= o.roll * dt;
+    const prevZ = o.s - (G.dist - ds) + (o.type === 'ball' && o.s - G.dist < 60 ? o.roll * dt : 0), z = o.s - G.dist;
     positionObj(o);
     if (prevZ > 0 && z <= 0 && !o.done) {
       o.done = true;
       const before = G.hitsTaken;
-      if (['fence', 'branch', 'mushroom', 'log', 'rock'].includes(o.type)) queueMicrotask(() => {
+      if (['fence', 'branch', 'mushroom', 'log', 'rock', 'ball', 'swing', 'puddle', 'frog'].includes(o.type)) queueMicrotask(() => {
         if (G.hitsTaken === before && G.running) { G.combo++; if (G.combo % 7 === 0) { say(pickOne(PRAISE), 1300); b.cheerUntil = clock.t + 0.8; } }
       });
       if (o.type === 'fence' && !airborne) hurt('אופס! צריך לקפוץ 🪵');
@@ -2828,8 +3108,15 @@ function update(dt) {
       if (o.type === 'branch' && b.duckK < 0.5) hurt('אופס! צריך להתכופף 🌿');
       if (o.type === 'mushroom' && o.lane === laneNow) hurt('אופס! פטרייה 🍄');
       if (o.type === 'rock' && o.lane === laneNow) hurt('אופס! סלע 🪨');
+      if (o.type === 'ball' && o.lane === laneNow && !airborne) hurt('אופס! כדור מתגלגל ⚽');
+      if (o.type === 'swing' && Math.round(o.weightLat / LANE_W) === laneNow && !airborne) hurt('אופס! הנדנדה 🪢');
+      if (o.type === 'puddle' && o.lanes.includes(laneNow) && !airborne) { hurt('אופס! שלולית 💦'); sfx.splash(); emit(bunnyMesh.position, { n: 30, colors: [0xbfeaff, 0xffffff], speed: 3, up: 2.5, size: 0.25, life: 0.7, gravity: -7 }); }
+      if (o.type === 'frog' && Math.round(o.lat / LANE_W) === laneNow && !airborne) hurt('אופס! צפרדע 🐸');
+      if (o.type === 'tramp' && o.lane === laneNow && !airborne) { startJump(b, 1.25, 3.3); o.bounced = clock.t; sfx.jump(); sfx.whoosh(); say('בוינג! 🤸', 1000); }
+      if (o.type === 'bigbubble' && !o.popped) { hurt('אופס! צריך לפוצץ את הבועה 🫧'); popBig(o, false); }
       if (o.type === 'carrot' && (o.lane === laneNow || o.mag) && (o.air ? airborne : bunnyHeight() < 0.5 || o.mag)) collect(o, '', 0xffb347, sfx.carrot);
-      if (o.type === 'star' && o.lane === laneNow && (!o.height || Math.abs(b.fly - o.height + 0.75) < 1.3)) collect(o, '⭐', 0xffe27a, sfx.star);
+      const alt = b.fly + bunnyHeight() * (b.jumpH || 1.75);
+      if (o.type === 'star' && o.lane === laneNow && (!o.height || Math.abs(alt + 0.75 - o.height) < 1.3)) collect(o, '⭐', 0xffe27a, sfx.star);
       if (o.type === 'gift' && o.lane === laneNow) {
         o.gone = true; scene.remove(o.mesh);
         const P = POWERS[o.power];
@@ -2861,6 +3148,7 @@ function update(dt) {
   }
 
   updateCritters(dt);
+  updateCoachRun(seg, dt);
   if (G.t >= settings.roundSec) endRound(true);
 }
 
@@ -2912,9 +3200,9 @@ function animateBunny(dt, running) {
 
   if (b.jumpT >= 0) {
     b.jumpT += dt;
-    if (b.jumpT > JUMP_DUR) {
+    if (b.jumpT > (b.jumpDur || JUMP_DUR)) {
       b.jumpT = -1;
-      if (b.jumpQueued) { b.jumpQueued = false; b.jumpT = 0; sfx.jump(); if (G.running) G.stats.jumps++; }
+      if (b.jumpQueued) { b.jumpQueued = false; startJump(b); sfx.jump(); if (G.running) G.stats.jumps++; }
       sfx.land();
       if (riding) sfx.splash();
       emit(bunnyMesh.position, { n: 16, colors: riding ? [0xffffff, 0xbfeaff] : [0xf3e2c4, 0xffffff], speed: 2, up: riding ? 1.5 : 0.4, size: 0.35, life: 0.5, gravity: riding ? -5 : 0, drag: 0.7 });
@@ -2936,7 +3224,7 @@ function animateBunny(dt, running) {
   b.fly = lerp(b.fly, flying ? (b.armsUp ? 4.2 : 1.0) : 0, 1 - Math.pow(0.06, dt));
   const cheering = t < b.cheerUntil;
   const cheerHop = cheering && jh === 0 && !flying ? Math.abs(Math.sin(t * 11)) * 0.25 : 0;
-  bunnyMesh.position.copy(worldAt(G.dist, lat, jh * 1.75 + hop * 0.16 + bob + (riding ? 0.05 : 0) + b.fly + cheerHop + (flying ? Math.sin(t * 2) * 0.08 : 0)));
+  bunnyMesh.position.copy(worldAt(G.dist, lat, jh * (b.jumpH || 1.75) + hop * 0.16 + bob + (riding ? 0.05 : 0) + b.fly + cheerHop + (flying ? Math.sin(t * 2) * 0.08 : 0)));
   p.balloon.visible = b.fly > 0.05 || flying;
   p.balloon.rotation.z = Math.sin(t * 1.7) * 0.08;
   p.shield.visible = !!(G.power && G.power.type === 'shield');
@@ -2998,6 +3286,8 @@ function animateBunny(dt, running) {
     else if (b.armsUp && ext === 0) { rx = -0.1; rz = s * 2.65; }
     else if (waveBack) { rx = -0.4; rz = s * (2.3 + Math.sin(t * 12) * 0.4); }
     else if (mirror) { const a = side === 'R' ? b.armR : b.armL; rx = -0.15; rz = s * a; }  // מראה: הארנב מחקה את הידיים שלך
+    const up = clamp((tm - b.upper[side]) / 300, 0, 1);
+    if (up < 1) { const e = Math.sin(up * Math.PI); rx = -e * 2.9; rz = s * (0.25 + e * 0.2); }
     sh.rotation.x = lerp(sh.rotation.x, rx, ext > 0 ? 1 : 1 - Math.pow(0.0005, dt));
     sh.rotation.z = lerp(sh.rotation.z, rz, ext > 0 ? 1 : 1 - Math.pow(0.0005, dt));
     sh.rotation.y = -s * ext * 0.4;
@@ -3071,6 +3361,8 @@ function updatePrompt() {
     const seg = segAt(G.dist);
     if (seg.type === 'turbo') text = G.bunny.turboIn ? '🔥 טורבו! ×2' : '🏃 רוצי במקום!';
     else if (seg.type === 'balloon') text = G.bunny.armsUp ? '🙌 למעלה!' : '🙌 ידיים למעלה לעלות · ⬇️ למטה לרדת';
+    else if (seg.type === 'boxing' && G.coach && G.coach.cue) text = `🥊 ${CUE_TEXT[G.coach.cue]}${G.coach.combo > 2 ? ` · רצף ${G.coach.combo}` : ''}`;
+    else if (G.objs.some(o => o.type === 'bigbubble' && !o.popped && o.s - G.dist < 18 && o.s - G.dist > 0)) text = '🫧 אגרופים מהירים לפוצץ!';
     else if (G.objs.some(o => o.type === 'bell' && !o.rang && o.s - G.dist < 22 && o.s - G.dist > 0)) text = '👏 מחאי כף מתחת לפעמון!';
   }
   if ($('prompt').textContent !== text) $('prompt').textContent = text;
@@ -3153,6 +3445,8 @@ function endRound(completed) {
   $('resClaps').textContent = st.claps;
   $('resReaches').textContent = st.reaches;
   $('resTurbo').textContent = Math.round(st.turbo);
+  $('resMitts').textContent = st.mitts;
+  $('resBig').textContent = st.bigBubbles;
   const mins = Math.floor(G.t / 60), secs = Math.floor(G.t % 60);
   $('resSub').textContent = `התאמנת ${mins}:${String(secs).padStart(2, '0')} דקות`;
   $('resJumps').textContent = st.jumps;
@@ -3169,6 +3463,7 @@ function endRound(completed) {
   persist();
   for (const o of G.objs) scene.remove(o.mesh);
   G.objs = [];
+  removeCoach();
   G.bunny.jumpT = -1; G.bunny.duck = false;
   showScreen('screen-results');
 }
@@ -3223,6 +3518,7 @@ const fx = $('fx'), fxc = fx.getContext('2d');
 const MINIS = {
   stars: { title: '⭐ תפיסת כוכבים', how: 'כוכבים נופלים מהשמיים. תפסי אותם עם הידיים! כוכבים למטה תופסים בסקוואט, וכוכבים למעלה במתיחה או בקפיצה. כוכב קשת שווה 3.', keys: 'בלי מצלמה: מזיזים את העכבר כדי לתפוס.', dur: 45 },
   simon: { title: '🐰 הארנב אומר', how: 'הארנב אומר תנועה, ויש לך רגע לעשות אותה. כל הצלחה מאיצה את הקצב!', keys: 'בלי מצלמה: חצים, רווח, A / D, W, C ו-R.', dur: 50 },
+  mitts: { title: '🥊 אימון כפפות', how: 'הדובי המאמן מרים כפפה מאירה. תני אגרוף ביד של אותו צד! כפפה למעלה צריך אגרוף למעלה. ככל שהרצף ארוך יותר, הקצב עולה.', keys: 'בלי מצלמה: A / D אגרוף, Q / E אגרוף למעלה.', dur: 45 },
   pump: { title: '🎈 ניפוח בלונים', how: 'קפיצות פיסוק: מרימים ידיים מעל הראש ומורידים. כל פעם הבלון מתנפח, ואחרי 6 פעמים הוא מתפוצץ עם הפתעה!', keys: 'בלי מצלמה: לוחצים W ומשחררים.', dur: 40 },
 };
 const SIMON_MOVES = [
@@ -3231,6 +3527,7 @@ const SIMON_MOVES = [
   { id: 'arms', label: 'ידיים למעלה!', icon: '🙌' }, { id: 'clap', label: 'מחיאת כף!', icon: '👏' },
   { id: 'punchL', label: 'אגרוף שמאל!', icon: '👊' }, { id: 'punchR', label: 'אגרוף ימין!', icon: '👊' },
   { id: 'run', label: 'ריצה במקום!', icon: '🏃' },
+  { id: 'upperL', label: 'אגרוף למעלה שמאל!', icon: '⤴️' }, { id: 'upperR', label: 'אגרוף למעלה ימין!', icon: '⤴️' },
 ];
 const mini = {
   active: false, type: null, t: 0, score: 0, items: [], bursts: [], mouse: null, nextSpawn: 0,
@@ -3267,6 +3564,7 @@ function startMini() {
   $('miniHud').hidden = false;
   fx.classList.toggle('on', mini.type === 'stars');
   if (mini.type === 'pump') newBalloon();
+  if (mini.type === 'mitts') { makeCoach('mini'); G.coach.nextCue = clock.t + 3.6; }
   startMusic();
 }
 
@@ -3278,9 +3576,10 @@ function endMini() {
   $('miniHud').hidden = true;
   $('prompt').textContent = '';
   if (mini.balloon) { scene.remove(mini.balloon); mini.balloon = null; }
-  const earned = mini.type === 'stars' ? mini.score : mini.type === 'simon' ? mini.score * 3 : mini.score * 8;
+  removeCoach();
+  const earned = { stars: mini.score, simon: mini.score * 3, pump: mini.score * 8, mitts: mini.score * 2 }[mini.type];
   save.carrots += earned; persist();
-  const unit = { stars: 'כוכבים', simon: 'תנועות נכונות', pump: 'בלונים' }[mini.type];
+  const unit = { stars: 'כוכבים', simon: 'תנועות נכונות', pump: 'בלונים', mitts: 'פגיעות בכפפות' }[mini.type];
   $('miniResTitle').textContent = `${MINIS[mini.type].title} · סיום!`;
   $('miniResText').textContent = `${mini.score} ${unit}`;
   $('miniResEarned').textContent = `🥕 הרווחת ${earned} גזרים`;
@@ -3432,10 +3731,11 @@ function updateMini(dt) {
   if (mini.type === 'stars') updateStarsGame(dt);
   if (mini.type === 'simon') updateSimon(dt);
   if (mini.type === 'pump') updatePump(dt);
+  if (mini.type === 'mitts') { updateCoach(dt, mini.t >= 0); $('prompt').textContent = G.coach && G.coach.cue ? `🥊 ${CUE_TEXT[G.coach.cue]}${G.coach.combo > 2 ? ' · רצף ' + G.coach.combo : ''}` : ''; }
   const dur = MINIS[mini.type].dur;
   const left = Math.max(0, dur - Math.max(0, mini.t));
   $('miniTime').textContent = `⏱️ ${Math.ceil(left)}`;
-  $('miniScore').textContent = `${{ stars: '⭐', simon: '✅', pump: '🎈' }[mini.type]} ${mini.score}`;
+  $('miniScore').textContent = `${{ stars: '⭐', simon: '✅', pump: '🎈', mitts: '🥊' }[mini.type]} ${mini.score}`;
   if (mini.t >= dur) endMini();
 }
 
@@ -3570,7 +3870,7 @@ resize();
 if (!CAPTURE) loop();
 
 // חשיפה לבדיקות ולצילום סרטון בלבד
-window.__bunny = { G, body, settings, input, frame, handlePose, applyEquipped, segments, track, segAt, mini, save, WORLDS, startRound, applyWorld, showMap, openMini, startMini, get calib() { return calib; }, get landmarker() { return landmarker; }, clock };
+window.__bunny = { G, body, settings, input, frame, handlePose, applyEquipped, addObj, segments, track, segAt, mini, save, WORLDS, startRound, applyWorld, showMap, openMini, startMini, get calib() { return calib; }, get landmarker() { return landmarker; }, clock };
 </script>
 </body>
 </html>
