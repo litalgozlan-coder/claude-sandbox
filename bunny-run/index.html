@@ -127,6 +127,44 @@
   #prompt { position: fixed; bottom: 13%; width: 100%; text-align: center; font-size: 44px; font-weight: 900; color: #fff; text-shadow: 0 4px 20px rgba(60, 30, 120, .6); pointer-events: none; }
   .bigstars { font-size: 46px; letter-spacing: 6px; margin: 4px 0; }
 
+  /* נייד: טלפון לרוחב */
+  .mobile-only { display: none; }
+  body.mobile .mobile-only { display: block; }
+  body.mobile .desktop-only { display: none; }
+  #rotate {
+    position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, #8fd3ff, #c9b8ff); color: #2b2440; text-align: center; padding: 24px;
+  }
+  #rotate .phone { font-size: 80px; animation: turn 1.6s ease-in-out infinite; }
+  @keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+  #rotate p { font-size: 22px; font-weight: 800; }
+  @media (orientation: portrait) { body.mobile:not(.rotate-ok) #rotate { display: flex; } }
+  body.mobile #toast { font-size: clamp(30px, 7vw, 60px); }
+  body.mobile #prompt { font-size: clamp(24px, 5.5vw, 44px); bottom: 10%; }
+  @media (max-height: 520px) {
+    .card { padding: 12px 18px; border-radius: 20px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 22px; margin-bottom: 6px; }
+    h3 { margin: 8px 0 4px; font-size: 15px; }
+    p, li { font-size: 14px; line-height: 1.45; margin: 4px 0; }
+    .moves { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+    .move { padding: 4px 8px; font-size: 12px; } .move b { font-size: 13px; }
+    button { font-size: 16px; padding: 9px 16px; }
+    .hud { top: 8px; } .hud-box { font-size: 18px; padding: 5px 12px; border-radius: 12px; }
+    #zone { top: 50px; font-size: 14px; }
+    #powers { top: 50px; }
+    .cam { width: 140px; bottom: 8px; left: 8px; border-width: 2px; }
+    .checklist { grid-template-columns: repeat(3, 1fr); gap: 4px; } .checklist li { padding: 5px 8px; font-size: 13px; }
+    .worlds { grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0; }
+    .world { padding: 8px; } .world .em { font-size: 26px; } .world b { font-size: 14px; } .world .mission { font-size: 11px; } .world .stars { font-size: 14px; }
+    .world button { padding: 6px; font-size: 13px; }
+    .shop { grid-template-columns: repeat(4, 1fr); max-height: 48vh; gap: 6px; } .item { padding: 6px; font-size: 12px; } .item .em { font-size: 24px; }
+    .stats { grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 6px 0; } .stat { padding: 4px; font-size: 11px; } .stat b { font-size: 18px; }
+    .bigstars { font-size: 30px; }
+    #speech { font-size: 16px; padding: 6px 12px; }
+    .screen { padding: 10px; }
+  }
+
   @media (max-width: 800px) {
     .screen.right { justify-content: center; }
     .cam { width: 150px; }
@@ -164,6 +202,13 @@
   <div class="cam-status" id="camStatus"></div>
 </div>
 
+<div id="rotate">
+  <div class="phone">📱</div>
+  <p>סובבי את הטלפון לרוחב</p>
+  <p style="font-weight:400; font-size:16px">כך המצלמה רואה את כל הגוף, והצעדים הצידה נכנסים לתמונה.</p>
+  <button class="secondary" id="btnRotateSkip">להמשיך בכל זאת</button>
+</div>
+
 <div class="screen right active" id="screen-start">
   <div class="card glass">
     <h1>ארנב רץ</h1>
@@ -179,11 +224,12 @@
       <div class="move"><b>🔀 פרסת דרכים</b>צעד לצד שבוחרים</div>
     </div>
     <p class="muted" style="font-size:15px">עמדי 1.5–2 מטר מהמחשב, כך שרואים אותך מהראש ועד המותניים. התמונה מעובדת רק במחשב שלך.</p>
+    <p class="mobile-only" style="font-weight:700">📱 בטלפון: הניחי אותו לרוחב, נשען על משהו יציב בגובה המותניים בערך, ועמדי 1.5–2 מטר ממנו.</p>
     <div class="row" style="margin-top:14px">
       <button id="btnCamera">📷 הפעלת מצלמה</button>
-      <button class="secondary" id="btnKeys">משחק עם מקלדת</button>
+      <button class="secondary desktop-only" id="btnKeys">משחק עם מקלדת</button>
     </div>
-    <p class="muted" style="font-size:14px">מקלדת: ← → נתיב · ↑ או רווח קפיצה · ↓ התכופפות · A / D אגרוף · W ידיים למעלה · C מחיאת כף · R ריצה במקום</p>
+    <p class="muted desktop-only" style="font-size:14px">מקלדת: ← → נתיב · ↑ או רווח קפיצה · ↓ התכופפות · A / D אגרוף · W ידיים למעלה · C מחיאת כף · R ריצה במקום</p>
     <p class="error" id="startError"></p>
   </div>
 </div>
@@ -334,6 +380,10 @@ const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 const CAPTURE = new URLSearchParams(location.search).has('capture');   // מצב צילום סרטון: פריים אחרי פריים
 const DEMO = new URLSearchParams(location.search).has('demo');         // סרטון דוגמה: קטעים קצרים כדי להראות הכל מהר
+// בטלפון מורידים פרטים בגרפיקה, כדי שיישאר כוח לזיהוי הגוף
+const MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 900);
+const LOW = MOBILE || new URLSearchParams(location.search).has('low');
+if (MOBILE) document.body.classList.add('mobile');
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -470,10 +520,31 @@ let lastLandmarks = null;
 const LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [0, 11], [0, 12]];
 
 async function startCamera() {
-  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 960 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+  const size = LOW ? { width: { ideal: 640 }, height: { ideal: 480 } } : { width: { ideal: 960 }, height: { ideal: 720 } };
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { ...size, facingMode: 'user' }, audio: false });
   video.srcObject = stream;
   await video.play();
   $('cam').classList.add('on');
+  keepAwake();
+}
+
+// המסך לא נכבה באמצע אימון
+let wakeLock = null;
+async function keepAwake() {
+  try {
+    if (!wakeLock && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }
+  } catch { /* הדפדפן לא מאפשר: לא נורא */ }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && video.srcObject) keepAwake(); });
+
+// בטלפון: מסך מלא ונעילה לרוחב, כשהדפדפן מאפשר
+async function goFullscreen() {
+  if (!MOBILE) return;
+  try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch { /* לא נתמך */ }
+  try { await screen.orientation.lock('landscape'); } catch { /* לא נתמך, למשל באייפון */ }
 }
 
 async function loadPose() {
@@ -730,10 +801,10 @@ window.addEventListener('keyup', e => {
 // סצנת תלת-ממד
 // ---------------------------------------------------------------------------
 const cv = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: CAPTURE });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !LOW, preserveDrawingBuffer: CAPTURE, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LOW ? 1.25 : 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = LOW ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.95;
 
@@ -750,7 +821,7 @@ const hemi = new THREE.HemisphereLight(0xbfdcff, 0x5e8f4a, 0.75);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffecc8, 2.3);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(LOW ? 1024 : 2048, LOW ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 16, bottom: -16, near: 1, far: 60 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.02;
@@ -774,7 +845,7 @@ scene.add(sky);
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.3, 0.4, 0.92);
-composer.addPass(bloom);
+if (!LOW) composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
 let W = 1, H = 1;
@@ -997,7 +1068,7 @@ const furNoise = (() => {
   return t;
 })();
 const furCache = new Map();
-const FUR_LAYERS = 14;
+const FUR_LAYERS = LOW ? 7 : 14;
 function furMats(color, len, density = [46, 24]) {
   const key = `${color}|${len}|${density}`;
   if (furCache.has(key)) return furCache.get(key);
@@ -1124,7 +1195,7 @@ function terrainH(x, z) {
   return 1.6 * Math.sin(x * 0.021 + 0.3) * Math.cos(z * 0.019) + 0.6 * Math.sin(x * 0.043 + z * 0.037) + 0.2 * Math.sin(z * 0.08 - x * 0.03);
 }
 
-const TER_SIZE = 260, TER_SEG = 104;
+const TER_SIZE = 260, TER_SEG = LOW ? 64 : 104;
 const terGeo = new THREE.PlaneGeometry(TER_SIZE, TER_SIZE, TER_SEG, TER_SEG);
 terGeo.rotateX(-Math.PI / 2);
 const terBase = terGeo.attributes.position.array.slice();
@@ -2205,13 +2276,13 @@ function placeTree(t, s) {
 }
 
 const tuftGeo = mergeGeometries([-0.06, 0, 0.06].map((x, i) => { const g = new THREE.ConeGeometry(0.03, 0.3 + i * 0.05, 3); g.rotateZ(x * 3); g.translate(x, 0.15, (i - 1) * 0.03); return g; }));
-const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshStandardMaterial({ color: 0x3f9a35, roughness: 0.85 }), 1600);
+const tufts = new THREE.InstancedMesh(tuftGeo, new THREE.MeshStandardMaterial({ color: 0x3f9a35, roughness: 0.85 }), LOW ? 700 : 1600);
 const flowerGeo = mergeGeometries([0, 1, 2, 3, 4].map(i => { const a = i / 5 * Math.PI * 2; const g = new THREE.SphereGeometry(0.06, 10, 6); g.scale(1, 0.45, 1); g.translate(Math.cos(a) * 0.07, 0.34, Math.sin(a) * 0.07); return g; }));
-const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 0.4 }), 360);
+const flowers = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 0.4 }), LOW ? 180 : 360);
 const stemGeo = new THREE.CylinderGeometry(0.012, 0.015, 0.34, 5); stemGeo.translate(0, 0.17, 0);
 const flowerCenterGeo = new THREE.SphereGeometry(0.04, 10, 8); flowerCenterGeo.translate(0, 0.35, 0);
-const stems = new THREE.InstancedMesh(mergeGeometries([stemGeo, flowerCenterGeo]), new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.7 }), 360);
-const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), MAT.stone, 220);
+const stems = new THREE.InstancedMesh(mergeGeometries([stemGeo, flowerCenterGeo]), new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.7 }), LOW ? 180 : 360);
+const stones = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(0.16, 0), MAT.stone, LOW ? 160 : 220);
 stones.castShadow = true; stones.receiveShadow = true;
 for (const m of [tufts, flowers, stems, stones]) { m.frustumCulled = false; scene.add(m); }
 for (let i = 0; i < flowers.count; i++) flowers.setColorAt(i, new THREE.Color(FLOWER_COLORS[i % FLOWER_COLORS.length]));
@@ -2261,7 +2332,7 @@ function populateWorld() {
 }
 function writeAllInst() { writeInst(tufts, inst.tufts); writeInst(flowers, inst.flowers); writeInst(stems, inst.flowers); writeInst(stones, inst.stones); }
 
-for (let i = 0; i < 54; i++) { const t = buildTree(i % 3 === 0 ? 'pine' : 'round'); scene.add(t); scenery.push(t); }
+for (let i = 0; i < (LOW ? 32 : 54); i++) { const t = buildTree(i % 3 === 0 ? 'pine' : 'round'); scene.add(t); scenery.push(t); }
 for (let i = 0; i < tufts.count; i++) inst.tufts.push({});
 for (let i = 0; i < flowers.count; i++) inst.flowers.push({});
 for (let i = 0; i < stones.count; i++) inst.stones.push({ side: i % 2 ? -1 : 1 });
@@ -3443,10 +3514,12 @@ function startCalibration() {
   showScreen('screen-calib');
 }
 
+$('btnRotateSkip').onclick = () => document.body.classList.add('rotate-ok');
 $('btnCamera').onclick = async () => {
   $('startError').textContent = '';
   $('btnCamera').disabled = true;
   ensureAudio();
+  goFullscreen();
   try { await startCamera(); }
   catch {
     $('startError').textContent = 'לא הצלחנו להפעיל את המצלמה. צריך לאשר לדפדפן גישה למצלמה. אפשר גם לשחק עם המקלדת.';
