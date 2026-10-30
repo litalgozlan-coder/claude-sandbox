@@ -576,7 +576,7 @@ const calibState = { active: false, samples: [] };
 
 function thresholds() {
   const k = 1 / settings.sens;
-  return { jump: 0.2 * k, squat: 0.45 * k, lane: 0.55 * k, punch: 4.5 * k };
+  return { jump: 0.14 * k, squat: 0.45 * k, lane: 0.55 * k, punch: 4.5 * k };
 }
 
 function handlePose(lm, t) {
@@ -592,6 +592,12 @@ function handlePose(lm, t) {
   body.sx = lerp(body.sx, sx, a); body.sy = lerp(body.sy, sy, a); body.sw = body.sw ? lerp(body.sw, sw, 0.1) : sw;
   const dt = Math.max(0.016, (t - body.lastT) / 1000);
   body.lastT = t;
+  // מרכז הגוף לזיהוי קפיצה: ממוצע של הכתפיים והמותניים (כשרואים אותן), כך שהרמת ידיים לא נחשבת קפיצה
+  const hl = P(23), hr = P(24);
+  const hipsOk = hl.v > 0.5 && hr.v > 0.5 && lm[23].y < 0.98 && lm[24].y < 0.98;
+  const ty = hipsOk ? (sy + (hl.y + hr.y) / 2) / 2 : sy;
+  body.tvy = body.ty != null ? (ty - body.ty) / dt / body.sw : 0;
+  body.ty = ty; body.hipsOk = hipsOk;
   // שורש כף היד השמאלית (15) מופיע בצד שמאל של המסך אחרי ההיפוך
   [15, 16].forEach((idx, i) => {
     const w = P(idx);
@@ -636,9 +642,16 @@ function detectMoves(t) {
   else if (lane === 1) { if (dx < exit) lane = dx < -th.lane ? -1 : 0; }
   if (lane !== body.lane) { body.lane = lane; input.lane(lane); }
   const duck = body.ducking ? dy > th.squat * 0.7 : dy > th.squat;
-  if (duck !== body.ducking) { body.ducking = duck; input.duck(duck); }
-  if (body.jumpArmed && dy < -th.jump) { body.jumpArmed = false; input.jump(); }
-  if (!body.jumpArmed && dy > -th.jump * 0.4) body.jumpArmed = true;
+  if (duck !== body.ducking) { body.ducking = duck; if (!duck) body.duckEndAt = t; input.duck(duck); }
+  // קפיצה: הגוף עולה מעל הגובה הרגיל שלו, או עולה מהר. בלי עיבוי, כדי לא לפספס קפיצה קצרה
+  if (body.tBase == null || body.hipsOk !== body.baseHips) { body.tBase = body.ty; body.baseHips = body.hipsOk; }
+  const rise = (body.tBase - body.ty) / calib.sw;
+  const afterSquat = t - (body.duckEndAt || 0) < 500;
+  if (body.jumpArmed && !body.ducking && !afterSquat && (rise > th.jump || (rise > th.jump * 0.55 && body.tvy < -1.3))) {
+    body.jumpArmed = false; body.jumpFlash = t; input.jump();
+  }
+  if (!body.jumpArmed && rise < th.jump * 0.3) body.jumpArmed = true;
+  if (Math.abs(rise) < 0.1 && body.jumpArmed && !body.ducking) body.tBase = lerp(body.tBase, body.ty, 0.04);
   body.wrists.forEach((w, i) => {
     if (!w) return;
     const raised = w.y < body.sy + body.sw * 0.6;
@@ -714,6 +727,7 @@ function camStatusText() {
   if (settings.mode !== 'pose') return '';
   if (!landmarker) return 'טוען זיהוי גוף…';
   if (!body.visible) return 'לא רואים אותך 🙈';
+  if (now() - (body.jumpFlash || -1e9) < 600) return 'קפיצה! ⬆️';
   const names = { '-1': 'נתיב שמאל', 0: 'נתיב אמצע', 1: 'נתיב ימין' };
   return `${names[body.lane]}${body.ducking ? ' · מתכופפת' : ''}`;
 }
@@ -1643,7 +1657,7 @@ function applyEquipped() {
 // עצמים בעולם
 // ---------------------------------------------------------------------------
 const Z_FAR = 90;
-const JUMP_DUR = 0.82;
+const JUMP_DUR = 0.9;
 function shadowed(m) { m.castShadow = true; m.receiveShadow = true; return m; }
 
 function buildFence() {
@@ -3502,6 +3516,19 @@ function frame(dt, render = true) {
   if (G.running) updateHud();
 }
 
+// רזולוציה מסתגלת: כשהמחשב איטי מורידים קצת חדות, כדי שזיהוי הגוף יישאר מהיר
+const perf = { frames: 0, since: performance.now(), ratio: renderer.getPixelRatio(), max: renderer.getPixelRatio() };
+function adaptResolution(t) {
+  perf.frames++;
+  if (t - perf.since < 1500) return;
+  const fps = perf.frames * 1000 / (t - perf.since);
+  perf.frames = 0; perf.since = t;
+  let r = perf.ratio;
+  if (fps < 28 && r > 0.6) r = Math.max(0.6, r - 0.15);
+  else if (fps > 50 && r < perf.max) r = Math.min(perf.max, r + 0.1);
+  if (r !== perf.ratio) { perf.ratio = r; renderer.setPixelRatio(r); composer.setPixelRatio(r); resize(); }
+}
+
 let last = performance.now();
 function loop() {
   requestAnimationFrame(loop);
@@ -3509,6 +3536,7 @@ function loop() {
   const dt = Math.min(0.05, (t - last) / 1000);
   last = t;
   frame(dt);
+  adaptResolution(t);
 }
 
 // ---------------------------------------------------------------------------
@@ -3810,7 +3838,7 @@ function startCalibration() {
   $('practice').hidden = true;
   $('btnGo').disabled = true;
   for (const k of Object.keys(practice)) { practice[k] = false; $('pr-' + k).classList.remove('done'); }
-  body.lane = 0; body.ducking = false; body.jumpArmed = true;
+  body.lane = 0; body.ducking = false; body.jumpArmed = true; body.tBase = null;
   showScreen('screen-calib');
 }
 
