@@ -125,6 +125,10 @@
   #miniHud { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; pointer-events: none; }
   #miniHud[hidden] { display: none; }
   #prompt { position: fixed; bottom: 13%; width: 100%; text-align: center; font-size: 44px; font-weight: 900; color: #fff; text-shadow: 0 4px 20px rgba(60, 30, 120, .6); pointer-events: none; }
+  #prompt.now { color: #ffe14d; animation: nowPulse .3s ease-in-out infinite alternate; }
+  @keyframes nowPulse { to { transform: scale(1.14); } }
+  #prompt .bar { display: block; width: 220px; height: 8px; margin: 8px auto 0; border-radius: 4px; background: rgba(255, 255, 255, .35); overflow: hidden; }
+  #prompt .bar i { display: block; height: 100%; background: #ffe14d; border-radius: 4px; }
   .bigstars { font-size: 46px; letter-spacing: 6px; margin: 4px 0; }
 
   /* נייד: טלפון לרוחב */
@@ -413,10 +417,10 @@ const clock = { t: 0 };
 const SAVE_KEY = 'bunny-save-v1';
 const save = (() => {
   const d = { carrots: 0, owned: ['gloves-pink'], equipped: { hat: null, face: null, back: null, neck: null, gloves: 'gloves-pink' }, worlds: {},
-    tune: { jump: 1, squat: 1, lane: 1, punch: 1 }, learn: { sessions: 0, misses: {}, adjusted: {} } };
+    tune: { jump: 1, squat: 1, lane: 1, punch: 1 }, learn: { sessions: 0, misses: {}, adjusted: {} }, seen: {} };
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (s) return { ...d, ...s, equipped: { ...d.equipped, ...(s.equipped || {}) }, worlds: { ...(s.worlds || {}) }, tune: { ...d.tune, ...(s.tune || {}) }, learn: { ...d.learn, ...(s.learn || {}) } };
+    if (s) return { ...d, ...s, equipped: { ...d.equipped, ...(s.equipped || {}) }, worlds: { ...(s.worlds || {}) }, tune: { ...d.tune, ...(s.tune || {}) }, learn: { ...d.learn, ...(s.learn || {}) }, seen: { ...(s.seen || {}) } };
   } catch { /* אין אחסון או נתונים פגומים */ }
   return d;
 })();
@@ -2710,7 +2714,7 @@ function resetWorld() {
   G.nextSpawn = 2.4; G.spawnIdx = 0; G.shake = 0; G.nextCritter = 3; G.nextBirds = 5; G.seg = null;
   G.bunny = newBunny();
   G.stats = { jumps: 0, squats: 0, steps: 0, punches: 0, carrots: 0, butterflies: 0, claps: 0, reaches: 0, turbo: 0, mitts: 0, bigBubbles: 0 };
-  G.power = null; G.combo = 0; G.hitsTaken = 0; G.missionDone = false; G.wasTurbo = false; G.tuned = {}; G.nextFiller = 0.8;
+  G.power = null; G.combo = 0; G.hitsTaken = 0; G.missionDone = false; G.wasTurbo = false; G.tuned = {}; G.nextFiller = 0.8; G.slowUntil = 0;
   removeCoach();
   populateWorld();
 }
@@ -2718,6 +2722,7 @@ function resetWorld() {
 const BUILDERS = { ball: buildBall, swing: buildSwing, puddle: buildPuddle, frog: buildFrog, tramp: buildTramp, bigbubble: buildBigBubble, fence: buildFence, branch: buildBranch, mushroom: buildMushroom, carrot: buildCarrot, heart: buildHeart, bubble: buildBubble, star: buildStar, lily: buildLily, log: buildRiverLog, rock: buildRock, bell: buildBell, gift: buildGift };
 function addObj(type, props, s) {
   const o = { type, s, mesh: BUILDERS[type](), born: clock.t, ...props };
+  addBadge(o);
   scene.add(o.mesh);
   G.objs.push(o);
   positionObj(o);
@@ -3163,7 +3168,9 @@ function update(dt) {
   G.wasTurbo = turboOn;
   const boost = (seg.type === 'rainbow' ? 1.3 : seg.type === 'river' ? 0.9 : seg.type === 'boxing' ? 0.55 : 1) * (turboOn ? 1.6 : 1);
   G.speed = lerp(G.speed, Math.min(22, 11 + G.t * 0.055) * boost, 1 - Math.pow(turboOn ? 0.05 : 0.3, dt));
-  const ds = G.speed * dt;
+  checkTutorial();
+  G.effSpeed = G.speed * (G.t < (G.slowUntil || 0) ? 0.45 : 1);
+  const ds = G.effSpeed * dt;
   G.dist += ds;
   G.score += ds * 0.3 * scoreMult();
   ensureTrack(G.dist + 160);
@@ -3460,17 +3467,112 @@ function updateSpeech() {
   el.style.top = `${clamp((-_sp.y * 0.5 + 0.5) * H, 60, H - 40)}px`;
 }
 
+// מה לעשות עכשיו: לכל מכשול יש פעולה, והוראה מופיעה כשהוא מתקרב
+const ACTIONS = {
+  jump: { icon: '⬆️', text: 'קפצי!', lead: 0.5 }, squat: { icon: '⬇️', text: 'סקוואט!', lead: 0.65 },
+  left: { icon: '⬅️', text: 'צעד שמאלה!', lead: 0.95 }, right: { icon: '➡️', text: 'צעד ימינה!', lead: 0.95 },
+  punchL: { icon: '👊', text: 'אגרוף שמאל!', lead: 0.6 }, punchR: { icon: '👊', text: 'אגרוף ימין!', lead: 0.6 },
+  clap: { icon: '👏', text: 'מחאי כף!', lead: 0.55 }, big: { icon: '🥊', text: 'אגרופים מהירים!', lead: 1.2 },
+};
+const TUTORIAL = {
+  fence: '🪵 גדר! קפצי מעליה', log: '🪵 בול עץ! קפצי מעליו', branch: '🌿 ענף נמוך! רדי לסקוואט',
+  mushroom: '🚧 משהו חוסם! צעד לנתיב הפנוי', rock: '🪨 סלע! צעד לנתיב הפנוי', ball: '⚽ כדור מתגלגל! קפצי או זוזי הצידה',
+  swing: '🪢 נדנדה! קפצי כשהיא מגיעה', puddle: '💦 שלולית! קפצי או עברי לנתיב יבש', frog: '🐸 צפרדע קופצת! קפצי מעליה',
+  bubble: '🫧 בועה! אגרוף ביד של אותו צד', bigbubble: '🫧 בועת ענק! 3 אגרופים מהירים', bell: '👏 פעמון! מחאי כף מתחתיו',
+};
+function dodgeDir(o) {
+  const lane = G.bunny.lane;
+  const blocked = new Set(G.objs.filter(x => (x.type === 'mushroom' || x.type === 'rock') && Math.abs(x.s - o.s) < 1.2).map(x => x.lane));
+  const free = [-1, 0, 1].filter(l => !blocked.has(l)).sort((a, b) => Math.abs(a - lane) - Math.abs(b - lane));
+  if (!free.length) return 'jump';
+  return free[0] < lane ? 'left' : 'right';
+}
+function actionFor(o) {
+  const lane = G.bunny.lane;
+  switch (o.type) {
+    case 'fence': case 'log': case 'swing': return 'jump';
+    case 'branch': return 'squat';
+    case 'mushroom': case 'rock': return o.lane === lane ? dodgeDir(o) : null;
+    case 'ball': return o.lane === lane ? 'jump' : null;
+    case 'puddle': return o.lanes.includes(lane) ? 'jump' : null;
+    case 'frog': return Math.round((o.lat ?? 0) / LANE_W) === lane ? 'jump' : null;
+    case 'bubble': return o.side === 'L' ? 'punchL' : 'punchR';
+    case 'bigbubble': return o.popped ? null : 'big';
+    case 'bell': return o.rang ? null : 'clap';
+    default: return null;
+  }
+}
+function nextAction() {
+  let best = null;
+  for (const o of G.objs) {
+    if (o.done || o.gone) continue;
+    const ta = (o.s - G.dist) / Math.max(G.effSpeed || G.speed, 1);
+    const win = o.type === 'bigbubble' ? 2.4 : 1.7;
+    if (ta <= -0.05 || ta > win) continue;
+    const a = actionFor(o);
+    if (!a) continue;
+    if (!best || ta < best.ta) best = { o, a, ta };
+  }
+  return best;
+}
+// בפעמיים הראשונות שפוגשים מכשול חדש: הסבר והאטה קצרה
+function checkTutorial() {
+  for (const o of G.objs) {
+    if (o.tutored || o.done || !TUTORIAL[o.type]) continue;
+    const ta = (o.s - G.dist) / Math.max(G.speed, 1);
+    if (ta > 1.6 || ta < 0) continue;
+    o.tutored = true;
+    if ((save.seen[o.type] || 0) >= 2) continue;
+    if (actionFor(o) == null && o.type !== 'mushroom' && o.type !== 'rock') continue;
+    save.seen[o.type] = (save.seen[o.type] || 0) + 1; persist();
+    G.slowUntil = G.t + 1.4;
+    toast(TUTORIAL[o.type], 1800);
+  }
+}
+
+const badgeCache = {};
+function badgeTex(emoji) {
+  if (badgeCache[emoji]) return badgeCache[emoji];
+  return (badgeCache[emoji] = canvasTex(128, (g, s) => {
+    g.fillStyle = 'rgba(255,255,255,.92)'; g.beginPath(); g.arc(s / 2, s / 2, s * 0.44, 0, 7); g.fill();
+    g.strokeStyle = '#7c5cff'; g.lineWidth = 8; g.stroke();
+    g.font = `${s * 0.52}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(emoji, s / 2, s / 2 + 4);
+  }));
+}
+const BADGES = { fence: ['⬆️', 1.9], log: ['⬆️', 1.2], ball: ['⬆️', 1.4], swing: ['⬆️', 4.4], puddle: ['⬆️', 0.9], frog: ['⬆️', 1.5],
+  branch: ['⬇️', 2.2], mushroom: ['↔️', 2.3], rock: ['↔️', 1.9] };
+function addBadge(o) {
+  const b = BADGES[o.type];
+  if (!b) return;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: badgeTex(b[0]), transparent: true, depthWrite: false }));
+  spr.scale.set(1.05, 1.05, 1); spr.position.y = b[1] + 0.15; spr.renderOrder = 4;
+  o.mesh.add(spr); o.badge = spr;
+}
+
 function updatePrompt() {
-  let text = '';
+  let text = '', urgent = false, bar = -1;
   if (G.running && !G.paused) {
     const seg = segAt(G.dist);
-    if (seg.type === 'turbo') text = G.bunny.turboIn ? '🔥 טורבו! ×2' : '🏃 רוצי במקום!';
+    const na = nextAction();
+    if (na) {
+      const A = ACTIONS[na.a];
+      urgent = na.ta < A.lead;
+      text = `${A.icon} ${urgent ? A.text : A.text.replace('!', '')}${na.a === 'big' ? ` ${na.o.hits || 0}/3` : ''}`;
+      bar = clamp(1 - na.ta / 1.7, 0, 1);
+    }
+    else if (seg.type === 'turbo') text = G.bunny.turboIn ? '🔥 טורבו! ×2' : '🏃 רוצי במקום!';
     else if (seg.type === 'balloon') text = G.bunny.armsUp ? '🙌 למעלה!' : '🙌 ידיים למעלה לעלות · ⬇️ למטה לרדת';
     else if (seg.type === 'boxing' && G.coach && G.coach.cue) text = `🥊 ${CUE_TEXT[G.coach.cue]}${G.coach.combo > 2 ? ` · רצף ${G.coach.combo}` : ''}`;
     else if (G.objs.some(o => o.type === 'bigbubble' && !o.popped && o.s - G.dist < 18 && o.s - G.dist > 0)) text = '🫧 אגרופים מהירים לפוצץ!';
     else if (G.objs.some(o => o.type === 'bell' && !o.rang && o.s - G.dist < 22 && o.s - G.dist > 0)) text = '👏 מחאי כף מתחת לפעמון!';
   }
-  if ($('prompt').textContent !== text) $('prompt').textContent = text;
+  const el = $('prompt');
+  if (G.running && !mini.active) {
+    const html = text ? `${text}${bar >= 0 ? `<span class="bar"><i style="width:${Math.round(bar * 100)}%"></i></span>` : ''}` : '';
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.classList.toggle('now', urgent);
+  } else if (!mini.active && el.textContent) { el.textContent = ''; el.classList.remove('now'); }
   const pw = G.running && G.power ? `<span class="power">${POWERS[G.power.type].emoji} ${Math.ceil(G.power.until - G.t)}</span>` : '';
   if ($('powers').innerHTML !== pw) $('powers').innerHTML = pw;
 }
