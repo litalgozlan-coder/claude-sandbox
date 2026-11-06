@@ -68,6 +68,21 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .toggle{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
 .toggle input{width:20px;height:20px;accent-color:var(--coach)}
 .foot{color:var(--muted);font-size:13px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--bg);border-radius:12px;padding:4px}
+.seg label{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;color:var(--muted)}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--coach);color:#1a0d05}
+.own{display:flex;flex-direction:column;gap:10px}
+.own ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:4px}
+.tap-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#tapBtn{min-width:150px}
+#tapBtn.hit{background:var(--gold)}
+#bpmOut{font-family:var(--display);font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+#bpmOut small{font-family:var(--body);font-size:13px;color:var(--muted);font-weight:800;letter-spacing:.1em;margin-inline-start:4px}
+#bpmRange{width:100%;accent-color:var(--coach)}
+.spotify{display:inline-flex;align-items:center;gap:8px;color:var(--fg);font-weight:700;text-decoration:none;border:2px solid var(--line);border-radius:999px;padding:10px 16px;align-self:flex-start}
+.spotify:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.spotify::before{content:"";width:10px;height:10px;border-radius:50%;background:#1ed760}
 
 /* ---------- SETUP ---------- */
 #setup{background:#000}
@@ -142,6 +157,29 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     </div>
 
     <div class="lessons" id="lessonList"></div>
+
+    <div class="tips" id="musicBox">
+      <p class="eyebrow">מוזיקה</p>
+      <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה">
+        <label for="mBeat"><input type="radio" name="music" id="mBeat" value="beat" checked>הביט של המשחק</label>
+        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own">שיר שלי מספוטיפיי</label>
+      </div>
+      <div class="own" id="ownBox" hidden>
+        <ol>
+          <li>להפעיל שיר בספוטיפיי ולחזור לכאן. השיר ימשיך להתנגן ברקע.</li>
+          <li>להקיש על הכפתור יחד עם הביט של השיר, 4–8 פעמים.</li>
+          <li>לבחור שיעור. המשחק יספור 5, 6, 7, 8 בקצב של השיר, והמאמן ירקוד לפיו.</li>
+        </ol>
+        <div class="tap-row">
+          <button class="btn" id="tapBtn" type="button">להקיש בקצב</button>
+          <output id="bpmOut" for="bpmRange">90<small>BPM</small></output>
+        </div>
+        <label class="foot" for="bpmRange">אפשר גם לכוון ידנית:</label>
+        <input type="range" id="bpmRange" min="70" max="120" step="1" value="90">
+        <a class="spotify" href="https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6" target="_blank" rel="noopener">פלייליסט מומלץ: היפ הופ נקי לריקוד</a>
+        <p class="foot">שיר מהיר מאוד (מעל 120)? להקיש רק על כל ביט שני.</p>
+      </div>
+    </div>
 
     <div class="tips">
       <p class="eyebrow">לפני שמתחילים</p>
@@ -427,8 +465,9 @@ function click(t,hi){ const o=actx.createOscillator(), g=actx.createGain(); o.ty
 function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=f; env(g,t+i*0.07,0.22,0.35); o.connect(g).connect(master); o.start(t+i*0.07); o.stop(t+i*0.07+0.4); }); }
 
 const BASS_BARS = [[55,55,65.41,73.42],[55,55,82.41,73.42]];
-const music = {on:false, t0:0, bd:0.75, next8:0, endBeat:0, timer:null};
-function startMusic(t0, bpm, endBeat){
+const music = {on:false, own:false, t0:0, bd:0.75, next8:0, endBeat:0, timer:null};
+function startMusic(t0, bpm, endBeat, own){
+  music.own = !!own;
   music.on = true; music.t0 = t0; music.bd = 60/bpm; music.next8 = -8; music.endBeat = endBeat;
   clearInterval(music.timer);
   music.timer = setInterval(scheduleMusic, 25);
@@ -448,6 +487,9 @@ function scheduleMusic(){
       if (beat < 0){
         if (n%2===0) click(t, beat===-4);
         hat(t, 0.06);
+      } else if (music.own) {
+        // the viewer's own song carries the music; keep only a soft click on the first two bars
+        if (n%2===0 && beat < 8) click(t, false);
       } else {
         const p = ((n%8)+8)%8, bar = Math.floor(n/8);
         if (p===0 || p===3 || p===4) kick(t);
@@ -724,13 +766,14 @@ function startRhythm(idxs, bpm){
     const n = BEATS_PER_MOVE / m.bpp;
     for (let k=0;k<n;k++){ const p = m.poses[k % m.poses.length]; timeline.push({t0:beat, dur:m.bpp, pose:p, move:m, best:0, done:false}); beat += m.bpp; }
   }
+  if (musicPrefs.mode === 'own') bpm = musicPrefs.bpm;
   const ac = ensureAudio();
   const clock = ac ? () => ac.currentTime : () => performance.now()/1000;
   const t0 = clock() + 0.35;
   state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd:60/bpm, t0, clock, idx:-1, hits:0, streak:0, idxs};
   $('phaseChip').textContent = idxs.length>1 ? 'כוריאוגרפיה · בקצב מלא' : 'שלב 2 · בקצב';
   $('countBig').style.fontSize = '';
-  if (ac) startMusic(t0, bpm, beat);
+  if (ac) startMusic(t0, bpm, beat, musicPrefs.mode === 'own');
 }
 function rhythmCoach(ph, bPos){
   const tl = ph.timeline;
@@ -852,6 +895,38 @@ function loop(now){
   drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, coachA, {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   drawCam(camCanvas, camCtx, res, target);
 }
+/* ---------- music choice + tap tempo ---------- */
+const MUSIC_KEY = 'bitrishon.music.v1';
+const musicPrefs = (() => { try { return Object.assign({mode:'beat', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'beat', bpm:90}; } })();
+function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify(musicPrefs)); } catch {} }
+function renderMusic(){
+  $('mBeat').checked = musicPrefs.mode === 'beat';
+  $('mOwn').checked = musicPrefs.mode === 'own';
+  $('ownBox').hidden = musicPrefs.mode !== 'own';
+  $('bpmRange').value = musicPrefs.bpm;
+  $('bpmOut').innerHTML = `${musicPrefs.bpm}<small>BPM</small>`;
+}
+function setBpm(v){ musicPrefs.bpm = Math.round(clamp(v,60,140)); saveMusic(); renderMusic(); }
+for (const id of ['mBeat','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
+$('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
+const taps = [];
+$('tapBtn').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const t = performance.now();
+  if (taps.length && t - taps[taps.length-1] > 2000) taps.length = 0;
+  taps.push(t); if (taps.length > 9) taps.shift();
+  const b = $('tapBtn'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90);
+  if (taps.length >= 4){
+    const gaps = taps.slice(1).map((x,i) => x - taps[i]).sort((a,b)=>a-b);
+    const mid = gaps[Math.floor(gaps.length/2)];
+    setBpm(60000/mid);
+    b.textContent = 'עוד הקשה…';
+  } else b.textContent = `עוד ${4-taps.length}…`;
+  clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'להקיש בקצב'; }, 2200);
+});
+$('tapBtn').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $('tapBtn').dispatchEvent(new Event('pointerdown')); } });
+renderMusic();
+
 renderHome();
 requestAnimationFrame(loop);
 </script>
