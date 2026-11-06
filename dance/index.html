@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121418">
+<title>ביט ראשון</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karantina:wght@400;700&family=Assistant:wght@400;600;800&display=swap">
+<style>
+/* Layout: one-screen app. Home = scrolling lesson list under a live coach demo.
+   Play = coach panel + mirrored camera panel (stacked in portrait, side by side in landscape). */
+:root{
+  --bg:#121418;
+  --panel:#1b1f26;
+  --panel-2:#232832;
+  --line:#2f3541;
+  --fg:#f3efe6;
+  --muted:#9ba2ae;
+  --coach:#ff7a3d;
+  --you:#46d3e8;
+  --good:#5fe08a;
+  --bad:#ff5a6a;
+  --gold:#ffd23f;
+  --display:"Karantina","Assistant",system-ui,sans-serif;
+  --body:"Assistant",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-tap-highlight-color:transparent;overflow:hidden}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-offset:2px}
+
+.screen{position:fixed;inset:0;display:flex;flex-direction:column}
+.pad{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ---------- HOME ---------- */
+#home{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.home-inner{max-width:640px;width:100%;margin:0 auto;padding-block:calc(env(safe-area-inset-top,0px) + 20px) calc(env(safe-area-inset-bottom,0px) + 32px);display:flex;flex-direction:column;gap:22px}
+.hero{display:grid;grid-template-columns:1fr 132px;gap:12px;align-items:end}
+.brand{font-family:var(--display);font-weight:700;font-size:clamp(76px,22vw,120px);line-height:.82;margin:0;letter-spacing:.5px;color:var(--fg);text-shadow:5px 5px 0 var(--coach)}
+.tagline{margin:10px 0 0;color:var(--muted);font-size:17px;max-width:34ch}
+#demoCanvas{width:132px;height:170px;display:block;background:var(--panel);border-radius:14px}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:0}
+
+.lessons{display:flex;flex-direction:column;gap:10px}
+.lesson{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;text-align:start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;width:100%}
+.lesson:active{transform:scale(.99)}
+.lesson .num{font-family:var(--display);font-size:40px;line-height:1;color:var(--coach);text-align:center}
+.lesson .title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.lesson .name{font-family:var(--display);font-weight:700;font-size:30px;line-height:1}
+.lesson .en{font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:800;direction:ltr}
+.lesson .desc{color:var(--muted);font-size:14px;margin-top:2px}
+.lesson.full{background:var(--coach);border-color:var(--coach);color:#1a0d05}
+.lesson.full .num,.lesson.full .en,.lesson.full .desc{color:#3b1b08}
+.stars{display:flex;gap:2px;direction:ltr}
+.stars svg{width:18px;height:18px}
+.stars .on{fill:var(--gold)}
+.stars .off{fill:none;stroke:var(--line);stroke-width:2}
+.lesson.full .stars .off{stroke:#7a3a14}
+.lesson.full .stars .on{fill:#1a0d05}
+
+.tips{background:var(--panel-2);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.tips ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:4px}
+.toggle{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
+.toggle input{width:20px;height:20px;accent-color:var(--coach)}
+.foot{color:var(--muted);font-size:13px}
+
+/* ---------- SETUP ---------- */
+#setup{background:#000}
+#setup .cam-wrap{position:absolute;inset:0}
+.setup-card{position:absolute;left:0;right:0;bottom:0;padding-block:18px calc(env(safe-area-inset-bottom,0px) + 18px);background:linear-gradient(to top,rgba(18,20,24,.97) 70%,rgba(18,20,24,0));display:flex;flex-direction:column;gap:12px}
+.setup-card h2{font-family:var(--display);font-size:40px;line-height:1;margin:0}
+.status{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--bad);flex:none}
+.dot.ok{background:var(--good)}
+.dot.mid{background:var(--gold)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{border:0;border-radius:999px;padding:14px 22px;font-weight:800;font-size:18px;background:var(--coach);color:#1a0d05}
+.btn.ghost{background:transparent;border:2px solid var(--line);color:var(--fg)}
+.btn:disabled{opacity:.45}
+
+/* ---------- PLAY ---------- */
+#play{display:grid;grid-template-rows:44% 1fr;background:#000}
+@media (orientation:landscape){#play{grid-template-rows:1fr;grid-template-columns:42% 1fr}}
+.panel{position:relative;overflow:hidden;min-width:0;min-height:0}
+.panel canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#coachPanel{background:var(--panel)}
+.coach-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
+#moveName{font-family:var(--display);font-weight:700;font-size:44px;line-height:.9}
+#moveEn{font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:800;direction:ltr;text-align:right}
+.chip{display:inline-block;background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;font-weight:600;margin-top:6px}
+#countBig{font-family:var(--display);font-weight:700;font-size:84px;line-height:.8;color:var(--coach);min-width:1ch;text-align:center;font-variant-numeric:tabular-nums}
+.coach-bottom{position:absolute;bottom:10px;left:14px;right:14px;text-align:center;pointer-events:none}
+#poseLabel{font-family:var(--display);font-weight:700;font-size:34px;line-height:1}
+#poseCue{color:var(--muted);font-size:15px}
+#camPanel{background:#000}
+.cam-top{position:absolute;top:10px;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:center;gap:8px}
+@media (orientation:landscape){.cam-top{top:calc(env(safe-area-inset-top,0px) + 10px)}}
+.exit{border:0;background:rgba(0,0,0,.55);border-radius:999px;padding:8px 14px;font-weight:700;font-size:15px}
+#legWarn{background:rgba(255,210,63,.92);color:#211a00;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700}
+.cam-bottom{position:absolute;left:0;right:0;bottom:0;padding:22px max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(14px,env(safe-area-inset-left,0px));background:linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,0));display:flex;flex-direction:column;gap:8px}
+#hint{font-weight:800;font-size:20px;text-align:center;min-height:1.45em;text-shadow:0 1px 3px #000}
+.meter{height:10px;border-radius:99px;background:rgba(255,255,255,.18);overflow:hidden}
+#meterFill{height:100%;width:0;background:var(--you);border-radius:99px;transition:width .12s linear}
+#meterFill.full{background:var(--good)}
+#pop{position:absolute;top:38%;left:0;right:0;text-align:center;font-family:var(--display);font-weight:700;font-size:72px;line-height:1;pointer-events:none;opacity:0;text-shadow:3px 3px 0 #000}
+#pop.show{animation:pop .7s ease-out}
+@keyframes pop{0%{opacity:0;transform:scale(.6)}20%{opacity:1;transform:scale(1.08)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+#topBar{position:fixed;top:0;left:0;height:4px;background:var(--coach);width:0;z-index:5;transition:width .2s linear}
+#banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:rgba(18,20,24,.88);z-index:6;text-align:center;padding:24px}
+#banner b{font-family:var(--display);font-size:72px;line-height:.9;color:var(--coach)}
+#banner span{color:var(--fg);font-size:18px;max-width:30ch}
+
+/* ---------- RESULT ---------- */
+#result{align-items:center;justify-content:center;text-align:center;gap:14px;padding-block:24px}
+#resTitle{font-family:var(--display);font-size:84px;line-height:.85;margin:0;text-shadow:4px 4px 0 var(--coach)}
+#resStars{display:flex;gap:8px;justify-content:center;direction:ltr}
+#resStars svg{width:52px;height:52px}
+#resStars .on{fill:var(--gold)}
+#resStars .off{fill:none;stroke:var(--line);stroke-width:1.6}
+#resDetail{color:var(--muted);font-size:18px;max-width:30ch}
+#resPct{font-family:var(--display);font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
+
+@media (prefers-reduced-motion:reduce){#pop.show{animation:none;opacity:1}.lesson:active{transform:none}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<section id="home" class="screen">
+  <div class="home-inner pad">
+    <div class="hero">
+      <div>
+        <h1 class="brand">ביט<br>ראשון</h1>
+        <p class="tagline">היפ־הופ למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
+      </div>
+      <canvas id="demoCanvas" width="264" height="340" aria-label="מאמן מונפש מדגים צעדים"></canvas>
+    </div>
+
+    <div class="lessons" id="lessonList"></div>
+
+    <div class="tips">
+      <p class="eyebrow">לפני שמתחילים</p>
+      <ol>
+        <li>להעמיד את הנייד לאורך, נשען על קיר או ספרים, בערך בגובה המותניים.</li>
+        <li>להתרחק 2–3 מטרים, כך שרואים את כל הגוף מהראש ועד הרגליים.</li>
+        <li>להגביר את הווליום. המוזיקה והספירה עוזרות להיכנס לקצב.</li>
+      </ol>
+      <p class="foot">המאמן עומד מולך כמו מראה: כשכתוב "יד ימין", זו היד הימנית שלך, והיא מופיעה בצד ימין של המסך.</p>
+    </div>
+
+    <label class="toggle" for="noCam">
+      <input type="checkbox" id="noCam">
+      בלי מצלמה (רק צפייה במאמן ותרגול, בלי ניקוד)
+    </label>
+    <p class="foot">הווידאו מעובד בתוך הנייד בלבד. שום תמונה לא נשלחת או נשמרת.</p>
+  </div>
+</section>
+
+<!-- SETUP -->
+<section id="setup" class="screen" hidden>
+  <div class="cam-wrap"><canvas id="setupCanvas"></canvas></div>
+  <div class="setup-card pad">
+    <h2>מתמקמים</h2>
+    <div class="status"><span class="dot" id="stDot"></span><span id="stText">פותחים את המצלמה…</span></div>
+    <div class="row">
+      <button class="btn" id="goBtn" disabled>יאללה, מתחילים</button>
+      <button class="btn ghost" id="setupBack">חזרה</button>
+    </div>
+  </div>
+</section>
+
+<!-- PLAY -->
+<section id="play" class="screen" hidden>
+  <div class="panel" id="coachPanel">
+    <canvas id="coachCanvas"></canvas>
+    <div class="coach-top">
+      <div>
+        <div id="moveName">באונס</div>
+        <div id="moveEn">BOUNCE</div>
+        <span class="chip" id="phaseChip">שלב 1 · לומדים לאט</span>
+      </div>
+      <div id="countBig"></div>
+    </div>
+    <div class="coach-bottom">
+      <div id="poseLabel"></div>
+      <div id="poseCue"></div>
+    </div>
+  </div>
+  <div class="panel" id="camPanel">
+    <canvas id="camCanvas"></canvas>
+    <div class="cam-top">
+      <button class="exit" id="exitBtn">✕ יציאה</button>
+      <span id="legWarn" hidden>להתרחק קצת, הרגליים לא בתמונה</span>
+    </div>
+    <div id="pop"></div>
+    <div class="cam-bottom">
+      <div id="hint"></div>
+      <div class="meter"><div id="meterFill"></div></div>
+    </div>
+  </div>
+</section>
+<div id="topBar"></div>
+<div id="banner" hidden><b id="bannerBig"></b><span id="bannerSmall"></span></div>
+
+<!-- RESULT -->
+<section id="result" class="screen pad" hidden>
+  <h2 id="resTitle">כל הכבוד!</h2>
+  <div id="resStars"></div>
+  <div id="resPct"></div>
+  <p id="resDetail"></p>
+  <div class="row" style="justify-content:center">
+    <button class="btn" id="resNext">לשיעור הבא</button>
+    <button class="btn ghost" id="resAgain">עוד פעם</button>
+    <button class="btn ghost" id="resHome">לתפריט</button>
+  </div>
+</section>
+
+<video id="video" playsinline muted autoplay hidden></video>
+
+<script type="module">
+/* =========================================================
+   Pose model
+   Angles are in degrees on screen, mirrored like a mirror:
+   0 = pointing to screen right, 90 = up, -90 = down.
+   "r" limbs are the dancer's right side, shown on screen right.
+   ========================================================= */
+const SEG = {
+  rUpper:[12,14], rFore:[14,16], lUpper:[11,13], lFore:[13,15],
+  rThigh:[24,26], rShin:[26,28], lThigh:[23,25], lShin:[25,27]
+};
+const SEG_NAMES = {
+  rUpper:'יד ימין', rFore:'יד ימין', lUpper:'יד שמאל', lFore:'יד שמאל',
+  rThigh:'רגל ימין', rShin:'רגל ימין', lThigh:'רגל שמאל', lShin:'רגל שמאל'
+};
+const isLeg = k => k.includes('Thigh') || k.includes('Shin');
+const D2R = Math.PI/180;
+const norm = a => ((a+180)%360+360)%360-180;
+const angDiff = (a,b) => Math.abs(norm(a-b));
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+
+const STAND = {rUpper:-80,rFore:-84,lUpper:-100,lFore:-96,rThigh:-86,rShin:-90,lThigh:-94,lShin:-90};
+const P = o => Object.assign({}, STAND, o);
+function mirrorAngles(a){
+  const m = {};
+  for (const k in a){ const other = (k[0]==='r'?'l':'r') + k.slice(1); m[other] = norm(180 - a[k]); }
+  return m;
+}
+
+const UP_V = {label:'ידיים למעלה', cue:'שתי הידיים למעלה בצורת V', a:P({rUpper:68,rFore:72,lUpper:112,lFore:108})};
+const KNEE_R = {label:'ברך ימין', cue:'מושכים מרפקים למטה ומרימים ברך ימין לצד', a:P({rUpper:-55,rFore:85,lUpper:-125,lFore:95,rThigh:-25,rShin:-92,lThigh:-92,lShin:-90})};
+const POINT_R = {label:'פוינט ימין', cue:'יד ימין מצביעה למעלה באלכסון, יד שמאל על המותן', a:P({rUpper:50,rFore:52,lUpper:-130,lFore:-40,rThigh:-80,rShin:-88,lThigh:-100,lShin:-92})};
+
+const MOVES = [
+  {id:'bounce', name:'באונס', en:'BOUNCE', desc:'כיפוף ברכיים בקצב, אגרופים לחזה', bpp:1, poses:[
+    {label:'למטה', cue:'מכופפים ברכיים ומביאים אגרופים לחזה', a:P({rUpper:-40,rFore:168,lUpper:-140,lFore:12,rThigh:-76,rShin:-102,lThigh:-104,lShin:-78})},
+    {label:'למעלה', cue:'מתיישרים ומשחררים את הידיים', a:P({rThigh:-84,rShin:-90,lThigh:-96,lShin:-90})}
+  ]},
+  {id:'steptouch', name:'סטפ טאץ׳', en:'STEP TOUCH', desc:'צעד לצד וחזרה, עם מחיאת כף', bpp:1, poses:[
+    {label:'צעד לצד', cue:'רגליים פתוחות, ידיים באלכסון למטה', a:P({rUpper:-35,rFore:-35,lUpper:-145,lFore:-145,rThigh:-70,rShin:-76,lThigh:-110,lShin:-104})},
+    {label:'מחיאה', cue:'רגליים יחד, כפיים נפגשות מול החזה', a:P({rUpper:-100,rFore:120,lUpper:-80,lFore:60,rThigh:-93,rShin:-90,lThigh:-87,lShin:-90})}
+  ]},
+  {id:'point', name:'פוינט', en:'THE POINT', desc:'מצביעים לשמיים ביד אחת, יד שנייה על המותן', bpp:2, poses:[
+    POINT_R,
+    {label:'פוינט שמאל', cue:'יד שמאל מצביעה למעלה באלכסון, יד ימין על המותן', a:mirrorAngles(POINT_R.a)}
+  ]},
+  {id:'knee', name:'משיכת ברך', en:'KNEE PULL', desc:'ידיים למעלה, ואז מרפקים למטה וברך לצד', bpp:1, poses:[
+    UP_V, KNEE_R, UP_V,
+    {label:'ברך שמאל', cue:'מושכים מרפקים למטה ומרימים ברך שמאל לצד', a:mirrorAngles(KNEE_R.a)}
+  ]},
+  {id:'freeze', name:'פריז', en:'FREEZE', desc:'ידיים משוכלות בעמידה רחבה, ואז פתיחה', bpp:2, poses:[
+    {label:'שילוב ידיים', cue:'ידיים משוכלות על החזה, רגליים רחבות', a:P({rUpper:-115,rFore:160,lUpper:-65,lFore:20,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})},
+    {label:'פתיחה', cue:'ידיים פתוחות לצדדים בגובה הכתפיים', a:P({rUpper:0,rFore:5,lUpper:180,lFore:175,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})}
+  ]}
+];
+
+const LESSON_BPM = 80, FULL_BPM = 90, BEATS_PER_MOVE = 16;
+const MATCH = 0.72;
+
+/* ---------- storage (per-viewer convenience only) ---------- */
+const STORE_KEY = 'bitrishon.stars.v1';
+function loadStars(){ try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } }
+function saveStar(id, s){ const all = loadStars(); if (!(all[id] >= s)) { all[id] = s; try { localStorage.setItem(STORE_KEY, JSON.stringify(all)); } catch {} } }
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const screens = ['home','setup','play','result'];
+function show(name){ for (const s of screens) $(s).hidden = s !== name; ui.screen = name; resizeAll(); }
+const ui = {screen:'home'};
+
+function starSvg(on){ return `<svg viewBox="0 0 24 24" aria-hidden="true"><path class="${on?'on':'off'}" d="M12 2.6l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.2 6.1 20.4l1.3-6.5L2.5 9.4l6.6-.8z"/></svg>`; }
+function starsHtml(n, total=3){ let h=''; for(let i=0;i<total;i++) h+=starSvg(i<n); return h; }
+
+function renderHome(){
+  const st = loadStars();
+  const list = $('lessonList');
+  list.innerHTML = '';
+  MOVES.forEach((m,i) => {
+    const b = document.createElement('button');
+    b.className = 'lesson';
+    b.innerHTML = `<span class="num">${i+1}</span>
+      <span><span class="title"><span class="name"></span><span class="en"></span></span><div class="desc"></div></span>
+      <span class="stars" aria-label="${st[m.id]||0} כוכבים מתוך 3">${starsHtml(st[m.id]||0)}</span>`;
+    b.querySelector('.name').textContent = m.name;
+    b.querySelector('.en').textContent = m.en;
+    b.querySelector('.desc').textContent = m.desc;
+    b.addEventListener('click', () => begin({type:'lesson', index:i}));
+    list.appendChild(b);
+  });
+  const f = document.createElement('button');
+  f.className = 'lesson full';
+  f.innerHTML = `<span class="num">★</span>
+    <span><span class="title"><span class="name">הכוריאוגרפיה המלאה</span><span class="en">FULL ROUTINE</span></span>
+    <div class="desc">כל חמשת הצעדים ברצף, בקצב מלא. בערך דקה.</div></span>
+    <span class="stars" aria-label="${st.full||0} כוכבים מתוך 3">${starsHtml(st.full||0)}</span>`;
+  f.addEventListener('click', () => begin({type:'full'}));
+  list.appendChild(f);
+}
+
+/* =========================================================
+   Coach figure (forward kinematics from the same angles)
+   ========================================================= */
+const BODY = {sh:1.45, hip:0.95, shw:0.2, hipw:0.12, ua:0.3, fa:0.27, th:0.44, sn:0.44, head:0.13};
+function coachJoints(a){
+  const go = (p,ang,len) => [p[0]+Math.cos(ang*D2R)*len, p[1]+Math.sin(ang*D2R)*len];
+  const J = {rSh:[BODY.shw,BODY.sh], lSh:[-BODY.shw,BODY.sh], rHip:[BODY.hipw,BODY.hip], lHip:[-BODY.hipw,BODY.hip]};
+  J.rEl = go(J.rSh,a.rUpper,BODY.ua); J.rWr = go(J.rEl,a.rFore,BODY.fa);
+  J.lEl = go(J.lSh,a.lUpper,BODY.ua); J.lWr = go(J.lEl,a.lFore,BODY.fa);
+  J.rKn = go(J.rHip,a.rThigh,BODY.th); J.rAn = go(J.rKn,a.rShin,BODY.sn);
+  J.lKn = go(J.lHip,a.lThigh,BODY.th); J.lAn = go(J.lKn,a.lShin,BODY.sn);
+  J.head = [0, BODY.sh + 0.24];
+  const minY = Math.min(J.rAn[1], J.lAn[1]);
+  for (const k in J) J[k] = [J[k][0], J[k][1]-minY];
+  return J;
+}
+function lerpAngles(a,b,t){ const o={}; for (const k in a) o[k] = a[k] + norm(b[k]-a[k])*t; return o; }
+const ease = t => t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+
+function drawCoach(ctx, w, h, angles, opts={}){
+  ctx.clearRect(0,0,w,h);
+  const J = coachJoints(angles);
+  // fixed scale that fits arms raised overhead (about 2.45 body units tall)
+  const top = opts.topPad||0, bottom = Math.max(10, h*0.04) + (opts.bottomPad||0);
+  const s = Math.min(w/1.6, (h-top-bottom)/2.45);
+  const ox = w/2, oy = h - bottom;
+  const X = p => ox + p[0]*s, Y = p => oy - p[1]*s;
+  // floor
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath(); ctx.ellipse(ox, oy+4, s*0.42, s*0.05, 0, 0, Math.PI*2); ctx.fill();
+  const col = opts.color || '#ff7a3d';
+  const dark = opts.dark || '#c4521f';
+  const lw = s*0.085;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const limb = (a,b,c,wid) => { ctx.strokeStyle=c; ctx.lineWidth=wid; ctx.beginPath(); ctx.moveTo(X(a),Y(a)); ctx.lineTo(X(b),Y(b)); ctx.stroke(); };
+  // back limbs slightly darker to read depth
+  limb(J.lHip,J.lKn,dark,lw); limb(J.lKn,J.lAn,dark,lw);
+  limb(J.lSh,J.lEl,dark,lw*0.9); limb(J.lEl,J.lWr,dark,lw*0.85);
+  // torso
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(X(J.lSh),Y(J.lSh)); ctx.lineTo(X(J.rSh),Y(J.rSh));
+  ctx.lineTo(X(J.rHip),Y(J.rHip)); ctx.lineTo(X(J.lHip),Y(J.lHip)); ctx.closePath();
+  ctx.lineWidth = lw*0.9; ctx.strokeStyle = col; ctx.fill(); ctx.stroke();
+  // front limbs
+  limb(J.rHip,J.rKn,col,lw); limb(J.rKn,J.rAn,col,lw);
+  limb(J.rSh,J.rEl,col,lw*0.9); limb(J.rEl,J.rWr,col,lw*0.85);
+  // shoes
+  ctx.fillStyle = '#f3efe6';
+  for (const an of [J.lAn,J.rAn]) { ctx.beginPath(); ctx.ellipse(X(an), Y(an)+lw*0.15, lw*0.75, lw*0.42, 0, 0, Math.PI*2); ctx.fill(); }
+  // hands
+  ctx.fillStyle = dark;
+  for (const wr of [J.lWr,J.rWr]) { ctx.beginPath(); ctx.arc(X(wr),Y(wr),lw*0.55,0,Math.PI*2); ctx.fill(); }
+  // neck + head
+  limb([0,J.rSh[1]],[0,J.head[1]],col,lw*0.7);
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(J.head),Y(J.head),BODY.head*s,0,Math.PI*2); ctx.fill();
+  // cap
+  ctx.fillStyle = '#f3efe6';
+  ctx.beginPath(); ctx.arc(X(J.head),Y(J.head),BODY.head*s*1.04,Math.PI*1.08,Math.PI*1.92); ctx.closePath(); ctx.fill();
+  ctx.fillRect(X(J.head)-BODY.head*s*0.2, Y(J.head)-BODY.head*s*0.42, BODY.head*s*1.45, BODY.head*s*0.22);
+  if (opts.glow){
+    ctx.strokeStyle = opts.glow; ctx.lineWidth = 4; ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(ox, Y(J.head)+ (oy-Y(J.head))/2, (oy-Y(J.head))*0.62, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- home demo loop ---------- */
+const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
+MOVES.forEach(m => { for (let r=0;r<2;r++) m.poses.forEach(p => demo.seq.push({a:p.a, dur:m.bpp})); });
+function drawDemo(now){
+  const bd = 60/90*1000, beats = (now-demo.t0)/bd;
+  const total = demo.seq.reduce((s,e)=>s+e.dur,0);
+  let b = beats % total, i = 0;
+  while (b >= demo.seq[i].dur) { b -= demo.seq[i].dur; i++; }
+  const cur = demo.seq[i], prev = demo.seq[(i-1+demo.seq.length)%demo.seq.length];
+  const t = clamp(b/Math.min(0.45,cur.dur*0.45),0,1);
+  drawCoach(demo.ctx, 264, 340, lerpAngles(prev.a, cur.a, ease(t)));
+}
+
+/* =========================================================
+   Audio: a small boom-bap beat made with WebAudio
+   ========================================================= */
+let actx = null, master = null, noiseBuf = null;
+function ensureAudio(){
+  if (!actx){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    actx = new AC();
+    master = actx.createGain(); master.gain.value = 0.8; master.connect(actx.destination);
+    noiseBuf = actx.createBuffer(1, actx.sampleRate*0.5, actx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function env(g,t,peak,dec){ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(peak,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+dec); }
+function kick(t){ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(42,t+0.13); env(g,t,1,0.35); o.connect(g).connect(master); o.start(t); o.stop(t+0.4); }
+function noise(t,freq,peak,dec,type='highpass'){ const s=actx.createBufferSource(); s.buffer=noiseBuf; const f=actx.createBiquadFilter(); f.type=type; f.frequency.value=freq; const g=actx.createGain(); env(g,t,peak,dec); s.connect(f).connect(g).connect(master); s.start(t); s.stop(t+dec+0.05); }
+function snare(t){ noise(t,1400,0.55,0.18); const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.setValueAtTime(190,t); env(g,t,0.35,0.09); o.connect(g).connect(master); o.start(t); o.stop(t+0.12); }
+function hat(t,v){ noise(t,7500,v,0.045); }
+function bass(t,f,dur){ const o=actx.createOscillator(), lp=actx.createBiquadFilter(), g=actx.createGain(); o.type='sawtooth'; o.frequency.value=f; lp.type='lowpass'; lp.frequency.value=380; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.32,t+0.01); g.gain.setValueAtTime(0.32,t+dur*0.7); g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.connect(lp).connect(g).connect(master); o.start(t); o.stop(t+dur+0.02); }
+function click(t,hi){ const o=actx.createOscillator(), g=actx.createGain(); o.type='square'; o.frequency.value = hi?1500:1000; env(g,t,0.18,0.06); o.connect(g).connect(master); o.start(t); o.stop(t+0.08); }
+function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=f; env(g,t+i*0.07,0.22,0.35); o.connect(g).connect(master); o.start(t+i*0.07); o.stop(t+i*0.07+0.4); }); }
+
+const BASS_BARS = [[55,55,65.41,73.42],[55,55,82.41,73.42]];
+const music = {on:false, t0:0, bd:0.75, next8:0, endBeat:0, timer:null};
+function startMusic(t0, bpm, endBeat){
+  music.on = true; music.t0 = t0; music.bd = 60/bpm; music.next8 = -8; music.endBeat = endBeat;
+  clearInterval(music.timer);
+  music.timer = setInterval(scheduleMusic, 25);
+  scheduleMusic();
+}
+function stopMusic(){ music.on = false; clearInterval(music.timer); }
+function scheduleMusic(){
+  if (!music.on || !actx) return;
+  const ahead = actx.currentTime + 0.12;
+  while (true){
+    const n = music.next8, beat = n/2;
+    const swing = (n%2!==0) ? music.bd*0.09 : 0;
+    const t = music.t0 + (beat+4)*music.bd + swing;
+    if (t > ahead) break;
+    if (beat >= music.endBeat + 1) { music.on = false; clearInterval(music.timer); break; }
+    if (t >= actx.currentTime - 0.01){
+      if (beat < 0){
+        if (n%2===0) click(t, beat===-4);
+        hat(t, 0.06);
+      } else {
+        const p = ((n%8)+8)%8, bar = Math.floor(n/8);
+        if (p===0 || p===3 || p===4) kick(t);
+        if (p===2 || p===6) snare(t);
+        hat(t, n%2 ? 0.07 : 0.13);
+        if (p===0 || p===4 || p===7){
+          const notes = BASS_BARS[bar%2];
+          bass(t, notes[(Math.floor(p/2))%4], music.bd*(p===7?0.45:0.9));
+        }
+      }
+    }
+    music.next8++;
+  }
+}
+
+/* =========================================================
+   Camera + pose detection
+   ========================================================= */
+const video = $('video');
+const cam = {stream:null, ready:false, landmarker:null, loading:null, lm:null, lastVT:-1, failed:false};
+async function startCamera(){
+  if (cam.stream) return true;
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('nocam');
+  cam.stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}, audio:false});
+  video.srcObject = cam.stream;
+  await video.play().catch(()=>{});
+  await new Promise(r => { if (video.readyState >= 2) r(); else video.onloadeddata = r; });
+  return true;
+}
+function stopCamera(){
+  if (cam.stream){ cam.stream.getTracks().forEach(t=>t.stop()); cam.stream = null; }
+  cam.lm = null;
+}
+async function loadModel(){
+  if (cam.landmarker) return cam.landmarker;
+  if (cam.loading) return cam.loading;
+  cam.loading = (async () => {
+    const base = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+    const {PoseLandmarker, FilesetResolver} = await import(base + '/vision_bundle.mjs');
+    const fileset = await FilesetResolver.forVisionTasks(base + '/wasm');
+    const make = delegate => PoseLandmarker.createFromOptions(fileset, {
+      baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task', delegate},
+      runningMode:'VIDEO', numPoses:1
+    });
+    try { cam.landmarker = await make('GPU'); } catch { cam.landmarker = await make('CPU'); }
+    return cam.landmarker;
+  })();
+  try { return await cam.loading; } catch (e) { cam.loading = null; throw e; }
+}
+function detect(now){
+  if (!cam.stream || !cam.landmarker || video.readyState < 2) return;
+  if (video.currentTime === cam.lastVT) return;
+  cam.lastVT = video.currentTime;
+  let r; try { r = cam.landmarker.detectForVideo(video, now); } catch { return; }
+  const raw = r?.landmarks?.[0];
+  if (!raw) { cam.lm = null; return; }
+  const vw = video.videoWidth, vh = video.videoHeight;
+  // mirrored video-pixel space, y down
+  cam.lm = raw.map(p => ({X:(1-p.x)*vw, Y:p.y*vh, v:p.visibility ?? 1, onScreen: p.x>-0.02 && p.x<1.02 && p.y>-0.02 && p.y<1.02}));
+}
+const visible = (lm,i) => lm[i].v > 0.5 && lm[i].onScreen;
+function segAngle(lm,a,b){ return Math.atan2(-(lm[b].Y-lm[a].Y), lm[b].X-lm[a].X)/D2R; }
+
+function scorePose(lm, target){
+  if (!lm) return null;
+  let tot=0, wsum=0, worst=null, worstDiff=0, legsSeen=true;
+  const per = {};
+  for (const k in SEG){
+    const [a,b] = SEG[k];
+    if (!visible(lm,a) || !visible(lm,b)) { per[k]=null; if (isLeg(k)) legsSeen=false; continue; }
+    const ang = segAngle(lm,a,b);
+    const diff = angDiff(ang, target[k]);
+    const s = clamp(1 - (diff-18)/55, 0, 1);
+    const w = isLeg(k) ? 0.7 : 1;
+    per[k] = {s, ang};
+    tot += s*w; wsum += w;
+    if (diff > worstDiff){ worstDiff = diff; worst = k; }
+  }
+  const armsSeen = per.rUpper && per.lUpper;
+  if (!armsSeen || wsum === 0) return {score:0, per, worst:null, legsSeen, armsSeen:false};
+  return {score: tot/wsum, per, worst: worstDiff > 32 ? worst : null, legsSeen, armsSeen:true};
+}
+function hintFor(res, target){
+  if (!res) return 'לא רואים אותך. לעמוד מול המצלמה';
+  if (!res.armsSeen) return 'לא רואים את הידיים. להתרחק קצת אחורה';
+  const k = res.worst; if (!k) return '';
+  const t = target[k]*D2R, c = res.per[k].ang*D2R;
+  const dx = Math.cos(t)-Math.cos(c), dy = Math.sin(t)-Math.sin(c);
+  const name = SEG_NAMES[k];
+  if (Math.abs(dy) >= Math.abs(dx)) return `${name}: ${dy>0 ? 'גבוה יותר ↑' : 'נמוך יותר ↓'}`;
+  const outward = k[0]==='r' ? dx>0 : dx<0;
+  return `${name}: ${outward ? 'יותר החוצה' : 'יותר פנימה'}`;
+}
+
+/* ---------- camera canvas drawing ---------- */
+const BONES = [[11,12],[11,23],[12,24],[23,24],[12,14],[14,16],[11,13],[13,15],[24,26],[26,28],[23,25],[25,27]];
+const BONE_SEG = {'12-14':'rUpper','14-16':'rFore','11-13':'lUpper','13-15':'lFore','24-26':'rThigh','26-28':'rShin','23-25':'lThigh','25-27':'lShin'};
+function drawCam(canvas, ctx, res, target){
+  const w = canvas.width, h = canvas.height;
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,w,h);
+  if (!cam.stream || video.readyState < 2) {
+    ctx.fillStyle = '#9ba2ae'; ctx.font = `${Math.round(16*dpr)}px Assistant, sans-serif`; ctx.textAlign='center';
+    ctx.fillText(state.noCam ? 'מצב בלי מצלמה' : 'המצלמה לא פעילה', w/2, h/2);
+    return;
+  }
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const sc = Math.max(w/vw, h/vh), offX = (w - vw*sc)/2, offY = (h - vh*sc)/2;
+  ctx.save(); ctx.translate(w,0); ctx.scale(-1,1);
+  ctx.globalAlpha = 0.78; ctx.drawImage(video, offX, offY, vw*sc, vh*sc); ctx.globalAlpha = 1;
+  ctx.restore();
+  const lm = cam.lm; if (!lm) return;
+  const SX = p => offX + p.X*sc, SY = p => offY + p.Y*sc;
+  ctx.lineCap='round';
+  // ghost of the target, attached to the dancer's own shoulders and hips
+  if (target){
+    ctx.setLineDash([8*dpr,8*dpr]); ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth = 4*dpr;
+    const chains = [['rUpper','rFore',12,14,16],['lUpper','lFore',11,13,15],['rThigh','rShin',24,26,28],['lThigh','lShin',23,25,27]];
+    for (const [s1,s2,a,b,c] of chains){
+      if (!visible(lm,a)) continue;
+      const L1 = Math.hypot(lm[b].X-lm[a].X, lm[b].Y-lm[a].Y) || 60;
+      const L2 = Math.hypot(lm[c].X-lm[b].X, lm[c].Y-lm[b].Y) || 55;
+      if (isLeg(s1) && !(visible(lm,b) && visible(lm,c))) continue;
+      const p1 = {X:lm[a].X, Y:lm[a].Y};
+      const p2 = {X:p1.X+Math.cos(target[s1]*D2R)*L1, Y:p1.Y-Math.sin(target[s1]*D2R)*L1};
+      const p3 = {X:p2.X+Math.cos(target[s2]*D2R)*L2, Y:p2.Y-Math.sin(target[s2]*D2R)*L2};
+      ctx.beginPath(); ctx.moveTo(SX(p1),SY(p1)); ctx.lineTo(SX(p2),SY(p2)); ctx.lineTo(SX(p3),SY(p3)); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+  }
+  for (const [a,b] of BONES){
+    if (!visible(lm,a) || !visible(lm,b)) continue;
+    const seg = BONE_SEG[`${a}-${b}`];
+    let col = '#46d3e8';
+    if (seg && res?.per?.[seg]) col = res.per[seg].s >= 0.7 ? '#5fe08a' : (res.per[seg].s >= 0.35 ? '#ffd23f' : '#ff5a6a');
+    ctx.strokeStyle = col; ctx.lineWidth = 7*dpr;
+    ctx.beginPath(); ctx.moveTo(SX(lm[a]),SY(lm[a])); ctx.lineTo(SX(lm[b]),SY(lm[b])); ctx.stroke();
+  }
+  if (visible(lm,0)){ ctx.fillStyle='#46d3e8'; ctx.beginPath(); ctx.arc(SX(lm[0]),SY(lm[0]),9*dpr,0,Math.PI*2); ctx.fill(); }
+}
+
+/* =========================================================
+   Game flow
+   ========================================================= */
+const state = {noCam:false, plan:null, phase:null};
+let dpr = Math.min(2, window.devicePixelRatio || 1);
+const coachCanvas = $('coachCanvas'), coachCtx = coachCanvas.getContext('2d');
+const camCanvas = $('camCanvas'), camCtx = camCanvas.getContext('2d');
+const setupCanvas = $('setupCanvas'), setupCtx = setupCanvas.getContext('2d');
+function fit(c){ const r = c.getBoundingClientRect(); const w = Math.max(1,Math.round(r.width*dpr)), h = Math.max(1,Math.round(r.height*dpr)); if (c.width!==w||c.height!==h){ c.width=w; c.height=h; } }
+function resizeAll(){ dpr = Math.min(2, window.devicePixelRatio || 1); [coachCanvas,camCanvas,setupCanvas].forEach(c => { if (c.offsetParent || c.getClientRects().length) fit(c); }); }
+window.addEventListener('resize', resizeAll);
+window.addEventListener('orientationchange', () => setTimeout(resizeAll, 200));
+
+let wakeLock = null;
+async function keepAwake(){ try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible' && ui.screen==='play') keepAwake(); });
+
+function popText(txt, color){ const p = $('pop'); p.textContent = txt; p.style.color = color; p.classList.remove('show'); void p.offsetWidth; p.classList.add('show'); }
+function banner(big, small, ms){ return new Promise(res => { $('bannerBig').textContent = big; $('bannerSmall').textContent = small||''; $('banner').hidden = false; setTimeout(() => { $('banner').hidden = true; res(); }, ms); }); }
+
+async function begin(plan){
+  ensureAudio();
+  state.plan = plan;
+  state.noCam = $('noCam').checked;
+  if (state.noCam){ stopCamera(); startPlay(); return; }
+  if (cam.stream && cam.landmarker){ startPlay(); return; }
+  show('setup');
+  $('goBtn').disabled = true;
+  setStatus('mid','פותחים את המצלמה…');
+  try {
+    await startCamera();
+  } catch (e) {
+    setStatus('bad','אין גישה למצלמה. אפשר לאשר מצלמה בהגדרות הדפדפן, או לחזור ולסמן "בלי מצלמה".');
+    return;
+  }
+  setStatus('mid','טוענים את זיהוי התנועה… (פעם ראשונה לוקח כמה שניות)');
+  try { await loadModel(); }
+  catch (e) { setStatus('bad','לא הצלחנו לטעון את זיהוי התנועה. כדאי לבדוק את החיבור לאינטרנט ולנסות שוב.'); return; }
+  $('goBtn').disabled = false;
+}
+function setStatus(kind, text){ $('stDot').className = 'dot ' + (kind==='ok'?'ok':kind==='mid'?'mid':''); $('stText').textContent = text; }
+function updateSetupStatus(){
+  if (!cam.landmarker) return;
+  const lm = cam.lm;
+  if (!lm) return setStatus('bad','לא רואים אותך עדיין. לעמוד מול המצלמה');
+  const upper = [11,12,23,24].every(i=>visible(lm,i));
+  const legs = [25,26,27,28].every(i=>visible(lm,i));
+  if (upper && legs) setStatus('ok','מעולה, רואים את כל הגוף ✓');
+  else if (upper) setStatus('mid','רואים את פלג הגוף העליון. להתרחק עוד קצת כדי שגם הרגליים ייכנסו');
+  else setStatus('bad','רואים רק חלק. להתרחק אחורה ולעמוד במרכז');
+}
+$('goBtn').addEventListener('click', () => { ensureAudio(); startPlay(); });
+$('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
+
+function movesForPlan(plan){ return plan.type==='full' ? MOVES.map((_,i)=>i) : [plan.index]; }
+
+function startPlay(){
+  show('play');
+  keepAwake();
+  const idxs = movesForPlan(state.plan);
+  const first = MOVES[idxs[0]];
+  setMoveHud(first);
+  state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
+  if (state.plan.type === 'lesson') startLearn(first);
+  else startRhythm(idxs, FULL_BPM);
+}
+function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
+function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
+function currentCoach(now){ const t = clamp((now-state.coachT0)/450,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
+
+/* ---- phase 1: learn slowly, hold each pose ---- */
+function startLearn(m){
+  const list = [...m.poses, ...m.poses];
+  state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
+  $('phaseChip').textContent = 'שלב 1 · לומדים לאט';
+  $('countBig').textContent = '';
+  $('topBar').style.width = '0';
+  showLearnStep();
+}
+function showLearnStep(){
+  const ph = state.phase, p = ph.list[ph.step];
+  $('poseLabel').textContent = p.label;
+  $('poseCue').textContent = p.cue;
+  $('countBig').textContent = `${ph.step+1}/${ph.list.length}`;
+  $('countBig').style.fontSize = '54px';
+  setCoachTarget(p.a);
+  ph.hold = 0; ph.stepStart = performance.now();
+  $('topBar').style.width = (ph.step/ph.list.length*100)+'%';
+}
+function updateLearn(now, dt){
+  const ph = state.phase, p = ph.list[ph.step];
+  let res = null;
+  if (!state.noCam){
+    res = scorePose(cam.lm, p.a);
+    const ok = res && res.armsSeen && res.score >= MATCH;
+    ph.hold = ok ? ph.hold + dt : Math.max(0, ph.hold - dt*0.6);
+    $('meterFill').style.width = (clamp(ph.hold/0.6,0,1)*100)+'%';
+    $('meterFill').classList.toggle('full', ph.hold >= 0.6);
+    $('hint').textContent = ok ? 'בול! להחזיק ככה…' : (hintFor(res, p.a) || 'כמעט… להעתיק את המאמן');
+    $('legWarn').hidden = !res || res.legsSeen;
+    if (ph.hold >= 0.6) return learnNext(true);
+    if (now - ph.stepStart > 25000) $('hint').textContent = 'אפשר לנסות שוב, או להקיש על המאמן כדי לדלג';
+  } else {
+    $('legWarn').hidden = true;
+    const frac = (now - ph.stepStart)/3000;
+    $('meterFill').style.width = (clamp(frac,0,1)*100)+'%';
+    $('hint').textContent = 'לעשות את התנועה יחד עם המאמן';
+    if (frac >= 1) return learnNext(false);
+  }
+  return res;
+}
+function learnNext(scored){
+  const ph = state.phase;
+  if (scored){ chime(); popText('יפה!', '#5fe08a'); ph.flashUntil = performance.now()+500; }
+  ph.step++;
+  if (ph.step >= ph.list.length){
+    state.phase = {kind:'wait'};
+    $('topBar').style.width = '100%';
+    banner('עכשיו בקצב!', 'המאמן יספור 5, 6, 7, 8 ואז מתחילים. לזוז על כל ביט.', 2200).then(() => {
+      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], LESSON_BPM);
+    });
+    return null;
+  }
+  showLearnStep();
+  return null;
+}
+$('coachPanel').addEventListener('click', () => { if (state.phase?.kind==='learn') learnNext(false); });
+
+/* ---- phase 2: on the beat ---- */
+function startRhythm(idxs, bpm){
+  const timeline = []; let beat = 0;
+  for (const i of idxs){
+    const m = MOVES[i];
+    const n = BEATS_PER_MOVE / m.bpp;
+    for (let k=0;k<n;k++){ const p = m.poses[k % m.poses.length]; timeline.push({t0:beat, dur:m.bpp, pose:p, move:m, best:0, done:false}); beat += m.bpp; }
+  }
+  const ac = ensureAudio();
+  const clock = ac ? () => ac.currentTime : () => performance.now()/1000;
+  const t0 = clock() + 0.35;
+  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd:60/bpm, t0, clock, idx:-1, hits:0, streak:0, idxs};
+  $('phaseChip').textContent = idxs.length>1 ? 'כוריאוגרפיה · בקצב מלא' : 'שלב 2 · בקצב';
+  $('countBig').style.fontSize = '';
+  if (ac) startMusic(t0, bpm, beat);
+}
+function rhythmCoach(ph, bPos){
+  const tl = ph.timeline;
+  let i = tl.findIndex(e => bPos >= e.t0 && bPos < e.t0+e.dur);
+  if (bPos < 0) i = -1;
+  if (bPos >= ph.total) i = tl.length-1;
+  const cur = i>=0 ? tl[i].pose.a : STAND;
+  const next = tl[i+1]?.pose.a;
+  const endAt = i>=0 ? tl[i].t0+tl[i].dur : 0;
+  const w = Math.min(0.42, (i>=0?tl[i].dur:1)*0.42);
+  const rem = endAt - bPos;
+  if (next && rem < w) return lerpAngles(cur, next, ease(1 - rem/w));
+  return cur;
+}
+function updateRhythm(now){
+  const ph = state.phase;
+  const bPos = (ph.clock() - ph.t0)/ph.bd - 4;
+  if (bPos < 0){
+    $('countBig').textContent = bPos < -4 ? '' : String(5 + Math.floor(bPos+4));
+    $('poseLabel').textContent = 'מתכוננים…';
+    $('poseCue').textContent = ph.timeline[0].pose.label;
+    $('hint').textContent = '5, 6, 7, 8…';
+  } else {
+    $('countBig').textContent = String((Math.floor(bPos) % 8) + 1);
+  }
+  $('topBar').style.width = (clamp(bPos/ph.total,0,1)*100)+'%';
+  const coachA = rhythmCoach(ph, bPos);
+  // which entry is live
+  const idx = ph.timeline.findIndex(e => bPos >= e.t0 && bPos < e.t0+e.dur);
+  if (idx !== -1 && idx !== ph.idx){
+    ph.idx = idx;
+    const e = ph.timeline[idx];
+    if (e.move.name !== $('moveName').textContent) setMoveHud(e.move);
+    $('poseLabel').textContent = e.pose.label;
+    $('poseCue').textContent = e.pose.cue;
+  }
+  let res = null;
+  const live = idx !== -1 ? ph.timeline[idx] : null;
+  if (!state.noCam && live){
+    res = scorePose(cam.lm, live.pose.a);
+    const s = res?.armsSeen ? res.score : 0;
+    if (s > live.best) live.best = s;
+    // grace: a slightly late hit still counts for the previous pose
+    const prev = ph.timeline[idx-1];
+    if (prev && bPos - live.t0 < 0.2 && !prev.done){
+      const sp = scorePose(cam.lm, prev.pose.a); if (sp?.armsSeen && sp.score > prev.best) prev.best = sp.score;
+    }
+    $('meterFill').style.width = (s*100)+'%';
+    $('meterFill').classList.toggle('full', s >= MATCH);
+    $('legWarn').hidden = !res || res.legsSeen;
+    if (bPos >= 0) $('hint').textContent = s >= MATCH ? '' : hintFor(res, live.pose.a);
+  } else if (state.noCam){
+    $('meterFill').style.width = '0'; $('hint').textContent = bPos>=0 ? 'לזוז עם המאמן על כל ביט' : $('hint').textContent;
+  }
+  // judge finished entries
+  for (const e of ph.timeline){
+    if (!e.done && bPos >= e.t0 + e.dur + 0.2){
+      e.done = true;
+      if (!state.noCam){
+        if (e.best >= 0.78){ ph.hits++; ph.streak++; popText(ph.streak>=4 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
+        else if (e.best >= MATCH){ ph.hits++; ph.streak++; popText('טוב!', '#5fe08a'); }
+        else { ph.streak = 0; popText('כמעט', '#ff5a6a'); }
+      }
+    }
+  }
+  if (bPos >= ph.total + 0.6) { finishRhythm(); return {res, coachA}; }
+  return {res, coachA, target: live?.pose.a};
+}
+function finishRhythm(){
+  const ph = state.phase; stopMusic();
+  state.phase = {kind:'done'};
+  const tl = ph.timeline;
+  const acc = tl.reduce((s,e)=>s+clamp((e.best-0.35)/(0.8-0.35),0,1),0)/tl.length;
+  let stars = 0;
+  if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
+  const id = state.plan.type==='full' ? 'full' : MOVES[state.plan.index].id;
+  if (!state.noCam && stars>0) saveStar(id, stars);
+  $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
+  $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
+  $('resPct').textContent = state.noCam ? '' : Math.round(acc*100)+'%';
+  $('resDetail').textContent = state.noCam
+    ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
+    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`;
+  const nextIdx = state.plan.type==='lesson' && state.plan.index < MOVES.length-1 ? state.plan.index+1 : null;
+  $('resNext').hidden = !(state.plan.type==='lesson');
+  $('resNext').textContent = nextIdx===null ? 'לכוריאוגרפיה המלאה' : 'לשיעור הבא';
+  $('resNext').onclick = () => begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx});
+  show('result');
+}
+$('resAgain').addEventListener('click', () => begin(state.plan));
+$('resHome').addEventListener('click', goHome);
+$('exitBtn').addEventListener('click', goHome);
+function goHome(){ stopMusic(); state.phase = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
+
+/* ---------- main loop ---------- */
+let lastNow = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.1, (now-lastNow)/1000); lastNow = now;
+  if (ui.screen === 'home') { drawDemo(now); return; }
+  detect(now);
+  if (ui.screen === 'setup'){
+    fit(setupCanvas);
+    drawCam(setupCanvas, setupCtx, null, null);
+    updateSetupStatus();
+    return;
+  }
+  if (ui.screen !== 'play') return;
+  fit(coachCanvas); fit(camCanvas);
+  let res = null, coachA = currentCoach(now), target = null, glow = null;
+  const ph = state.phase;
+  if (ph?.kind === 'learn'){
+    target = ph.list[ph.step]?.a;
+    res = updateLearn(now, dt);
+    if (state.phase === ph && ph.flashUntil > now) glow = '#5fe08a';
+  } else if (ph?.kind === 'rhythm'){
+    const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
+  }
+  drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, coachA, {glow, topPad: 8*dpr, bottomPad: 58*dpr});
+  drawCam(camCanvas, camCtx, res, target);
+}
+renderHome();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
