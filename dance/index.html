@@ -161,10 +161,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="tips" id="musicBox">
       <p class="eyebrow">מוזיקה</p>
       <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה">
-        <label for="mBeat"><input type="radio" name="music" id="mBeat" value="beat" checked>הביט של המשחק</label>
-        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own">שיר שלי מספוטיפיי</label>
+        <label for="mBeat"><input type="radio" name="music" id="mBeat" value="beat">הביט של המשחק</label>
+        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own" checked>שיר שלי מספוטיפיי</label>
       </div>
-      <div class="own" id="ownBox" hidden>
+      <div class="own" id="ownBox">
         <ol>
           <li>להפעיל שיר בספוטיפיי ולחזור לכאן. השיר ימשיך להתנגן ברקע.</li>
           <li>להקיש על הכפתור יחד עם הביט של השיר, 4–8 פעמים.</li>
@@ -694,6 +694,10 @@ function startPlay(){
   setMoveHud(first);
   state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
   if (state.plan.type === 'lesson') startLearn(first);
+  else if (musicPrefs.mode === 'own') {
+    state.phase = {kind:'wait'};
+    banner('מוכנים?', `השיר מספוטיפיי צריך להתנגן עכשיו (${musicPrefs.bpm} BPM). המאמן יספור 5, 6, 7, 8 ואז מתחילים.`, 3200).then(() => { if (ui.screen==='play') startRhythm(idxs, FULL_BPM); });
+  }
   else startRhythm(idxs, FULL_BPM);
 }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
@@ -748,7 +752,7 @@ function learnNext(scored){
   if (ph.step >= ph.list.length){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
-    banner('עכשיו בקצב!', 'המאמן יספור 5, 6, 7, 8 ואז מתחילים. לזוז על כל ביט.', 2200).then(() => {
+    banner('עכשיו בקצב!', musicPrefs.mode==='own' ? `השיר מספוטיפיי צריך להתנגן עכשיו (${musicPrefs.bpm} BPM). המאמן יספור 5, 6, 7, 8 ואז מתחילים.` : 'המאמן יספור 5, 6, 7, 8 ואז מתחילים. לזוז על כל ביט.', musicPrefs.mode==='own' ? 3200 : 2200).then(() => {
       if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], LESSON_BPM);
     });
     return null;
@@ -896,8 +900,8 @@ function loop(now){
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
-const MUSIC_KEY = 'bitrishon.music.v1';
-const musicPrefs = (() => { try { return Object.assign({mode:'beat', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'beat', bpm:90}; } })();
+const MUSIC_KEY = 'bitrishon.music.v2';
+const musicPrefs = (() => { try { return Object.assign({mode:'own', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'own', bpm:90}; } })();
 function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify(musicPrefs)); } catch {} }
 function renderMusic(){
   $('mBeat').checked = musicPrefs.mode === 'beat';
