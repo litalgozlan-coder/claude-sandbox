@@ -326,7 +326,7 @@ const MOVES = [
     {label:'צעד לצד', cue:'רגליים פתוחות, ידיים באלכסון למטה', a:P({rUpper:-35,rFore:-35,lUpper:-145,lFore:-145,rThigh:-70,rShin:-76,lThigh:-110,lShin:-104})},
     {label:'מחיאה', cue:'רגליים יחד, כפיים נפגשות מול החזה', a:P({rUpper:-100,rFore:120,lUpper:-80,lFore:60,rThigh:-93,rShin:-90,lThigh:-87,lShin:-90})}
   ]},
-  {id:'point', name:'פוינט', en:'THE POINT', desc:'מצביעים לשמיים ביד אחת, יד שנייה על המותן', bpp:2, poses:[
+  {id:'point', name:'פוינט', en:'THE POINT', desc:'מצביעים לשמיים ביד אחת, יד שנייה על המותן', bpp:1, poses:[
     POINT_R,
     {label:'פוינט שמאל', cue:'יד שמאל מצביעה למעלה באלכסון, יד ימין על המותן', a:mirrorAngles(POINT_R.a)}
   ]},
@@ -334,13 +334,13 @@ const MOVES = [
     UP_V, KNEE_R, UP_V,
     {label:'ברך שמאל', cue:'מושכים מרפקים למטה ומרימים ברך שמאל לצד', a:mirrorAngles(KNEE_R.a)}
   ]},
-  {id:'freeze', name:'פריז', en:'FREEZE', desc:'ידיים משוכלות בעמידה רחבה, ואז פתיחה', bpp:2, poses:[
+  {id:'freeze', name:'פריז', en:'FREEZE', desc:'ידיים משוכלות בעמידה רחבה, ואז פתיחה', bpp:1, poses:[
     {label:'שילוב ידיים', cue:'ידיים משוכלות על החזה, רגליים רחבות', a:P({rUpper:-115,rFore:160,lUpper:-65,lFore:20,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})},
     {label:'פתיחה', cue:'ידיים פתוחות לצדדים בגובה הכתפיים', a:P({rUpper:0,rFore:5,lUpper:180,lFore:175,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})}
   ]}
 ];
 
-const MIN_SECONDS = 60, SLOW_BEATS = 32;
+const MIN_SECONDS = 60, SLOW_BEATS = 16;
 const MATCH = 0.72;
 
 /* ---------- storage (per-viewer convenience only) ---------- */
@@ -464,12 +464,12 @@ function drawCoach(ctx, w, h, angles, opts={}){
 const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
 MOVES.forEach(m => { for (let r=0;r<2;r++) m.poses.forEach(p => demo.seq.push({a:p.a, dur:m.bpp})); });
 function drawDemo(now){
-  const bd = 60/90*1000, beats = (now-demo.t0)/bd;
+  const bd = 60/100*1000, beats = (now-demo.t0)/bd;
   const total = demo.seq.reduce((s,e)=>s+e.dur,0);
   let b = beats % total, i = 0;
   while (b >= demo.seq[i].dur) { b -= demo.seq[i].dur; i++; }
   const cur = demo.seq[i], prev = demo.seq[(i-1+demo.seq.length)%demo.seq.length];
-  const t = clamp(b/Math.min(0.45,cur.dur*0.45),0,1);
+  const t = clamp(b/Math.min(0.3,cur.dur*0.3),0,1);
   drawCoach(demo.ctx, 264, 340, lerpAngles(prev.a, cur.a, ease(t)));
 }
 
@@ -502,11 +502,11 @@ function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320
 
 /* Original songs the game picks from. Chords are [root midi, 'm'|'M'] per bar. */
 const SONGS = [
-  {name:'קיץ בשכונה',  bpm:80, style:'boom',   prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']], key:57, minor:true,  motif:[0,null,2,3, null,2,1,null]},
-  {name:'גג בעיר',      bpm:84, style:'lofi',   prog:[[50,'m'],[46,'M'],[53,'M'],[48,'M']], key:50, minor:true,  motif:[4,null,3,null, 2,null,0,null]},
-  {name:'אור ירח',      bpm:82, style:'lofi',   prog:[[48,'m'],[56,'M'],[51,'M'],[58,'M']], key:48, minor:true,  motif:[0,2,null,3, null,null,2,1]},
-  {name:'ריצת בוקר',    bpm:90, style:'bounce', prog:[[52,'m'],[48,'M'],[55,'M'],[50,'M']], key:52, minor:true,  motif:[0,0,2,null, 3,null,2,null]},
-  {name:'סוף שבוע',     bpm:92, style:'bounce', prog:[[55,'M'],[52,'m'],[48,'M'],[50,'M']], key:55, minor:false, motif:[2,null,3,2, 0,null,1,null]}
+  {name:'קיץ בשכונה',  bpm:94, style:'boom',   prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']], key:57, minor:true,  motif:[0,null,2,3, null,2,1,null]},
+  {name:'גג בעיר',      bpm:98, style:'lofi',   prog:[[50,'m'],[46,'M'],[53,'M'],[48,'M']], key:50, minor:true,  motif:[4,null,3,null, 2,null,0,null]},
+  {name:'אור ירח',      bpm:96, style:'lofi',   prog:[[48,'m'],[56,'M'],[51,'M'],[58,'M']], key:48, minor:true,  motif:[0,2,null,3, null,null,2,1]},
+  {name:'ריצת בוקר',    bpm:102, style:'bounce', prog:[[52,'m'],[48,'M'],[55,'M'],[50,'M']], key:52, minor:true,  motif:[0,0,2,null, 3,null,2,null]},
+  {name:'סוף שבוע',     bpm:106, style:'bounce', prog:[[55,'M'],[52,'m'],[48,'M'],[50,'M']], key:55, minor:false, motif:[2,null,3,2, 0,null,1,null]}
 ];
 const mtof = m => 440*Math.pow(2,(m-69)/12);
 const PENTA = {minor:[0,3,5,7,10,12,15], major:[0,2,4,7,9,12,14]};
@@ -822,7 +822,7 @@ function startPlay(){
 function flowPrefix(){ return state.plan?.type === 'flow' && state.flow ? `צעד ${state.flow.i+1} מתוך ${MOVES.length} · ` : (state.plan?.type === 'lesson' ? 'שלב 1 · ' : ''); }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
 function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
-function currentCoach(now){ const t = clamp((now-state.coachT0)/450,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
+function currentCoach(now){ const t = clamp((now-state.coachT0)/280,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
 
 /* =========================================================
    Ear: listens to the song through the microphone, finds its tempo and beat,
@@ -985,7 +985,7 @@ function updateLearn(now, dt){
     if (now - ph.stepStart > 25000) $('hint').textContent = 'אפשר לנסות שוב, או להקיש על המאמן כדי לדלג';
   } else {
     $('legWarn').hidden = true;
-    const frac = (now - ph.stepStart)/3000;
+    const frac = (now - ph.stepStart)/2000;
     $('meterFill').style.width = (clamp(frac,0,1)*100)+'%';
     $('hint').textContent = 'לעשות את התנועה יחד עם המאמן';
     if (frac >= 1) return learnNext(false);
@@ -1021,8 +1021,8 @@ function startRhythm(idxs, bpm, opts={}){
   };
   if (idxs.length === 1 && opts.flow){
     const m = MOVES[idxs[0]], pre = flowPrefix();
-    add(m, 16, m.bpp*2, pre + 'חצי קצב');
-    add(m, 32, m.bpp, pre + 'קצב מלא');
+    add(m, 8, m.bpp*2, pre + 'חצי קצב');
+    add(m, 40, m.bpp, pre + 'קצב מלא');
   } else if (idxs.length === 1){
     const m = MOVES[idxs[0]];
     add(m, SLOW_BEATS, m.bpp*2, 'שלב 2 · חצי קצב');
@@ -1055,7 +1055,7 @@ function rhythmCoach(ph, bPos){
   const cur = i>=0 ? tl[i].pose.a : STAND;
   const next = tl[i+1]?.pose.a;
   const endAt = i>=0 ? tl[i].t0+tl[i].dur : 0;
-  const w = Math.min(0.42, (i>=0?tl[i].dur:1)*0.42);
+  const w = Math.min(0.28, (i>=0?tl[i].dur:1)*0.3);
   const rem = endAt - bPos;
   if (next && rem < w) return lerpAngles(cur, next, ease(1 - rem/w));
   return cur;
@@ -1129,7 +1129,7 @@ function flowNext(ph){
   if (!ph.final){
     // speed up the game's own song a little for the finale (a Spotify song keeps its tempo; the moves get faster)
     let bpm = 60/music.bd;
-    if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.12); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); $('songChip').textContent = `♪ ${music.song.name} · קצב ${bpm}`; }
+    if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); $('songChip').textContent = `♪ ${music.song.name} · קצב ${bpm}`; }
     banner('מחברים הכל!', 'כל חמשת הצעדים ברצף, יותר מהר: תנועה על כל ביט.', 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
     return true;
   }
