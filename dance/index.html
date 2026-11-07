@@ -82,6 +82,12 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 #bpmRange{width:100%;accent-color:var(--coach)}
 .spotify{display:inline-flex;align-items:center;gap:8px;color:var(--fg);font-weight:700;text-decoration:none;border:2px solid var(--line);border-radius:999px;padding:10px 16px;align-self:flex-start}
 .spotify:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.own details{border-top:1px solid var(--line);padding-top:10px}
+.own summary{cursor:pointer;color:var(--muted);font-weight:700;font-size:14px}
+.own details[open] summary{margin-bottom:10px}
+.own details > *:not(summary){margin-top:8px}
+.spotify.big{background:#1ed760;border-color:#1ed760;color:#06210f;font-size:17px;padding:13px 20px}
+.spotify.big::before{background:#06210f}
 .spotify::before{content:"";width:10px;height:10px;border-radius:50%;background:#1ed760}
 
 /* ---------- SETUP ---------- */
@@ -161,24 +167,27 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="tips" id="musicBox">
       <p class="eyebrow">מוזיקה</p>
       <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה">
-        <label for="mAuto"><input type="radio" name="music" id="mAuto" value="auto" checked>המשחק בוחר שיר</label>
-        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own">שיר שלי מספוטיפיי</label>
+        <label for="mAuto"><input type="radio" name="music" id="mAuto" value="auto">שירים של המשחק</label>
+        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own" checked>ספוטיפיי, קצב אוטומטי</label>
       </div>
-      <p class="foot" id="autoNote">בכל שיעור המשחק בוחר לבד אחד מ־5 שירים מקוריים, והמאמן רוקד בדיוק בקצב שלהם. אין צורך לעשות כלום.</p>
-      <div class="own" id="ownBox" hidden>
+      <p class="foot" id="autoNote" hidden>בכל שיעור המשחק בוחר לבד אחד מ־5 שירים מקוריים, והמאמן רוקד בדיוק בקצב שלהם. אין צורך לעשות כלום.</p>
+      <div class="own" id="ownBox">
         <ol>
-          <li>להפעיל שיר בספוטיפיי ולחזור לכאן. השיר ימשיך להתנגן ברקע.</li>
-          <li>להקיש על הכפתור יחד עם הביט של השיר, 4–8 פעמים.</li>
-          <li>לבחור שיעור. המשחק יספור 5, 6, 7, 8 בקצב של השיר, והמאמן ירקוד לפיו.</li>
+          <li>ללחוץ על הכפתור הירוק. המשחק בוחר פלייליסט, וספוטיפיי נפתח. ללחוץ שם Play ולחזור לכאן.</li>
+          <li>לבחור שיעור. המשחק מקשיב לשיר דרך המיקרופון, מזהה לבד את הקצב, והמאמן רוקד עליו.</li>
         </ol>
-        <div class="tap-row">
-          <button class="btn" id="tapBtn" type="button">להקיש בקצב</button>
-          <output id="bpmOut" for="bpmRange">90<small>BPM</small></output>
-        </div>
-        <label class="foot" for="bpmRange">אפשר גם לכוון ידנית:</label>
-        <input type="range" id="bpmRange" min="70" max="120" step="1" value="90">
-        <a class="spotify" href="https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6" target="_blank" rel="noopener">פלייליסט מומלץ: היפ הופ נקי לריקוד</a>
-        <p class="foot">שיר מהיר מאוד (מעל 120)? להקיש רק על כל ביט שני.</p>
+        <a class="spotify big" id="spotifyPick" href="https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6" target="_blank" rel="noopener">המשחק בוחר מוזיקה בספוטיפיי</a>
+        <p class="foot" id="pickNote" hidden></p>
+        <p class="foot">הדפדפן יבקש אישור למיקרופון. השמע משמש רק לזיהוי הקצב, בתוך הנייד, ולא נשמר. כדאי להגביר את ספוטיפיי.</p>
+        <details>
+          <summary>הקצב לא מזוהה? כיוון ידני</summary>
+          <div class="tap-row">
+            <button class="btn" id="tapBtn" type="button">להקיש בקצב</button>
+            <output id="bpmOut" for="bpmRange">90<small>BPM</small></output>
+          </div>
+          <input type="range" id="bpmRange" min="70" max="120" step="1" value="90" aria-label="קצב ידני">
+          <p class="foot">המשחק ישתמש בקצב הזה רק אם לא יצליח לשמוע את השיר.</p>
+        </details>
       </div>
     </div>
 
@@ -759,13 +768,158 @@ function startPlay(){
   $('songChip').hidden = own;
   if (song) { $('songChip').textContent = `♪ ${song.name} · קצב ${song.bpm}`; popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
-  const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, bpm); };
-  if (own) banner('מפעילים שיר', `להפעיל עכשיו שיר בספוטיפיי (${musicPrefs.bpm} BPM). הוא ילווה את כל השיעור.`, 3200).then(go);
+  const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, music.on ? 60/music.bd : bpm); };
+  if (own){
+    setEarChip('מקשיבים…');
+    $('bannerBig').textContent = 'מקשיבים לשיר…';
+    $('bannerSmall').textContent = 'ספוטיפיי צריך להתנגן עכשיו, בווליום טוב. המשחק מזהה את הקצב לבד.';
+    $('banner').hidden = false;
+    startEar().then(ok => {
+      if (!ok){
+        $('bannerBig').textContent = 'אין מיקרופון';
+        $('bannerSmall').textContent = `לא קיבלנו אישור למיקרופון, אז רוקדים בקצב הידני (${musicPrefs.bpm}). אפשר לאשר מיקרופון בהגדרות הדפדפן.`;
+        setEarChip(`קצב ${musicPrefs.bpm} (ידני)`);
+        return new Promise(r => setTimeout(r, 3500)).then(() => false);
+      }
+      return waitForLock(12000);
+    }).then(locked => {
+      if (ear.stream && !locked){
+        $('bannerBig').textContent = 'לא שומעים עדיין';
+        $('bannerSmall').textContent = 'מתחילים בינתיים. המשחק ימשיך להקשיב, ויתאים את הקצב ברגע שישמע את השיר.';
+        return new Promise(r => setTimeout(r, 2500));
+      }
+    }).then(() => { $('banner').hidden = true; go(); });
+  }
   else go();
 }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
 function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
 function currentCoach(now){ const t = clamp((now-state.coachT0)/450,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
+
+/* =========================================================
+   Ear: listens to the song through the microphone, finds its tempo and beat,
+   and keeps the music clock (music.t0 / music.bd) locked to it.
+   ========================================================= */
+const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], timer:null, sync:null, locked:false, misses:0, denied:false};
+async function startEar(){
+  if (ear.stream) return true;
+  if (!ensureAudio() || !navigator.mediaDevices?.getUserMedia) return false;
+  try {
+    ear.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+  } catch { ear.denied = true; return false; }
+  const src = actx.createMediaStreamSource(ear.stream);
+  ear.an = actx.createAnalyser(); ear.an.fftSize = 1024; ear.an.smoothingTimeConstant = 0;
+  src.connect(ear.an);
+  ear.a = new Uint8Array(ear.an.frequencyBinCount); ear.b = new Uint8Array(ear.an.frequencyBinCount);
+  ear.t = []; ear.v = []; ear.locked = false; ear.misses = 0;
+  clearInterval(ear.timer); ear.timer = setInterval(earSample, 10);
+  clearInterval(ear.sync); ear.sync = setInterval(earSync, 2000);
+  return true;
+}
+function stopEar(){
+  clearInterval(ear.timer); clearInterval(ear.sync); ear.timer = ear.sync = null;
+  if (ear.stream){ ear.stream.getTracks().forEach(t=>t.stop()); ear.stream = null; }
+  ear.locked = false;
+}
+function earSample(){
+  const cur = ear.a, prev = ear.b;
+  ear.an.getByteFrequencyData(cur);
+  const n = Math.min(cur.length, 140);            // up to ~6 kHz
+  let f = 0;
+  for (let i=1;i<n;i++){ const d = cur[i]-prev[i]; if (d>0) f += i<6 ? d*2 : d; }   // spectral flux, kick weighted
+  ear.a = prev; ear.b = cur;
+  ear.t.push(actx.currentTime); ear.v.push(f);
+  if (ear.t.length > 2400){ ear.t.splice(0, 400); ear.v.splice(0, 400); }
+}
+function earWindow(sec){
+  const T = ear.t, V = ear.v;
+  if (T.length < 100) return null;
+  const tEnd = T[T.length-1], tStart = tEnd - sec;
+  if (T[0] > tStart + 0.3) return null;
+  const dt = 0.01, N = Math.floor(sec/dt), raw = new Float32Array(N);
+  let j = 0;
+  for (let i=0;i<N;i++){ const tt = tStart + i*dt; while (j < T.length-1 && T[j+1] <= tt) j++; raw[i] = V[j]; }
+  const pre = new Float64Array(N+1); for (let i=0;i<N;i++) pre[i+1] = pre[i] + raw[i];
+  const w = 15, o = new Float32Array(N); let energy = 0;
+  for (let i=0;i<N;i++){ const a = Math.max(0,i-w), b = Math.min(N,i+w+1); const m = (pre[b]-pre[a])/(b-a); o[i] = Math.max(0, raw[i]-m); energy += o[i]; }
+  if (energy/N < 2) return null;                   // silence: nothing to hear
+  return {o, tStart, dt, N};
+}
+const foldBpm = b => { while (b > 135) b /= 2; while (b < 67) b *= 2; return b; };
+function estimateTempo(win){
+  const {o, dt, N} = win;
+  const minLag = Math.floor(60/180/dt), maxLag = Math.ceil(60/60/dt);
+  const r = new Float32Array(2*maxLag+2);
+  for (let l=minLag-1; l<=2*maxLag+1 && l<N; l++){ let sum=0; for (let i=0;i+l<N;i++) sum += o[i]*o[i+l]; r[l] = sum/(N-l); }
+  let best = -1, bl = minLag, mean = 0, cnt = 0;
+  for (let l=minLag; l<=maxLag; l++){
+    mean += r[l]; cnt++;
+    const bpm = 60/(l*dt);
+    const prior = Math.exp(-0.5*Math.pow(Math.log2(bpm/95)/0.55, 2));
+    const v = (r[l] + 0.5*r[2*l]) * prior;
+    if (v > best){ best = v; bl = l; }
+  }
+  mean /= cnt;
+  const a = r[bl-1], b = r[bl], c = r[bl+1], den = a - 2*b + c;
+  const lag = bl + (den !== 0 ? clamp(0.5*(a-c)/den, -0.5, 0.5) : 0);
+  return {bpm: foldBpm(60/(lag*dt)), conf: b/(mean||1)};
+}
+function beatTimeIn(win, bpm){
+  const {o, tStart, dt, N} = win, period = 60/bpm/dt;
+  let best = -1, bphi = 0;
+  for (let phi=0; phi<Math.ceil(period); phi++){
+    let sc = 0;
+    for (let k=phi; k<N-1; k+=period){ const i = Math.round(k); sc += o[i] + 0.5*((o[i-1]||0) + (o[i+1]||0)); }
+    if (sc > best){ best = sc; bphi = phi; }
+  }
+  const kLast = Math.floor((N-1-bphi)/period);
+  return tStart + (bphi + kLast*period)*dt;
+}
+function setMusicGrid(bpm, beatTime){
+  const bd = 60/bpm;
+  const k = Math.round((beatTime - music.t0)/music.bd);   // keep beat numbering continuous
+  music.bd = bd; music.t0 = beatTime - k*bd;
+}
+function earSync(){
+  if (!music.on || !music.own || !ear.stream) return;
+  const win = earWindow(ear.locked ? 8 : 6);
+  if (!win) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
+  const est = estimateTempo(win);
+  if (est.conf < 1.25) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
+  const cur = 60/music.bd;
+  if (!ear.locked){
+    const bpm = Math.round(est.bpm*10)/10;
+    setMusicGrid(bpm, beatTimeIn(win, bpm));
+    ear.locked = true; ear.misses = 0;
+    setEarChip(`קצב ${Math.round(bpm)}`);
+    popText(`קצב ${Math.round(bpm)}!`, '#1ed760');
+    return;
+  }
+  if (Math.abs(est.bpm - cur) < 4){
+    ear.misses = 0;
+    const bpm = cur + 0.3*(est.bpm - cur);
+    const bt = beatTimeIn(win, bpm);
+    const k = Math.round((bt - music.t0)/music.bd);
+    const err = bt - (music.t0 + k*music.bd);
+    setMusicGrid(bpm, music.t0 + k*music.bd + err*0.5);   // nudge halfway toward the heard beat
+    setEarChip(`קצב ${Math.round(bpm)}`);
+  } else if (++ear.misses >= 2){                          // new song with another tempo
+    const bpm = Math.round(est.bpm*10)/10;
+    setMusicGrid(bpm, beatTimeIn(win, bpm));
+    ear.misses = 0;
+    setEarChip(`קצב ${Math.round(bpm)}`);
+    popText(`שיר חדש · קצב ${Math.round(bpm)}`, '#1ed760');
+  }
+}
+function setEarChip(txt){ $('songChip').hidden = false; $('songChip').textContent = `♪ ספוטיפיי · ${txt}`; }
+function waitForLock(maxMs){
+  return new Promise(res => {
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      if (ear.locked || performance.now()-t0 > maxMs || ui.screen !== 'play'){ clearInterval(iv); res(ear.locked); }
+    }, 250);
+  });
+}
 
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
@@ -816,7 +970,7 @@ function learnNext(scored){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
     banner('עכשיו בקצב!', 'דקה של ריקוד: קודם בחצי קצב, אחר כך בקצב מלא. המאמן יספור 5, 6, 7, 8.', 2400).then(() => {
-      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], state.bpm);
+      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], music.on ? 60/music.bd : state.bpm);
     });
     return null;
   }
@@ -842,15 +996,16 @@ function startRhythm(idxs, bpm){
     const per = Math.max(16, Math.ceil(minBeats/idxs.length/8)*8);
     for (const i of idxs) add(MOVES[i], per, MOVES[i].bpp, 'כוריאוגרפיה · בקצב מלא');
   }
-  let t0, clock;
+  let t0, clock, base;
   if (music.on && actx){
     clock = () => actx.currentTime;
-    t0 = music.t0 + (queueCountIn() - 4)*music.bd;   // count-in sits on the next bar of the running music
+    base = queueCountIn();                            // count-in sits on the next bar of the running music
+    t0 = music.t0 + (base - 4)*music.bd;
   } else {
     clock = () => performance.now()/1000;
     t0 = clock() + 0.35;
   }
-  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd, t0, clock, idx:-1, hits:0, streak:0, idxs};
+  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd, t0, clock, base, idx:-1, hits:0, streak:0, idxs};
   $('phaseChip').textContent = timeline[0].section;
   $('countBig').style.fontSize = '';
 }
@@ -869,7 +1024,8 @@ function rhythmCoach(ph, bPos){
 }
 function updateRhythm(now){
   const ph = state.phase;
-  const bPos = (ph.clock() - ph.t0)/ph.bd - 4;
+  // follow the music clock, which the ear may nudge to stay on the song's beat
+  const bPos = ph.base !== undefined ? (ph.clock() - music.t0)/music.bd - ph.base : (ph.clock() - ph.t0)/ph.bd - 4;
   if (bPos < 0){
     $('countBig').textContent = bPos < -4 ? '' : String(5 + Math.floor(bPos+4));
     $('poseLabel').textContent = 'מתכוננים…';
@@ -923,7 +1079,7 @@ function updateRhythm(now){
   return {res, coachA, target: live?.pose.a};
 }
 function finishRhythm(){
-  const ph = state.phase; stopMusic();
+  const ph = state.phase; stopMusic(); stopEar();
   state.phase = {kind:'done'};
   const tl = ph.timeline;
   const acc = tl.reduce((s,e)=>s+clamp((e.best-0.35)/(0.8-0.35),0,1),0)/tl.length;
@@ -946,7 +1102,7 @@ function finishRhythm(){
 $('resAgain').addEventListener('click', () => begin(state.plan));
 $('resHome').addEventListener('click', goHome);
 $('exitBtn').addEventListener('click', goHome);
-function goHome(){ stopMusic(); state.phase = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
+function goHome(){ stopMusic(); stopEar(); state.phase = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
 
 /* ---------- main loop ---------- */
 let lastNow = performance.now();
@@ -976,8 +1132,8 @@ function loop(now){
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
-const MUSIC_KEY = 'bitrishon.music.v3';
-const musicPrefs = (() => { try { return Object.assign({mode:'auto', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'auto', bpm:90}; } })();
+const MUSIC_KEY = 'bitrishon.music.v4';
+const musicPrefs = (() => { try { return Object.assign({mode:'own', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'own', bpm:90}; } })();
 function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify(musicPrefs)); } catch {} }
 function renderMusic(){
   $('mAuto').checked = musicPrefs.mode !== 'own';
@@ -1006,6 +1162,15 @@ $('tapBtn').addEventListener('pointerdown', e => {
   clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'להקיש בקצב'; }, 2200);
 });
 $('tapBtn').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $('tapBtn').dispatchEvent(new Event('pointerdown')); } });
+const PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}];
+let lastPick = -1;
+$('spotifyPick').addEventListener('click', e => {
+  let i; do { i = Math.floor(Math.random()*PLAYLISTS.length); } while (PLAYLISTS.length>1 && i===lastPick);
+  lastPick = i;
+  e.currentTarget.href = PLAYLISTS[i].url;          // the link opens whatever the game picked
+  $('pickNote').hidden = false;
+  $('pickNote').textContent = `המשחק בחר: ${PLAYLISTS[i].name}. ללחוץ שם Play ולחזור לכאן.`;
+});
 renderMusic();
 
 renderHome();
