@@ -557,7 +557,7 @@ function queueCountIn(){
 function playSongStep(sg, n, t){
   const p = n%8, bar = Math.floor(n/8), bd = music.bd;
   const [root, q] = sg.prog[bar % sg.prog.length];
-  const intro = bar < 2;                       // two bars of chords and hats before the drums
+  const intro = false;                         // drums from the very first beat, so the music is heard right away
   if (p===0) chordPad(t, root, q, bd*3.9);
   // drums
   if (!intro){
