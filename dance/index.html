@@ -316,7 +316,7 @@ const MOVES = [
   ]}
 ];
 
-const LESSON_BPM = 80, FULL_BPM = 90, BEATS_PER_MOVE = 16;
+const LESSON_BPM = 80, FULL_BPM = 90, MIN_SECONDS = 60, SLOW_BEATS = 32;
 const MATCH = 0.72;
 
 /* ---------- storage (per-viewer convenience only) ---------- */
@@ -353,7 +353,7 @@ function renderHome(){
   f.className = 'lesson full';
   f.innerHTML = `<span class="num">★</span>
     <span><span class="title"><span class="name">הכוריאוגרפיה המלאה</span><span class="en">FULL ROUTINE</span></span>
-    <div class="desc">כל חמשת הצעדים ברצף, בקצב מלא. בערך דקה.</div></span>
+    <div class="desc">כל חמשת הצעדים ברצף, עם מוזיקה מההתחלה. בערך דקה וחצי.</div></span>
     <span class="stars" aria-label="${st.full||0} כוכבים מתוך 3">${starsHtml(st.full||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
   list.appendChild(f);
@@ -465,32 +465,37 @@ function click(t,hi){ const o=actx.createOscillator(), g=actx.createGain(); o.ty
 function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=f; env(g,t+i*0.07,0.22,0.35); o.connect(g).connect(master); o.start(t+i*0.07); o.stop(t+i*0.07+0.4); }); }
 
 const BASS_BARS = [[55,55,65.41,73.42],[55,55,82.41,73.42]];
-const music = {on:false, own:false, t0:0, bd:0.75, next8:0, endBeat:0, timer:null};
-function startMusic(t0, bpm, endBeat, own){
-  music.own = !!own;
-  music.on = true; music.t0 = t0; music.bd = 60/bpm; music.next8 = -8; music.endBeat = endBeat;
+const music = {on:false, own:false, t0:0, bd:0.75, next8:0, countIn:null, timer:null};
+// Music runs for the whole lesson, from the first second. Beat 0 is at music.t0.
+function startMusic(bpm, own){
+  if (!ensureAudio()) return false;
+  music.own = !!own; music.bd = 60/bpm; music.t0 = actx.currentTime + 0.15;
+  music.next8 = 0; music.countIn = null; music.on = true;
   clearInterval(music.timer);
   music.timer = setInterval(scheduleMusic, 25);
   scheduleMusic();
+  return true;
 }
 function stopMusic(){ music.on = false; clearInterval(music.timer); }
+// Schedule a "5, 6, 7, 8" count-in on the next bar line; returns the beat where dancing starts.
+function queueCountIn(){
+  const now = (actx.currentTime - music.t0)/music.bd;
+  const b = Math.ceil((now + 0.6)/4)*4;
+  music.countIn = b;
+  return b + 4;
+}
 function scheduleMusic(){
   if (!music.on || !actx) return;
   const ahead = actx.currentTime + 0.12;
   while (true){
     const n = music.next8, beat = n/2;
     const swing = (n%2!==0) ? music.bd*0.09 : 0;
-    const t = music.t0 + (beat+4)*music.bd + swing;
+    const t = music.t0 + beat*music.bd + swing;
     if (t > ahead) break;
-    if (beat >= music.endBeat + 1) { music.on = false; clearInterval(music.timer); break; }
     if (t >= actx.currentTime - 0.01){
-      if (beat < 0){
-        if (n%2===0) click(t, beat===-4);
-        hat(t, 0.06);
-      } else if (music.own) {
-        // the viewer's own song carries the music; keep only a soft click on the first two bars
-        if (n%2===0 && beat < 8) click(t, false);
-      } else {
+      const ci = music.countIn;
+      if (ci !== null && beat >= ci && beat < ci+4 && n%2===0) click(t, beat===ci);
+      if (!music.own){
         const p = ((n%8)+8)%8, bar = Math.floor(n/8);
         if (p===0 || p===3 || p===4) kick(t);
         if (p===2 || p===6) snare(t);
@@ -693,12 +698,13 @@ function startPlay(){
   const first = MOVES[idxs[0]];
   setMoveHud(first);
   state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
-  if (state.plan.type === 'lesson') startLearn(first);
-  else if (musicPrefs.mode === 'own') {
-    state.phase = {kind:'wait'};
-    banner('מוכנים?', `השיר מספוטיפיי צריך להתנגן עכשיו (${musicPrefs.bpm} BPM). המאמן יספור 5, 6, 7, 8 ואז מתחילים.`, 3200).then(() => { if (ui.screen==='play') startRhythm(idxs, FULL_BPM); });
-  }
-  else startRhythm(idxs, FULL_BPM);
+  const own = musicPrefs.mode === 'own';
+  const bpm = own ? musicPrefs.bpm : (state.plan.type === 'lesson' ? LESSON_BPM : FULL_BPM);
+  startMusic(bpm, own);
+  state.phase = {kind:'wait'};
+  const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, bpm); };
+  if (own) banner('מפעילים שיר', `להפעיל עכשיו שיר בספוטיפיי (${musicPrefs.bpm} BPM). הוא ילווה את כל השיעור.`, 3200).then(go);
+  else go();
 }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
 function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
@@ -752,8 +758,8 @@ function learnNext(scored){
   if (ph.step >= ph.list.length){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
-    banner('עכשיו בקצב!', musicPrefs.mode==='own' ? `השיר מספוטיפיי צריך להתנגן עכשיו (${musicPrefs.bpm} BPM). המאמן יספור 5, 6, 7, 8 ואז מתחילים.` : 'המאמן יספור 5, 6, 7, 8 ואז מתחילים. לזוז על כל ביט.', musicPrefs.mode==='own' ? 3200 : 2200).then(() => {
-      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], LESSON_BPM);
+    banner('עכשיו בקצב!', 'דקה של ריקוד: קודם בחצי קצב, אחר כך בקצב מלא. המאמן יספור 5, 6, 7, 8.', 2400).then(() => {
+      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], musicPrefs.mode==='own' ? musicPrefs.bpm : LESSON_BPM);
     });
     return null;
   }
@@ -764,20 +770,32 @@ $('coachPanel').addEventListener('click', () => { if (state.phase?.kind==='learn
 
 /* ---- phase 2: on the beat ---- */
 function startRhythm(idxs, bpm){
+  const bd = 60/bpm;
+  const minBeats = Math.ceil(MIN_SECONDS/bd/8)*8;            // at least a minute of dancing
   const timeline = []; let beat = 0;
-  for (const i of idxs){
-    const m = MOVES[i];
-    const n = BEATS_PER_MOVE / m.bpp;
-    for (let k=0;k<n;k++){ const p = m.poses[k % m.poses.length]; timeline.push({t0:beat, dur:m.bpp, pose:p, move:m, best:0, done:false}); beat += m.bpp; }
+  const add = (m, beats, bpp, section) => {
+    let k = 0;
+    for (let b=0; b<beats; b+=bpp){ timeline.push({t0:beat, dur:bpp, pose:m.poses[k++ % m.poses.length], move:m, section, best:0, done:false}); beat += bpp; }
+  };
+  if (idxs.length === 1){
+    const m = MOVES[idxs[0]];
+    add(m, SLOW_BEATS, m.bpp*2, 'שלב 2 · חצי קצב');
+    add(m, Math.max(minBeats - SLOW_BEATS, 32), m.bpp, 'שלב 3 · קצב מלא');
+  } else {
+    const per = Math.max(16, Math.ceil(minBeats/idxs.length/8)*8);
+    for (const i of idxs) add(MOVES[i], per, MOVES[i].bpp, 'כוריאוגרפיה · בקצב מלא');
   }
-  if (musicPrefs.mode === 'own') bpm = musicPrefs.bpm;
-  const ac = ensureAudio();
-  const clock = ac ? () => ac.currentTime : () => performance.now()/1000;
-  const t0 = clock() + 0.35;
-  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd:60/bpm, t0, clock, idx:-1, hits:0, streak:0, idxs};
-  $('phaseChip').textContent = idxs.length>1 ? 'כוריאוגרפיה · בקצב מלא' : 'שלב 2 · בקצב';
+  let t0, clock;
+  if (music.on && actx){
+    clock = () => actx.currentTime;
+    t0 = music.t0 + (queueCountIn() - 4)*music.bd;   // count-in sits on the next bar of the running music
+  } else {
+    clock = () => performance.now()/1000;
+    t0 = clock() + 0.35;
+  }
+  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd, t0, clock, idx:-1, hits:0, streak:0, idxs};
+  $('phaseChip').textContent = timeline[0].section;
   $('countBig').style.fontSize = '';
-  if (ac) startMusic(t0, bpm, beat, musicPrefs.mode === 'own');
 }
 function rhythmCoach(ph, bPos){
   const tl = ph.timeline;
@@ -811,6 +829,7 @@ function updateRhythm(now){
     ph.idx = idx;
     const e = ph.timeline[idx];
     if (e.move.name !== $('moveName').textContent) setMoveHud(e.move);
+    if (e.section !== $('phaseChip').textContent){ $('phaseChip').textContent = e.section; if (idx > 0 && e.section.includes('מלא') && ph.idxs.length===1) popText('קצב מלא!', '#ff7a3d'); }
     $('poseLabel').textContent = e.pose.label;
     $('poseCue').textContent = e.pose.cue;
   }
