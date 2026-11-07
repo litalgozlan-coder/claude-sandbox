@@ -161,10 +161,11 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="tips" id="musicBox">
       <p class="eyebrow">מוזיקה</p>
       <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה">
-        <label for="mBeat"><input type="radio" name="music" id="mBeat" value="beat">הביט של המשחק</label>
-        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own" checked>שיר שלי מספוטיפיי</label>
+        <label for="mAuto"><input type="radio" name="music" id="mAuto" value="auto" checked>המשחק בוחר שיר</label>
+        <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own">שיר שלי מספוטיפיי</label>
       </div>
-      <div class="own" id="ownBox">
+      <p class="foot" id="autoNote">בכל שיעור המשחק בוחר לבד אחד מ־5 שירים מקוריים, והמאמן רוקד בדיוק בקצב שלהם. אין צורך לעשות כלום.</p>
+      <div class="own" id="ownBox" hidden>
         <ol>
           <li>להפעיל שיר בספוטיפיי ולחזור לכאן. השיר ימשיך להתנגן ברקע.</li>
           <li>להקיש על הכפתור יחד עם הביט של השיר, 4–8 פעמים.</li>
@@ -221,6 +222,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
         <div id="moveName">באונס</div>
         <div id="moveEn">BOUNCE</div>
         <span class="chip" id="phaseChip">שלב 1 · לומדים לאט</span>
+        <div><span class="chip" id="songChip" hidden></span></div>
       </div>
       <div id="countBig"></div>
     </div>
@@ -316,7 +318,7 @@ const MOVES = [
   ]}
 ];
 
-const LESSON_BPM = 80, FULL_BPM = 90, MIN_SECONDS = 60, SLOW_BEATS = 32;
+const MIN_SECONDS = 60, SLOW_BEATS = 32;
 const MATCH = 0.72;
 
 /* ---------- storage (per-viewer convenience only) ---------- */
@@ -464,12 +466,46 @@ function bass(t,f,dur){ const o=actx.createOscillator(), lp=actx.createBiquadFil
 function click(t,hi){ const o=actx.createOscillator(), g=actx.createGain(); o.type='square'; o.frequency.value = hi?1500:1000; env(g,t,0.18,0.06); o.connect(g).connect(master); o.start(t); o.stop(t+0.08); }
 function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=f; env(g,t+i*0.07,0.22,0.35); o.connect(g).connect(master); o.start(t+i*0.07); o.stop(t+i*0.07+0.4); }); }
 
-const BASS_BARS = [[55,55,65.41,73.42],[55,55,82.41,73.42]];
-const music = {on:false, own:false, t0:0, bd:0.75, next8:0, countIn:null, timer:null};
+/* Original songs the game picks from. Chords are [root midi, 'm'|'M'] per bar. */
+const SONGS = [
+  {name:'קיץ בשכונה',  bpm:80, style:'boom',   prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']], key:57, minor:true,  motif:[0,null,2,3, null,2,1,null]},
+  {name:'גג בעיר',      bpm:84, style:'lofi',   prog:[[50,'m'],[46,'M'],[53,'M'],[48,'M']], key:50, minor:true,  motif:[4,null,3,null, 2,null,0,null]},
+  {name:'אור ירח',      bpm:82, style:'lofi',   prog:[[48,'m'],[56,'M'],[51,'M'],[58,'M']], key:48, minor:true,  motif:[0,2,null,3, null,null,2,1]},
+  {name:'ריצת בוקר',    bpm:90, style:'bounce', prog:[[52,'m'],[48,'M'],[55,'M'],[50,'M']], key:52, minor:true,  motif:[0,0,2,null, 3,null,2,null]},
+  {name:'סוף שבוע',     bpm:92, style:'bounce', prog:[[55,'M'],[52,'m'],[48,'M'],[50,'M']], key:55, minor:false, motif:[2,null,3,2, 0,null,1,null]}
+];
+const mtof = m => 440*Math.pow(2,(m-69)/12);
+const PENTA = {minor:[0,3,5,7,10,12,15], major:[0,2,4,7,9,12,14]};
+let lastSong = -1;
+function pickSong(){
+  let i; do { i = Math.floor(Math.random()*SONGS.length); } while (SONGS.length>1 && i===lastSong);
+  lastSong = i; return SONGS[i];
+}
+function chordPad(t, root, q, dur){
+  const notes = [root, root+(q==='m'?3:4), root+7, root+12];
+  for (const m of notes){
+    for (const [type,det,lvl] of [['triangle',0,0.035],['sine',4,0.03]]){
+      const o=actx.createOscillator(), lp=actx.createBiquadFilter(), g=actx.createGain();
+      o.type=type; o.frequency.value=mtof(m); o.detune.value=det;
+      lp.type='lowpass'; lp.frequency.value=1600;
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(lvl,t+0.03);
+      g.gain.setValueAtTime(lvl,t+dur*0.75); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(lp).connect(g).connect(master); o.start(t); o.stop(t+dur+0.05);
+    }
+  }
+}
+function lead(t, m, dur){
+  const o=actx.createOscillator(), lp=actx.createBiquadFilter(), g=actx.createGain();
+  o.type='square'; o.frequency.value=mtof(m);
+  lp.type='lowpass'; lp.frequency.setValueAtTime(2600,t); lp.frequency.exponentialRampToValueAtTime(700,t+dur);
+  env(g,t,0.07,dur);
+  o.connect(lp).connect(g).connect(master); o.start(t); o.stop(t+dur+0.05);
+}
+const music = {on:false, own:false, song:null, t0:0, bd:0.75, next8:0, countIn:null, timer:null};
 // Music runs for the whole lesson, from the first second. Beat 0 is at music.t0.
-function startMusic(bpm, own){
+function startMusic(bpm, own, song){
   if (!ensureAudio()) return false;
-  music.own = !!own; music.bd = 60/bpm; music.t0 = actx.currentTime + 0.15;
+  music.own = !!own; music.song = song || null; music.bd = 60/bpm; music.t0 = actx.currentTime + 0.15;
   music.next8 = 0; music.countIn = null; music.on = true;
   clearInterval(music.timer);
   music.timer = setInterval(scheduleMusic, 25);
@@ -484,6 +520,32 @@ function queueCountIn(){
   music.countIn = b;
   return b + 4;
 }
+function playSongStep(sg, n, t){
+  const p = n%8, bar = Math.floor(n/8), bd = music.bd;
+  const [root, q] = sg.prog[bar % sg.prog.length];
+  const intro = bar < 2;                       // two bars of chords and hats before the drums
+  if (p===0) chordPad(t, root, q, bd*3.9);
+  // drums
+  if (!intro){
+    const kicks = sg.style==='bounce' ? [0,3,5] : [0,3,4];
+    if (kicks.includes(p)) kick(t);
+    if (p===2 || p===6) snare(t);
+    if (bar%4===3 && p===7) snare(t);          // little fill at the end of each phrase
+  }
+  const hv = sg.style==='lofi' ? 0.06 : 0.11;
+  hat(t, n%2 ? hv*0.55 : hv);
+  if (sg.style==='bounce' && !intro) hat(t + bd*0.25, hv*0.4);
+  // bass follows the chord root
+  if (!intro && (p===0 || p===3 || p===4 || p===7)){
+    const m = root - 24 + (p===7 ? 7 : 0);
+    bass(t, mtof(m), bd*(p===3||p===7 ? 0.45 : 0.9));
+  }
+  // melody on the second half of every 8-bar phrase
+  if (bar >= 4 && bar%8 >= 4){
+    const deg = sg.motif[p];
+    if (deg !== null){ const sc = sg.minor ? PENTA.minor : PENTA.major; lead(t, sg.key + 12 + sc[deg % sc.length], bd*0.45); }
+  }
+}
 function scheduleMusic(){
   if (!music.on || !actx) return;
   const ahead = actx.currentTime + 0.12;
@@ -495,16 +557,7 @@ function scheduleMusic(){
     if (t >= actx.currentTime - 0.01){
       const ci = music.countIn;
       if (ci !== null && beat >= ci && beat < ci+4 && n%2===0) click(t, beat===ci);
-      if (!music.own){
-        const p = ((n%8)+8)%8, bar = Math.floor(n/8);
-        if (p===0 || p===3 || p===4) kick(t);
-        if (p===2 || p===6) snare(t);
-        hat(t, n%2 ? 0.07 : 0.13);
-        if (p===0 || p===4 || p===7){
-          const notes = BASS_BARS[bar%2];
-          bass(t, notes[(Math.floor(p/2))%4], music.bd*(p===7?0.45:0.9));
-        }
-      }
+      if (!music.own && music.song) playSongStep(music.song, n, t);
     }
     music.next8++;
   }
@@ -699,8 +752,12 @@ function startPlay(){
   setMoveHud(first);
   state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
   const own = musicPrefs.mode === 'own';
-  const bpm = own ? musicPrefs.bpm : (state.plan.type === 'lesson' ? LESSON_BPM : FULL_BPM);
-  startMusic(bpm, own);
+  const song = own ? null : pickSong();
+  const bpm = own ? musicPrefs.bpm : song.bpm;
+  state.bpm = bpm;
+  startMusic(bpm, own, song);
+  $('songChip').hidden = own;
+  if (song) { $('songChip').textContent = `♪ ${song.name} · קצב ${song.bpm}`; popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
   const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, bpm); };
   if (own) banner('מפעילים שיר', `להפעיל עכשיו שיר בספוטיפיי (${musicPrefs.bpm} BPM). הוא ילווה את כל השיעור.`, 3200).then(go);
@@ -759,7 +816,7 @@ function learnNext(scored){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
     banner('עכשיו בקצב!', 'דקה של ריקוד: קודם בחצי קצב, אחר כך בקצב מלא. המאמן יספור 5, 6, 7, 8.', 2400).then(() => {
-      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], musicPrefs.mode==='own' ? musicPrefs.bpm : LESSON_BPM);
+      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], state.bpm);
     });
     return null;
   }
@@ -919,18 +976,19 @@ function loop(now){
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
-const MUSIC_KEY = 'bitrishon.music.v2';
-const musicPrefs = (() => { try { return Object.assign({mode:'own', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'own', bpm:90}; } })();
+const MUSIC_KEY = 'bitrishon.music.v3';
+const musicPrefs = (() => { try { return Object.assign({mode:'auto', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'auto', bpm:90}; } })();
 function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify(musicPrefs)); } catch {} }
 function renderMusic(){
-  $('mBeat').checked = musicPrefs.mode === 'beat';
+  $('mAuto').checked = musicPrefs.mode !== 'own';
+  $('autoNote').hidden = musicPrefs.mode === 'own';
   $('mOwn').checked = musicPrefs.mode === 'own';
   $('ownBox').hidden = musicPrefs.mode !== 'own';
   $('bpmRange').value = musicPrefs.bpm;
   $('bpmOut').innerHTML = `${musicPrefs.bpm}<small>BPM</small>`;
 }
 function setBpm(v){ musicPrefs.bpm = Math.round(clamp(v,60,140)); saveMusic(); renderMusic(); }
-for (const id of ['mBeat','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
+for (const id of ['mAuto','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
 $('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
 const taps = [];
 $('tapBtn').addEventListener('pointerdown', e => {
