@@ -61,7 +61,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .lesson.flow .stars .off{stroke:#0f5866}
 .lesson.flow .stars .on{fill:#04232a}
 .list-label{margin:6px 0 -2px}
-.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.levels{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:6px}
 .lvl{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:8px 6px;text-align:center;color:var(--fg);display:flex;flex-direction:column;gap:2px;min-width:0}
 .lvl small{font-size:11px;letter-spacing:.1em;color:var(--muted);font-weight:800}
 .lvl b{font-family:var(--display);font-weight:700;font-size:22px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -565,6 +565,44 @@ const ZB3_PHRASES = [
 ];
 const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.indexOf(p) === i);
 
+/* Motion-capture dances (retargeted from a professional dancer onto the avatar's skeleton).
+   Each clip file holds per-frame bone rotations, hips offset and the 2D pose data used for scoring. */
+const MOCAP = {
+  hiphop1: {file:'mocap/hiphop1.json', bpm:84.9, beats:10},
+  hiphop2: {file:'mocap/hiphop2.json', bpm:107.5, beats:8}
+};
+const clips = {};
+function loadClip(id){
+  if (clips[id]) return Promise.resolve(clips[id]);
+  return fetch(MOCAP[id].file).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; clips[id] = j; return j; });
+}
+function clipAngles(c, t){
+  const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames;
+  return lerpAngles(c.poses[i0], c.poses[i1], f - Math.floor(f));
+}
+const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
+function buildMocapSteps(ph){
+  const c = clips[ph.clip]; if (!c || ph.steps.length) return;
+  const spb = 60 / c.bpm;
+  for (let b = 0; b < c.beats; b++){
+    const a = Object.assign({}, c.poses[Math.round(b * spb * c.fps) % c.frames]);
+    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:'לעקוב אחרי הרקדנית. זה ריקוד אמיתי, לא תנוחות', a, clipBeat:b}, d:1});
+  }
+}
+async function ensureClips(){
+  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]) ids.add(ph.clip); }));
+  if (!ids.size) return;
+  const missing = [...ids].filter(id => !clips[id]);
+  if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
+  await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
+  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); }));
+  buildDemo();
+}
+const HH4_PHRASES = [
+  mocapPhrase('hiphop1', 'היפ־הופ מקצועי 1', 'HIP HOP DANCING', 'ריקוד שלם שנלכד מרקדן היפ־הופ מקצועי: סיבובים, העברות משקל וגרוב אמיתי. 10 ספירות.'),
+  mocapPhrase('hiphop2', 'היפ־הופ מקצועי 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.')
+];
+
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
 const MATCH = 0.72;
 
@@ -873,7 +911,7 @@ function makeCoach3D(canvas, opts={}){
       const fingers = [];
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null};
+      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone()};
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
       res(true);
     }, undefined, () => res(false)));
@@ -896,6 +934,24 @@ function makeCoach3D(canvas, opts={}){
     bone.getWorldQuaternion(wq); bone.parent.getWorldQuaternion(pq);
     bone.quaternion.copy(pq.invert().multiply(tq.multiply(wq)));
     bone.updateMatrixWorld(true);
+  }
+  const cqa = new T.Quaternion(), cqb = new T.Quaternion();
+  function poseAvatarClip(cp){
+    const A = avatar, B = A.bones, root = A.root, c = cp.clip;
+    A.rest.forEach((q, b) => b.quaternion.copy(q));
+    const f = (((cp.t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
+    for (const n in c.bones){
+      const b = B[ALIAS[n] || n]; if (!b) continue;
+      const q = c.bones[n];
+      cqa.set(q[i0*4], q[i0*4+1], q[i0*4+2], q[i0*4+3]); cqb.set(q[i1*4], q[i1*4+1], q[i1*4+2], q[i1*4+3]);
+      b.quaternion.copy(cqa.slerp(cqb, u));
+    }
+    const h = c.hips;
+    B.Hips.position.set(A.hipsRest.x + h[i0*3]*(1-u) + h[i1*3]*u, A.hipsRest.y + h[i0*3+1]*(1-u) + h[i1*3+1]*u, A.hipsRest.z + h[i0*3+2]*(1-u) + h[i1*3+2]*u);
+    root.rotation.y = 0; root.position.set(0, 0, 0); root.updateMatrixWorld(true);
+    const minToe = Math.min(...A.toes.map(A.wy));
+    if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // keep the feet on the floor, but let real jumps leave it
+    root.updateMatrixWorld(true);
   }
   function poseAvatar(j){
     const A = avatar, B = A.bones, root = A.root;
@@ -970,7 +1026,8 @@ function makeCoach3D(canvas, opts={}){
     const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
     if (avatarOn && avatar){
-      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
+      if (state.clipPlay && ui.screen === 'play') poseAvatarClip(state.clipPlay);
+      else poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
@@ -1027,7 +1084,7 @@ function init3D(){
 
 /* ---------- home demo loop ---------- */
 const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
-function buildDemo(){ demo.seq = []; cur().phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); }
+function buildDemo(){ demo.seq = []; cur().phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); if (!demo.seq.length) STYLES[STYLE_ID].levels[0].phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); }
 function drawDemo(now){
   const bd = 60/100*1000, beats = (now-demo.t0)/bd;
   const total = demo.seq.reduce((s,e)=>s+e.dur,0);
@@ -1380,6 +1437,8 @@ function banner(big, small, ms){ return new Promise(res => { $('bannerBig').text
 async function begin(plan){
   ensureAudio();
   state.plan = plan;
+  await ensureClips();
+  $('homeNote').hidden = true;
   state.noCam = $('noCam').checked;
   if (state.noCam){ stopCamera(); startPlay(); return; }
   if (cam.stream && cam.landmarker){ startPlay(); return; }
@@ -1611,7 +1670,8 @@ function waitForLock(maxMs){
 
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
-  const list = uniquePoses(m);
+  state.clipPlay = null;
+  const list = m.clip ? m.steps.filter((_, i) => i % 2 === 0).map(x => x.pose) : uniquePoses(m);
   state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
   setMoveHud(m);
   $('phaseChip').textContent = flowPrefix() + 'לומדים לאט';
@@ -1709,6 +1769,14 @@ function rhythmCoach(ph, bPos){
   let i = tl.findIndex(e => bPos >= e.t0 && bPos < e.t0+e.dur);
   if (bPos < 0) i = -1;
   if (bPos >= ph.total) i = tl.length-1;
+  const live = i >= 0 ? tl[i] : null;
+  if (live && live.pose.clipBeat !== undefined && bPos >= 0 && bPos < ph.total && clips[live.move.clip]){
+    const c = clips[live.move.clip];
+    const t = (live.pose.clipBeat + (bPos - live.t0) / live.dur) * (60 / c.bpm);   // one clip beat per step, so slow phases play in slow motion
+    state.clipPlay = {clip: c, t};
+    return clipAngles(c, t);
+  }
+  state.clipPlay = null;
   const cur = i>=0 ? tl[i].pose.a : STAND;
   const next = tl[i+1]?.pose.a;
   const endAt = i>=0 ? tl[i].t0+tl[i].dur : 0;
@@ -1897,7 +1965,8 @@ const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
     {name:'בלוק פארטי', en:'BLOCK PARTY', phrases:HH_PHRASES, desc:'הבסיס: גרוב, קריס קרוס, קבג׳ פאץ׳, ברכיים, אגרופים וגל. לומדים חלק, רוקדים אותו, וחוזרים מההתחלה. בערך 7 דקות.'},
     {name:'סטריט ג׳אם', en:'STREET JAM', phrases:HH2_PHRASES, desc:'יותר מהר ויותר גדול: ראנינג מן, קיק־בול־צ׳יינג׳, בודי רול, דאב, ברוקלין בונס וקפיצות.'},
-    {name:'באטל', en:'BATTLE', phrases:HH3_PHRASES, desc:'קומבינציות על חצאי ביטים שמחברות הכל, בקצב מלא. השלב הקשה.'}]},
+    {name:'באטל', en:'BATTLE', phrases:HH3_PHRASES, desc:'קומבינציות על חצאי ביטים שמחברות הכל, בקצב מלא. השלב הקשה.'},
+    {name:'סטודיו', en:'STUDIO', phrases:HH4_PHRASES, always:true, desc:'ריקודים של רקדן היפ־הופ מקצועי, בלכידת תנועה, על האווטאר שלך. פתוח תמיד.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'פיאסטה', en:'FIESTA', phrases:ZB_PHRASES, desc:'הבסיס על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, ג׳קים ואגרופים. בערך 7 דקות של אימון.'},
     {name:'סלסה פארטי', en:'SALSA PARTY', phrases:ZB2_PHRASES, desc:'סלסה, צ׳ה־צ׳ה, רגאטון עם זריקות מותן, שימי, סקי וסקוואט־קפיצה.'},
@@ -1909,7 +1978,7 @@ if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
 const LEVEL_SEL = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.level') || '{}'); } catch { return {}; } })();
 const DONE = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.done') || '{}'); } catch { return {}; } })();
 function levelIdx(){ const n = STYLES[STYLE_ID].levels.length; return clamp(LEVEL_SEL[STYLE_ID] || 0, 0, n - 1); }
-function levelUnlocked(i){ return i === 0 || (DONE[STYLE_ID] ?? -1) >= i - 1; }
+function levelUnlocked(i){ return i === 0 || !!STYLES[STYLE_ID].levels[i].always || (DONE[STYLE_ID] ?? -1) >= i - 1; }
 function setLevel(i){ if (!levelUnlocked(i)) return; LEVEL_SEL[STYLE_ID] = i; try { localStorage.setItem('bitrishon.level', JSON.stringify(LEVEL_SEL)); } catch {} renderHome(); }
 function markDone(i){ if ((DONE[STYLE_ID] ?? -1) < i){ DONE[STYLE_ID] = i; try { localStorage.setItem('bitrishon.done', JSON.stringify(DONE)); } catch {} return true; } return false; }
 function cur(){
