@@ -258,6 +258,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <p class="foot">המאמן עומד מולך כמו מראה: כשכתוב "יד ימין", זו היד הימנית שלך, והיא מופיעה בצד ימין של המסך.</p>
     </div>
 
+    <label class="toggle" for="voiceOn">
+      <input type="checkbox" id="voiceOn" checked>
+      המאמנת מדברת: מסבירה כל תנועה וסופרת 5, 6, 7, 8
+    </label>
     <label class="toggle" for="noCam">
       <input type="checkbox" id="noCam">
       בלי מצלמה (רק צפייה במאמן ותרגול, בלי ניקוד)
@@ -638,11 +642,7 @@ function describePose(a){
   return 'לעקוב אחרי הרקדנית';
 }
 /* Real-video coach: a clip of a real dancer, with the poses the game scores against extracted from it once (video/*.json). */
-const VIDEOS = {
-  v4: {file:'video/v4.mp4', pose:'video/v4.json', bpm:125.0, beats:8},
-  v2: {file:'video/v2.mp4', pose:'video/v2.json', bpm:96.5, beats:22},
-  v1: {file:'video/v1.mp4', pose:'video/v1.json', bpm:125.6, beats:34}
-};
+const VIDEOS = {};   // (real-video coaching was tried and set aside; the machinery stays dormant)
 const vclips = {};
 function loadVideoPose(id){
   if (vclips[id]) return Promise.resolve(vclips[id]);
@@ -657,11 +657,7 @@ function buildVideoSteps(ph){
     ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describePose(a), a, videoBeat:b}, d:1});
   }
 }
-const VIDEO_PHRASES = [
-  videoPhrase('v4', 'שלוש בסטודיו', 'STUDIO TRIO', 'שלוש רקדניות בסטודיו, צעד קצר וברור. עוקבים אחרי האמצעית, עם הטבעת הירוקה. 8 ספירות שחוזרות.'),
-  videoPhrase('v2', 'כיתת ריקוד', 'DANCE CLASS', 'קבוצה באולם מואר, כולם רוקדים ביחד. עוקבים אחרי הרקדנית עם הטבעת. 22 ספירות.'),
-  videoPhrase('v1', 'קרו רחוב', 'STREET CREW', 'להקת רחוב בתוך עשן סגול. עוקבים אחרי הרקדנית עם הטבעת. 34 ספירות.')
-];
+const VIDEO_PHRASES = [];
 const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
 function buildMocapSteps(ph){
   const c = clips[ph.clip]; if (!c || ph.steps.length) return;
@@ -1031,7 +1027,19 @@ function makeCoach3D(canvas, opts={}){
       const fingers = [];
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone()};
+      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: []};
+      if (opts.hands){
+        // a soft glow on each hand, so the arms read at a glance even against the body
+        const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+        const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,230,120,0.95)'); gr.addColorStop(0.35, 'rgba(255,215,80,0.45)'); gr.addColorStop(1, 'rgba(255,200,60,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+        const tex = new T.CanvasTexture(c);
+        for (const hn of ['LeftHand', 'RightHand']){
+          const hb = bones[hn]; if (!hb) continue;
+          const sp = new T.Sprite(new T.SpriteMaterial({map: tex, transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending}));
+          sp.scale.set(0.3, 0.3, 1); sp.position.set(0, 0.07, 0); sp.renderOrder = 5; hb.add(sp); avatar.hands.push(sp);
+        }
+      }
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
       res(true);
     }, undefined, () => res(false)));
@@ -1215,13 +1223,28 @@ function applyAvatar(){
   if (!AVATAR_URL || !(coach3 || demo3)) seg.hidden = true;
 }
 function init3D(){
-  coach3 = makeCoach3D($('coach3d'));
+  coach3 = makeCoach3D($('coach3d'), {hands: true});
   demo3 = makeCoach3D($('demo3d'));
   res3 = makeCoach3D($('result3d'));
   applyAvatar();
   if (coach3){ $('coach3d').hidden = false; $('coachCanvas').hidden = true; }
   if (demo3){ $('demo3d').hidden = false; $('demoCanvas').hidden = true; }
 }
+
+/* ---------- the coach's voice (speech synthesis, Hebrew) ---------- */
+const voice = {on: (() => { try { return localStorage.getItem('bitrishon.voice') !== 'off'; } catch { return true; } })(), last: '', lastAt: 0};
+function say(text, opts = {}){
+  if (!voice.on || !text || !('speechSynthesis' in window)) return;
+  try {
+    if (!opts.force && text === voice.last && performance.now() - voice.lastAt < 4000) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'he-IL'; u.rate = opts.rate || 1.1; u.pitch = 1.05; u.volume = 1;
+    const v = speechSynthesis.getVoices().find(x => /^he/i.test(x.lang)); if (v) u.voice = v;
+    speechSynthesis.speak(u); voice.last = text; voice.lastAt = performance.now();
+  } catch {}
+}
+$('voiceOn').checked = voice.on;
+$('voiceOn').addEventListener('change', () => { voice.on = $('voiceOn').checked; try { localStorage.setItem('bitrishon.voice', voice.on ? 'on' : 'off'); } catch {} if (voice.on) say('הקול דולק', {force: true}); else try { speechSynthesis.cancel(); } catch {} });
 
 /* ---------- video coach: a real dancer on video, kept in time with the game ---------- */
 const vcoach = {el: $('coachVideo'), fx: $('coachVideoFx'), on: false, id: null, zoom: {s: 1, x: 0, y: 0}, lastSeek: 0};
@@ -1879,6 +1902,7 @@ function showLearnStep(){
   const ph = state.phase, p = ph.list[ph.step];
   $('poseLabel').textContent = p.label;
   $('poseCue').textContent = p.cue;
+  say(`ספירה ${ph.step + 1}. ${p.cue}`, {force: true});
   $('countBig').textContent = `${ph.step+1}/${ph.list.length}`;
   $('countBig').style.fontSize = '54px';
   setCoachTarget(p.a);
@@ -1993,7 +2017,9 @@ function updateRhythm(now){
   // follow the music clock, which the ear may nudge to stay on the song's beat
   const bPos = ph.base !== undefined ? (ph.clock() - music.t0)/music.bd - ph.base : (ph.clock() - ph.t0)/ph.bd - 4;
   if (bPos < 0){
-    $('countBig').textContent = bPos < -4 ? '' : String(5 + Math.floor(bPos+4));
+    const n = bPos < -4 ? 0 : 5 + Math.floor(bPos + 4);
+    if (n && n !== ph.saidCount){ ph.saidCount = n; say(['', '', '', '', '', 'חמש', 'שש', 'שבע', 'שמונה'][n], {force: true, rate: 1.3}); }
+    $('countBig').textContent = n ? String(n) : '';
     $('poseLabel').textContent = 'מתכוננים…';
     $('poseCue').textContent = ph.timeline[0].pose.label;
     $('hint').textContent = '5, 6, 7, 8…';
@@ -2184,12 +2210,10 @@ const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url
 /* ---------- dance styles ---------- */
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
-    {name:'וידאו אמיתי', en:'REAL VIDEO', phrases:VIDEO_PHRASES, always:true, desc:'המאמנת היא רקדנית אמיתית בסרטון. בלימוד הסרטון רץ לאט ובלולאה, בקצב הוא רץ עם השיר, והמצלמה בודקת אותך מולו.'},
     {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
-    {name:'וידאו אמיתי', en:'REAL VIDEO', phrases:VIDEO_PHRASES, always:true, desc:'המאמנת היא רקדנית אמיתית בסרטון. בלימוד הסרטון רץ לאט ובלולאה, בקצב הוא רץ עם השיר, והמצלמה בודקת אותך מולו.'},
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
 };
