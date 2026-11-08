@@ -321,40 +321,77 @@ const norm = a => ((a+180)%360+360)%360-180;
 const angDiff = (a,b) => Math.abs(norm(a-b));
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 
-const STAND = {rUpper:-80,rFore:-84,lUpper:-100,lFore:-96,rThigh:-86,rShin:-90,lThigh:-94,lShin:-90};
+// Each pose: 8 limb angles plus the body: lean (degrees, + leans to screen right),
+// sx (hip shift sideways, body units) and drop (how deep the knees bend, 0..1).
+const STAND = {rUpper:-80,rFore:-84,lUpper:-100,lFore:-96,rThigh:-86,rShin:-90,lThigh:-94,lShin:-90,lean:0,sx:0,drop:0};
 const P = o => Object.assign({}, STAND, o);
+const LEGS_N = {rThigh:-82,rShin:-88,lThigh:-98,lShin:-92};
+const LEGS_W = {rThigh:-72,rShin:-80,lThigh:-108,lShin:-100};
+const LIMBS = ['Upper','Fore','Thigh','Shin'];
 function mirrorAngles(a){
-  const m = {};
-  for (const k in a){ const other = (k[0]==='r'?'l':'r') + k.slice(1); m[other] = norm(180 - a[k]); }
+  const m = Object.assign({}, a);
+  for (const part of LIMBS){ m['r'+part] = norm(180 - a['l'+part]); m['l'+part] = norm(180 - a['r'+part]); }
+  m.lean = -(a.lean||0); m.sx = -(a.sx||0); m.drop = a.drop||0;
   return m;
 }
+const pose = (label, cue, a) => ({label, cue, a});
+const mirror = (p, label, cue) => pose(label, cue, mirrorAngles(p.a));
 
-const UP_V = {label:'ידיים למעלה', cue:'שתי הידיים למעלה בצורת V', a:P({rUpper:68,rFore:72,lUpper:112,lFore:108})};
-const KNEE_R = {label:'ברך ימין', cue:'מושכים מרפקים למטה ומרימים ברך ימין לצד', a:P({rUpper:-55,rFore:85,lUpper:-125,lFore:95,rThigh:-25,rShin:-92,lThigh:-92,lShin:-90})};
-const POINT_R = {label:'פוינט ימין', cue:'יד ימין מצביעה למעלה באלכסון, יד שמאל על המותן', a:P({rUpper:50,rFore:52,lUpper:-130,lFore:-40,rThigh:-80,rShin:-88,lThigh:-100,lShin:-92})};
+// --- part 1: groove and pump (raise the roof)
+const GROOVE_R = pose('גרוב ימינה', 'ברכיים רכות, הגוף והידיים מתנדנדים ימינה', P({...LEGS_N, rUpper:-50,rFore:-15,lUpper:-95,lFore:-10, sx:.05, lean:6, drop:.5}));
+const GROOVE_L = mirror(GROOVE_R, 'גרוב שמאלה', 'ברכיים רכות, הגוף והידיים מתנדנדים שמאלה');
+const PUMP_D = pose('פאמפ: ידיים לכתפיים', 'כפות ידיים פתוחות ליד הכתפיים, ברכיים מתכופפות', P({...LEGS_N, rUpper:-35,rFore:88,lUpper:-145,lFore:92, drop:.5}));
+const PUMP_U = pose('פאמפ: דוחפים למעלה', 'דוחפים את התקרה, ידיים ישרות למעלה', P({...LEGS_N, rUpper:72,rFore:78,lUpper:108,lFore:102}));
+const ROOF = pose('ידיים למעלה!', 'עמידה רחבה, שתי הידיים למעלה ב־V', P({...LEGS_W, rUpper:60,rFore:65,lUpper:120,lFore:115}));
+// --- part 2: criss-cross, point and stance
+const CROSS = pose('קריס', 'קופצים לרגליים משוכלות, ידיים מוצלבות למטה', P({rThigh:-101,rShin:-96,lThigh:-79,lShin:-84, rUpper:-112,rFore:-125,lUpper:-68,lFore:-55, drop:.2}));
+const OPEN = pose('קרוס', 'קופצים לפתיחה רחבה, ידיים באלכסון למטה', P({...LEGS_W, rUpper:-28,rFore:-24,lUpper:-152,lFore:-156, drop:.4}));
+const POINT_R = pose('פוינט ימין', 'יד ימין מצביעה לשמיים, יד שמאל על המותן', P({...LEGS_W, rUpper:50,rFore:52,lUpper:-130,lFore:-40, lean:6}));
+const POINT_L = mirror(POINT_R, 'פוינט שמאל', 'יד שמאל מצביעה לשמיים, יד ימין על המותן');
+const STANCE = pose('עמידת בי־בוי', 'ידיים משוכלות על החזה, רגליים רחבות, קצת אטיטיוד', P({...LEGS_W, rUpper:-115,rFore:160,lUpper:-65,lFore:20, lean:-5, drop:.3}));
+// --- part 3: cabbage patch and side steps
+const CP_R = pose('קבג׳ פאץ׳: ימין', 'אגרופים צמודים מימין לחזה, מותן ימינה', P({...LEGS_N, rUpper:-30,rFore:170,lUpper:-70,lFore:15, sx:.05, lean:5, drop:.3}));
+const CP_U = pose('קבג׳ פאץ׳: למעלה', 'אגרופים צמודים למעלה מול הראש', P({...LEGS_N, rUpper:65,rFore:175,lUpper:115,lFore:5}));
+const CP_L = mirror(CP_R, 'קבג׳ פאץ׳: שמאל', 'אגרופים צמודים משמאל לחזה, מותן שמאלה');
+const CP_D = pose('קבג׳ פאץ׳: למטה', 'אגרופים צמודים למטה, ברכיים מתכופפות', P({...LEGS_N, rUpper:-70,rFore:-165,lUpper:-110,lFore:-15, drop:.4}));
+const STEP_R = pose('צעד ימינה', 'צעד גדול ימינה, ידיים פתוחות למטה', P({...LEGS_W, rUpper:-20,rFore:-15,lUpper:-160,lFore:-165, sx:.06, drop:.3}));
+const CLAP = pose('מחיאה', 'רגליים חוזרות פנימה, מוחאים כף מול החזה', P({...LEGS_N, rUpper:-100,rFore:120,lUpper:-80,lFore:60}));
+const STEP_L = mirror(STEP_R, 'צעד שמאלה', 'צעד גדול שמאלה, ידיים פתוחות למטה');
+// --- part 4: knee pulls and shoulder lean
+const UP_V = pose('ידיים למעלה', 'שתי הידיים למעלה ב־V', P({...LEGS_N, rUpper:68,rFore:72,lUpper:112,lFore:108}));
+const KNEE_R = pose('ברך ימין', 'מושכים מרפקים למטה ומרימים ברך ימין לצד', P({rUpper:-55,rFore:85,lUpper:-125,lFore:95,rThigh:-25,rShin:-92,lThigh:-92,lShin:-90, lean:-6}));
+const KNEE_L = mirror(KNEE_R, 'ברך שמאל', 'מושכים מרפקים למטה ומרימים ברך שמאל לצד');
+const LEAN_R = pose('שולדר לין ימינה', 'נשענים ימינה, כתף ימין למעלה, ידיים רפויות', P({...LEGS_W, rUpper:-65,rFore:-75,lUpper:-108,lFore:-100, lean:13, sx:.05, drop:.5}));
+const LEAN_L = mirror(LEAN_R, 'שולדר לין שמאלה', 'נשענים שמאלה, כתף שמאל למעלה, ידיים רפויות');
+// --- part 5: punches, arm wave, finish
+const PUNCH_R = pose('פאנץ׳ ימין', 'אגרוף ימין חוצה את הגוף, יד שמאל שומרת על הפנים', P({...LEGS_W, rUpper:178,rFore:178,lUpper:-115,lFore:60, lean:-6, sx:-.03, drop:.4}));
+const PUNCH_L = mirror(PUNCH_R, 'פאנץ׳ שמאל', 'אגרוף שמאל חוצה את הגוף, יד ימין שומרת על הפנים');
+const UPPER = pose('אפרקאט', 'אגרוף ימין עולה למעלה, הגוף נשען ימינה', P({...LEGS_W, rUpper:-35,rFore:88,lUpper:-120,lFore:70, lean:8, drop:.2}));
+const WAVE_R = pose('גל: ימין', 'הגל מתחיל ביד ימין: מרפק ישר, אמה למעלה', P({...LEGS_N, rUpper:15,rFore:60,lUpper:180,lFore:180}));
+const WAVE_M = pose('גל: באמצע', 'הגל עובר בכתפיים, שתי הידיים פתוחות לצדדים', P({...LEGS_N, rUpper:5,rFore:-10,lUpper:175,lFore:-170, drop:.3}));
+const WAVE_L = mirror(WAVE_R, 'גל: שמאל', 'הגל מגיע ליד שמאל: אמה למעלה');
+const FINISH = pose('פוזת סיום', 'מצביעים לשמיים, נשענים, ומחזיקים!', P({...LEGS_W, rUpper:50,rFore:52,lUpper:-130,lFore:-40, lean:10, sx:.04}));
 
-const MOVES = [
-  {id:'bounce', name:'באונס', en:'BOUNCE', desc:'כיפוף ברכיים בקצב, אגרופים לחזה', bpp:1, poses:[
-    {label:'למטה', cue:'מכופפים ברכיים ומביאים אגרופים לחזה', a:P({rUpper:-40,rFore:168,lUpper:-140,lFore:12,rThigh:-76,rShin:-102,lThigh:-104,lShin:-78})},
-    {label:'למעלה', cue:'מתיישרים ומשחררים את הידיים', a:P({rThigh:-84,rShin:-90,lThigh:-96,lShin:-90})}
-  ]},
-  {id:'steptouch', name:'סטפ טאץ׳', en:'STEP TOUCH', desc:'צעד לצד וחזרה, עם מחיאת כף', bpp:1, poses:[
-    {label:'צעד לצד', cue:'רגליים פתוחות, ידיים באלכסון למטה', a:P({rUpper:-35,rFore:-35,lUpper:-145,lFore:-145,rThigh:-70,rShin:-76,lThigh:-110,lShin:-104})},
-    {label:'מחיאה', cue:'רגליים יחד, כפיים נפגשות מול החזה', a:P({rUpper:-100,rFore:120,lUpper:-80,lFore:60,rThigh:-93,rShin:-90,lThigh:-87,lShin:-90})}
-  ]},
-  {id:'point', name:'פוינט', en:'THE POINT', desc:'מצביעים לשמיים ביד אחת, יד שנייה על המותן', bpp:1, poses:[
-    POINT_R,
-    {label:'פוינט שמאל', cue:'יד שמאל מצביעה למעלה באלכסון, יד ימין על המותן', a:mirrorAngles(POINT_R.a)}
-  ]},
-  {id:'knee', name:'משיכת ברך', en:'KNEE PULL', desc:'ידיים למעלה, ואז מרפקים למטה וברך לצד', bpp:1, poses:[
-    UP_V, KNEE_R, UP_V,
-    {label:'ברך שמאל', cue:'מושכים מרפקים למטה ומרימים ברך שמאל לצד', a:mirrorAngles(KNEE_R.a)}
-  ]},
-  {id:'freeze', name:'פריז', en:'FREEZE', desc:'ידיים משוכלות בעמידה רחבה, ואז פתיחה', bpp:1, poses:[
-    {label:'שילוב ידיים', cue:'ידיים משוכלות על החזה, רגליים רחבות', a:P({rUpper:-115,rFore:160,lUpper:-65,lFore:20,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})},
-    {label:'פתיחה', cue:'ידיים פתוחות לצדדים בגובה הכתפיים', a:P({rUpper:0,rFore:5,lUpper:180,lFore:175,rThigh:-72,rShin:-80,lThigh:-108,lShin:-100})}
-  ]}
+// A routine of five 8-counts, like a real hip-hop class. d = beats (0.5 = an "and" count).
+const st = (p, d) => ({pose:p, d});
+const PHRASES = [
+  {id:'p1', name:'גרוב ופאמפ', en:'GROOVE + RAISE THE ROOF', desc:'גרוב לצדדים בברכיים רכות, ואז דוחפים את התקרה על חצאי ביטים', steps:[
+    st(GROOVE_R,1), st(GROOVE_L,1), st(GROOVE_R,1), st(GROOVE_L,1),
+    st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(ROOF,1)]},
+  {id:'p2', name:'קריס קרוס', en:'CRISS CROSS + POINT', desc:'קפיצות לרגליים משוכלות ופתוחות, פוינט לשני הצדדים ועמידת בי־בוי', steps:[
+    st(CROSS,1), st(OPEN,1), st(CROSS,1), st(OPEN,1), st(POINT_R,1), st(POINT_L,1), st(STANCE,2)]},
+  {id:'p3', name:'קבג׳ פאץ׳', en:'CABBAGE PATCH', desc:'אגרופים צמודים במעגל עם המותן, ואז צעדים לצד עם מחיאות', steps:[
+    st(CP_R,.5), st(CP_U,.5), st(CP_L,.5), st(CP_D,.5), st(CP_R,.5), st(CP_U,.5), st(CP_L,.5), st(CP_D,.5),
+    st(STEP_R,1), st(CLAP,1), st(STEP_L,1), st(CLAP,1)]},
+  {id:'p4', name:'ברכיים ושולדר לין', en:'KNEES + SHOULDER LEAN', desc:'ברכיים לצדדים מהר, עצירה, ושולדר לין בגרוב', steps:[
+    st(KNEE_R,.5), st(UP_V,.5), st(KNEE_L,.5), st(UP_V,.5), st(KNEE_R,.5), st(UP_V,.5), st(STANCE,1),
+    st(LEAN_R,1), st(LEAN_L,1), st(LEAN_R,1), st(LEAN_L,1)]},
+  {id:'p5', name:'פאנץ׳ וגל', en:'PUNCH COMBO + WAVE', desc:'שילוב אגרופים ואפרקאט, גל ידיים, ופוזת סיום', steps:[
+    st(PUNCH_R,1), st(PUNCH_L,1), st(PUNCH_R,.5), st(PUNCH_L,.5), st(UPPER,1),
+    st(WAVE_R,.5), st(WAVE_M,.5), st(WAVE_L,.5), st(WAVE_M,.5), st(WAVE_R,.5), st(WAVE_M,.5), st(FINISH,1)]}
 ];
+const ROUTINE_NAME = 'בלוק פארטי';
+const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.indexOf(p) === i);
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
 const MATCH = 0.72;
@@ -380,14 +417,14 @@ function renderHome(){
   const fl = document.createElement('button');
   fl.className = 'lesson flow';
   fl.innerHTML = `<span class="num">▶</span>
-    <span><span class="title"><span class="name">המשחק המלא</span><span class="en">ONE FLOW</span></span>
-    <div class="desc">כל הצעדים אחד אחרי השני עם אותו שיר: באונס, סטפ טאץ׳, פוינט, משיכת ברך ופריז. בסוף מחברים הכל, יותר מהר. בערך 6 דקות.</div></span>
+    <span><span class="title"><span class="name">הריקוד המלא: ${ROUTINE_NAME}</span><span class="en">FULL CLASS</span></span>
+    <div class="desc">כמו שיעור היפ־הופ אמיתי: לומדים 5 חלקים של 8 ספירות, ואחרי כל חלק חדש רוקדים מההתחלה. בסוף כל הריקוד ברצף, יותר מהר. בערך 7 דקות.</div></span>
     <span class="stars" aria-label="${st.flow||0} כוכבים מתוך 3">${starsHtml(st.flow||0)}</span>`;
   fl.addEventListener('click', () => begin({type:'flow'}));
   list.appendChild(fl);
-  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = 'או לתרגל צעד אחד';
+  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = 'או לתרגל חלק אחד';
   list.appendChild(lbl);
-  MOVES.forEach((m,i) => {
+  PHRASES.forEach((m,i) => {
     const b = document.createElement('button');
     b.className = 'lesson';
     b.innerHTML = `<span class="num">${i+1}</span>
@@ -402,8 +439,8 @@ function renderHome(){
   const f = document.createElement('button');
   f.className = 'lesson full';
   f.innerHTML = `<span class="num">★</span>
-    <span><span class="title"><span class="name">הכוריאוגרפיה המלאה</span><span class="en">FULL ROUTINE</span></span>
-    <div class="desc">כל חמשת הצעדים ברצף, עם מוזיקה מההתחלה. בערך דקה וחצי.</div></span>
+    <span><span class="title"><span class="name">רק לרקוד</span><span class="en">JUST DANCE</span></span>
+    <div class="desc">כל הריקוד פעמיים ברצף, בלי שלב הלימוד. למי שכבר יודעת את הצעדים.</div></span>
     <span class="stars" aria-label="${st.full||0} כוכבים מתוך 3">${starsHtml(st.full||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
   list.appendChild(f);
@@ -415,12 +452,18 @@ function renderHome(){
 const BODY = {sh:1.45, hip:0.95, shw:0.2, hipw:0.12, ua:0.3, fa:0.27, th:0.44, sn:0.44, head:0.13};
 function coachJoints(a){
   const go = (p,ang,len) => [p[0]+Math.cos(ang*D2R)*len, p[1]+Math.sin(ang*D2R)*len];
-  const J = {rSh:[BODY.shw,BODY.sh], lSh:[-BODY.shw,BODY.sh], rHip:[BODY.hipw,BODY.hip], lHip:[-BODY.hipw,BODY.hip]};
+  const lean = (a.lean||0)*D2R, sx = a.sx||0;
+  const dir = [Math.sin(lean), Math.cos(lean)], perp = [Math.cos(lean), -Math.sin(lean)];
+  const hl = lean*0.35, perpH = [Math.cos(hl), -Math.sin(hl)];
+  const hipC = [sx, BODY.hip], shC = [hipC[0] + dir[0]*(BODY.sh-BODY.hip), hipC[1] + dir[1]*(BODY.sh-BODY.hip)];
+  const J = {rSh:[shC[0]+perp[0]*BODY.shw, shC[1]+perp[1]*BODY.shw], lSh:[shC[0]-perp[0]*BODY.shw, shC[1]-perp[1]*BODY.shw],
+             rHip:[hipC[0]+perpH[0]*BODY.hipw, hipC[1]+perpH[1]*BODY.hipw], lHip:[hipC[0]-perpH[0]*BODY.hipw, hipC[1]-perpH[1]*BODY.hipw]};
+  J.shC = shC; J.hipC = hipC;
   J.rEl = go(J.rSh,a.rUpper,BODY.ua); J.rWr = go(J.rEl,a.rFore,BODY.fa);
   J.lEl = go(J.lSh,a.lUpper,BODY.ua); J.lWr = go(J.lEl,a.lFore,BODY.fa);
   J.rKn = go(J.rHip,a.rThigh,BODY.th); J.rAn = go(J.rKn,a.rShin,BODY.sn);
   J.lKn = go(J.lHip,a.lThigh,BODY.th); J.lAn = go(J.lKn,a.lShin,BODY.sn);
-  J.head = [0, BODY.sh + 0.24];
+  J.head = [shC[0] + dir[0]*0.24, shC[1] + dir[1]*0.24];
   const minY = Math.min(J.rAn[1], J.lAn[1]);
   for (const k in J) J[k] = [J[k][0], J[k][1]-minY];
   return J;
@@ -428,11 +471,13 @@ function coachJoints(a){
 // Knees dip and the body bobs on every beat of the music, so the coach always moves with the song.
 function beatPhase(){ return (music.on && actx) ? (((actx.currentTime - music.t0)/music.bd) % 1 + 1) % 1 : ((performance.now()/1000) / 0.6) % 1; }
 function groove(a, phase){
-  const dip = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);   // strongest right on the beat
+  const beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);   // strongest right on the beat
+  const dip = Math.min(1.2, (a.drop||0) + beat*0.7);
   const o = Object.assign({}, a);
   const legUp = a.rThigh > -60 || a.lThigh < -120;               // a knee is lifted: leave the legs alone
-  if (!legUp){ o.rThigh += 7*dip; o.rShin -= 8*dip; o.lThigh -= 7*dip; o.lShin += 8*dip; }
-  o.rUpper -= 3*dip; o.lUpper += 3*dip;
+  if (!legUp){ o.rThigh += 9*dip; o.rShin -= 11*dip; o.lThigh -= 9*dip; o.lShin += 11*dip; }
+  o.rUpper -= 3*beat; o.lUpper += 3*beat;
+  o.lean = (a.lean||0) + Math.sin(phase*Math.PI*2)*1.5;          // a little chest bounce
   return o;
 }
 function lerpAngles(a,b,t){ const o={}; for (const k in a) o[k] = a[k] + norm(b[k]-a[k])*t; return o; }
@@ -497,7 +542,7 @@ function drawCoach(ctx, w, h, angles, opts={}){
   const hipL = P(J.lHip), hipR = P(J.rHip);
   capsule(ctx, [hipL[0]-u(0.02), hipL[1]], [hipR[0]+u(0.02), hipR[1]], u(0.075), u(0.075), PAL.pants);
   // torso: a rounded hoodie, lit from the upper left
-  const sL = P(J.lSh), sR = P(J.rSh), mid = P([0, (J.lSh[1]+J.lHip[1])/2]);
+  const sL = P(J.lSh), sR = P(J.rSh), mid = P([(J.shC[0]+J.hipC[0])/2, (J.shC[1]+J.hipC[1])/2]);
   const tg = ctx.createRadialGradient(mid[0]-u(0.12), mid[1]-u(0.16), u(0.05), mid[0], mid[1], u(0.42));
   tg.addColorStop(0, PAL.top[0]); tg.addColorStop(0.5, PAL.top[1]); tg.addColorStop(1, PAL.top[2]);
   ctx.fillStyle = tg; ctx.beginPath();
@@ -511,7 +556,7 @@ function drawCoach(ctx, w, h, angles, opts={}){
   ctx.strokeStyle = 'rgba(80,30,10,.35)'; ctx.lineWidth = u(0.012); ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(hipL[0]+u(0.02), hipL[1]-u(0.12)); ctx.lineTo(hipR[0]-u(0.02), hipR[1]-u(0.12)); ctx.stroke();
   // neck and head with cap
-  const neckTop = P([0, J.head[1]-0.1]), neckBot = P([0, J.lSh[1]+0.01]);
+  const neckTop = P([J.head[0] + (J.shC[0]-J.head[0])*0.42, J.head[1] - 0.1]), neckBot = P([J.shC[0], J.shC[1]+0.01]);
   capsule(ctx, neckBot, neckTop, u(0.045), u(0.045), PAL.skin);
   const hc = P(J.head), hr = u(BODY.head);
   sphere(ctx, hc, hr, PAL.skin);
@@ -536,7 +581,7 @@ function drawCoach(ctx, w, h, angles, opts={}){
 
 /* ---------- home demo loop ---------- */
 const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
-MOVES.forEach(m => { for (let r=0;r<2;r++) m.poses.forEach(p => demo.seq.push({a:p.a, dur:m.bpp})); });
+PHRASES.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d})));
 function drawDemo(now){
   const bd = 60/100*1000, beats = (now-demo.t0)/bd;
   const total = demo.seq.reduce((s,e)=>s+e.dur,0);
@@ -734,6 +779,14 @@ function scorePose(lm, target){
     tot += s*w; wsum += w;
     if (diff > worstDiff){ worstDiff = diff; worst = k; }
   }
+  // the body: hips-to-shoulders line, so leans count
+  if ([11,12,23,24].every(i => visible(lm,i))){
+    const sh = {X:(lm[11].X+lm[12].X)/2, Y:(lm[11].Y+lm[12].Y)/2}, hp = {X:(lm[23].X+lm[24].X)/2, Y:(lm[23].Y+lm[24].Y)/2};
+    const ang = Math.atan2(-(sh.Y-hp.Y), sh.X-hp.X)/D2R, want = 90 - (target.lean||0);
+    const diff = angDiff(ang, want), sc = clamp(1 - (diff-6)/22, 0, 1), w = Math.abs(target.lean||0) >= 6 ? 0.8 : 0.4;
+    per.torso = {s: sc, ang}; tot += sc*w; wsum += w;
+    if (diff > 14 && diff*2.2 > worstDiff){ worstDiff = Math.max(worstDiff, 40); worst = 'torso'; }
+  }
   const armsSeen = per.rUpper && per.lUpper;
   if (!armsSeen || wsum === 0) return {score:0, per, worst:null, legsSeen, armsSeen:false};
   return {score: tot/wsum, per, worst: worstDiff > 32 ? worst : null, legsSeen, armsSeen:true};
@@ -742,6 +795,7 @@ function hintFor(res, target){
   if (!res) return 'לא רואים אותך. לעמוד מול המצלמה';
   if (!res.armsSeen) return 'לא רואים את הידיים. להתרחק קצת אחורה';
   const k = res.worst; if (!k) return '';
+  if (k === 'torso'){ const want = 90 - (target.lean||0), d = norm(want - res.per.torso.ang); return d < 0 ? 'הגוף: להישען ימינה' : 'הגוף: להישען שמאלה'; }
   const t = target[k]*D2R, c = res.per[k].ang*D2R;
   const dx = Math.cos(t)-Math.cos(c), dy = Math.sin(t)-Math.sin(c);
   const name = SEG_NAMES[k];
@@ -860,13 +914,13 @@ function updateSetupStatus(){
 $('goBtn').addEventListener('click', () => { ensureAudio(); startPlay(); });
 $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
-function movesForPlan(plan){ return plan.type==='lesson' ? [plan.index] : MOVES.map((_,i)=>i); }
+function movesForPlan(plan){ return plan.type==='lesson' ? [plan.index] : PHRASES.map((_,i)=>i); }
 
 function startPlay(){
   show('play');
   keepAwake();
   const idxs = movesForPlan(state.plan);
-  const first = MOVES[idxs[0]];
+  const first = PHRASES[idxs[0]];
   setMoveHud(first);
   state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
   const own = musicPrefs.mode === 'own';
@@ -903,7 +957,7 @@ function startPlay(){
   }
   else go();
 }
-function flowPrefix(){ return state.plan?.type === 'flow' && state.flow ? `צעד ${state.flow.i+1} מתוך ${MOVES.length} · ` : (state.plan?.type === 'lesson' ? 'שלב 1 · ' : ''); }
+function flowPrefix(){ return state.plan?.type === 'flow' && state.flow ? `חלק ${state.flow.i+1} מתוך ${PHRASES.length} · ` : ''; }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
 function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
 function currentCoach(now){ const t = clamp((now-state.coachT0)/280,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
@@ -1036,8 +1090,7 @@ function waitForLock(maxMs){
 
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
-  const inFlow = state.plan?.type === 'flow';
-  const list = inFlow && m.poses.length > 2 ? [...m.poses] : [...m.poses, ...m.poses];
+  const list = uniquePoses(m);
   state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
   setMoveHud(m);
   $('phaseChip').textContent = flowPrefix() + 'לומדים לאט';
@@ -1085,9 +1138,9 @@ function learnNext(scored){
   if (ph.step >= ph.list.length){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
-    const inFlow = state.plan.type === 'flow';
-    banner('עכשיו בקצב!', inFlow ? 'קודם בחצי קצב, אחר כך בקצב מלא. המאמן יספור 5, 6, 7, 8.' : 'דקה של ריקוד: קודם בחצי קצב, אחר כך בקצב מלא. המאמן יספור 5, 6, 7, 8.', 2200).then(() => {
-      if (ui.screen==='play') startRhythm([MOVES.indexOf(ph.move)], music.on ? 60/music.bd : state.bpm, {flow: inFlow});
+    const inFlow = state.plan.type === 'flow', i = PHRASES.indexOf(ph.move);
+    banner('עכשיו עם המוזיקה!', inFlow && i > 0 ? 'קודם לאט, אחר כך בקצב, ובסוף מההתחלה עם כל מה שלמדנו.' : 'קודם לאט, אחר כך בקצב. המאמן יספור 5, 6, 7, 8.', 2400).then(() => {
+      if (ui.screen==='play') startRhythm([i], music.on ? 60/music.bd : state.bpm, {flow: inFlow});
     });
     return null;
   }
@@ -1101,24 +1154,21 @@ function startRhythm(idxs, bpm, opts={}){
   const bd = 60/bpm;
   const minBeats = Math.ceil(MIN_SECONDS/bd/8)*8;            // at least a minute of dancing
   const timeline = []; let beat = 0;
-  const add = (m, beats, bpp, section) => {
-    let k = 0;
-    for (let b=0; b<beats; b+=bpp){ timeline.push({t0:beat, dur:bpp, pose:m.poses[k++ % m.poses.length], move:m, section, best:0, done:false}); beat += bpp; }
+  // add an 8-count `times` times; scale 2 = half speed
+  const add = (ph, times, scale, section) => {
+    for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*scale, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*scale; }
   };
+  const one = PHRASES[idxs[0]];
   if (idxs.length === 1 && opts.flow){
-    const m = MOVES[idxs[0]], pre = flowPrefix();
-    add(m, 8, m.bpp*2, pre + 'חצי קצב');
-    add(m, 40, m.bpp, pre + 'קצב מלא');
+    const i = idxs[0], pre = flowPrefix();
+    add(one, 1, 2, pre + 'לאט');
+    add(one, 2, 1, pre + 'בקצב');
+    if (i > 0) for (let j=0; j<=i; j++) add(PHRASES[j], 1, 1, `מההתחלה · חלקים 1–${i+1}`);
   } else if (idxs.length === 1){
-    const m = MOVES[idxs[0]];
-    add(m, SLOW_BEATS, m.bpp*2, 'שלב 2 · חצי קצב');
-    add(m, Math.max(minBeats - SLOW_BEATS, 32), m.bpp, 'שלב 3 · קצב מלא');
-  } else if (opts.fast){
-    // the finale: every move, one move per beat, twice through
-    for (let round=0; round<2; round++) for (const i of idxs) add(MOVES[i], 16, 1, 'מחברים הכל · מהר');
+    add(one, 1, 2, 'שלב 2 · לאט');
+    let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, 'שלב 3 · בקצב'); reps++; }
   } else {
-    const per = Math.max(16, Math.ceil(minBeats/idxs.length/8)*8);
-    for (const i of idxs) add(MOVES[i], per, MOVES[i].bpp, 'כוריאוגרפיה · בקצב מלא');
+    for (let r=0; r<2; r++) for (const i of idxs) add(PHRASES[i], 1, 1, opts.fast ? `${ROUTINE_NAME} · כל הריקוד` : `${ROUTINE_NAME} · סיבוב ${r+1}`);
   }
   let t0, clock, base;
   if (music.on && actx){
@@ -1156,7 +1206,7 @@ function updateRhythm(now){
     $('poseCue').textContent = ph.timeline[0].pose.label;
     $('hint').textContent = '5, 6, 7, 8…';
   } else {
-    $('countBig').textContent = String((Math.floor(bPos) % 8) + 1);
+    $('countBig').textContent = (bPos % 1) >= 0.5 && ph.timeline.some(e => e.dur < 1 && bPos >= e.t0 && bPos < e.t0 + e.dur) ? 'ו' : String((Math.floor(bPos) % 8) + 1);
   }
   $('topBar').style.width = (clamp(bPos/ph.total,0,1)*100)+'%';
   const coachA = rhythmCoach(ph, bPos);
@@ -1178,7 +1228,7 @@ function updateRhythm(now){
     if (s > live.best) live.best = s;
     // grace: a slightly late hit still counts for the previous pose
     const prev = ph.timeline[idx-1];
-    if (prev && bPos - live.t0 < 0.2 && !prev.done){
+    if (prev && bPos - live.t0 < 0.3 && !prev.done){
       const sp = scorePose(cam.lm, prev.pose.a); if (sp?.armsSeen && sp.score > prev.best) prev.best = sp.score;
     }
     $('meterFill').style.width = (s*100)+'%';
@@ -1190,11 +1240,12 @@ function updateRhythm(now){
   }
   // judge finished entries
   for (const e of ph.timeline){
-    if (!e.done && bPos >= e.t0 + e.dur + 0.2){
+    if (!e.done && bPos >= e.t0 + e.dur + 0.3){
       e.done = true;
       if (!state.noCam){
-        if (e.best >= 0.78){ ph.hits++; ph.streak++; popText(ph.streak>=4 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
-        else if (e.best >= MATCH){ ph.hits++; ph.streak++; popText('טוב!', '#5fe08a'); }
+        const say = e.dur >= 1;                     // quick "and" moves count, but only longer ones get a word on screen
+        if (e.best >= 0.78){ ph.hits++; ph.streak++; if (say) popText(ph.streak>=6 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
+        else if (e.best >= MATCH){ ph.hits++; ph.streak++; if (say) popText('טוב!', '#5fe08a'); }
         else { ph.streak = 0; popText('כמעט', '#ff5a6a'); }
       }
     }
@@ -1208,15 +1259,15 @@ function flowNext(ph){
   state.phase = {kind:'wait'};
   if (!ph.final && f.i < f.idxs.length-1){
     f.i++;
-    const m = MOVES[f.idxs[f.i]];
-    banner(ph.hits/tl.length > 0.6 ? 'מעולה!' : 'יפה!', `הצעד הבא: ${m.name}. המוזיקה ממשיכה.`, 2400).then(() => { if (ui.screen==='play') startLearn(m); });
+    const m = PHRASES[f.idxs[f.i]];
+    banner(ph.hits/tl.length > 0.6 ? 'מעולה!' : 'יפה!', `חלק ${f.i+1}: ${m.name}. המוזיקה ממשיכה.`, 2400).then(() => { if (ui.screen==='play') startLearn(m); });
     return true;
   }
   if (!ph.final){
     // speed up the game's own song a little for the finale (a Spotify song keeps its tempo; the moves get faster)
     let bpm = 60/music.bd;
     if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); setNow(`${music.song.name} · קצב ${bpm}`); }
-    banner('מחברים הכל!', 'כל חמשת הצעדים ברצף, יותר מהר: תנועה על כל ביט.', 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
+    banner('כל הריקוד!', `${ROUTINE_NAME} מההתחלה ועד הסוף, פעמיים, ויותר מהר.`, 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
     return true;
   }
   return false;
@@ -1231,7 +1282,7 @@ function finishRhythm(){
   if (state.plan.type === 'flow'){ acc = state.flow.sum/state.flow.n; ph.hits = state.flow.hits; tl = {length: state.flow.n}; }
   let stars = 0;
   if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
-  const id = state.plan.type==='lesson' ? MOVES[state.plan.index].id : state.plan.type;
+  const id = state.plan.type==='lesson' ? PHRASES[state.plan.index].id : state.plan.type;
   if (!state.noCam && stars>0) saveStar(id, stars);
   $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
   $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
@@ -1239,9 +1290,9 @@ function finishRhythm(){
   $('resDetail').textContent = state.noCam
     ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
     : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`;
-  const nextIdx = state.plan.type==='lesson' && state.plan.index < MOVES.length-1 ? state.plan.index+1 : null;
+  const nextIdx = state.plan.type==='lesson' && state.plan.index < PHRASES.length-1 ? state.plan.index+1 : null;
   $('resNext').hidden = !(state.plan.type==='lesson');
-  $('resNext').textContent = nextIdx===null ? 'לכוריאוגרפיה המלאה' : 'לשיעור הבא';
+  $('resNext').textContent = nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
   $('resNext').onclick = () => begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx});
   show('result');
 }
