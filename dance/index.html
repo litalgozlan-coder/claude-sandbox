@@ -146,6 +146,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .panel{position:relative;overflow:hidden;min-width:0;min-height:0}
 .panel canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #coachPanel{background:var(--panel)}
+#coachVideo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:center;background:#0b0d12;will-change:transform}
 .coach-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
 #moveName{font-family:var(--display);font-weight:700;font-size:44px;line-height:.9}
 #moveEn{font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:800;direction:ltr;text-align:right}
@@ -282,6 +283,8 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
   <div class="panel" id="coachPanel">
     <canvas id="coachCanvas"></canvas>
     <canvas id="coach3d" hidden></canvas>
+    <video id="coachVideo" muted playsinline preload="auto" hidden></video>
+    <canvas id="coachVideoFx" hidden></canvas>
     <div class="coach-top">
       <div>
         <div id="moveName">באונס</div>
@@ -632,6 +635,27 @@ function describePose(a){
   }
   return 'לעקוב אחרי הרקדנית';
 }
+/* Real-video coach: a clip of a real dancer, with the poses the game scores against extracted from it once (video/*.json). */
+const VIDEOS = {
+  v1: {file:'video/v1.mp4', pose:'video/v1.json', bpm:125.6, beats:34}
+};
+const vclips = {};
+function loadVideoPose(id){
+  if (vclips[id]) return Promise.resolve(vclips[id]);
+  return fetch(VIDEOS[id].pose).then(r => r.json()).then(j => { j.id = id; j.bpm = VIDEOS[id].bpm; j.beats = VIDEOS[id].beats; vclips[id] = j; return j; });
+}
+const videoPhrase = (id, name, en, desc) => ({id:'vd-' + id, name, en, desc, video:id, steps:[]});
+function buildVideoSteps(ph){
+  const vc = vclips[ph.video]; if (!vc || ph.steps.length) return;
+  const spb = 60 / vc.bpm;
+  for (let b = 0; b < vc.beats; b++){
+    const a = Object.assign({}, vc.poses[Math.min(vc.frames - 1, Math.round(b * spb * vc.fps))]);
+    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describePose(a), a, videoBeat:b}, d:1});
+  }
+}
+const VIDEO_PHRASES = [
+  videoPhrase('v1', 'קרו רחוב', 'STREET CREW', 'סרטון של להקת רחוב אמיתית. עוקבים אחרי הרקדנית עם הטבעת הירוקה מתחת לרגליים. 34 ספירות.')
+];
 const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
 function buildMocapSteps(ph){
   const c = clips[ph.clip]; if (!c || ph.steps.length) return;
@@ -644,6 +668,9 @@ function buildMocapSteps(ph){
 async function ensureClips(){
   const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]) ids.add(ph.clip); }));
   for (const id in MOCAP) if (MOCAP[id].extra) ids.add(id);
+  const vids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && VIDEOS[ph.video]) vids.add(ph.video); }));
+  await Promise.all([...vids].map(id => loadVideoPose(id).catch(() => null)));
+  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && vclips[ph.video]) buildVideoSteps(ph); }));
   const missing = [...ids].filter(id => !clips[id]);
   if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
@@ -1187,6 +1214,47 @@ function init3D(){
   if (demo3){ $('demo3d').hidden = false; $('demoCanvas').hidden = true; }
 }
 
+/* ---------- video coach: a real dancer on video, kept in time with the game ---------- */
+const vcoach = {el: $('coachVideo'), fx: $('coachVideoFx'), on: false, id: null, zoom: {s: 1, x: 0, y: 0}, lastSeek: 0};
+function vcoachShow(id){
+  if (vcoach.id !== id){ vcoach.id = id; vcoach.el.src = VIDEOS[id].file; vcoach.el.load(); vcoach.zoom = {s: 1, x: 0, y: 0}; }
+  if (!vcoach.on){ vcoach.on = true; vcoach.el.hidden = false; vcoach.fx.hidden = false; $('coach3d').hidden = true; $('coachCanvas').hidden = true; }
+}
+function vcoachHide(){
+  if (!vcoach.on) return;
+  vcoach.on = false; vcoach.el.pause(); vcoach.el.hidden = true; vcoach.fx.hidden = true;
+  if (coach3) $('coach3d').hidden = false; else $('coachCanvas').hidden = false;
+}
+// keep the video near time t (seconds into the clip) at the given playback rate: small drifts are absorbed by
+// nudging the rate, big ones by a seek (at most four a second)
+function vcoachDrive(t, rate){
+  const v = vcoach.el;
+  if (v.readyState < 2){ v.play().catch(() => {}); return; }
+  const dt = t - v.currentTime;
+  if (Math.abs(dt) > 0.25 || v.paused || v.ended){
+    if (performance.now() - vcoach.lastSeek > 250){ v.currentTime = Math.max(0, Math.min(v.duration - 0.05, t)); vcoach.lastSeek = performance.now(); }
+    v.playbackRate = clamp(rate, 0.25, 4); v.play().catch(() => {}); return;
+  }
+  v.playbackRate = clamp(rate * (1 + clamp(dt * 1.5, -0.15, 0.15)), 0.25, 4);
+}
+// auto-framing on the followed dancer, and a ring under her feet so you know whom to follow in a group
+function vcoachFrame(){
+  const vc = vclips[vcoach.id], v = vcoach.el; if (!vc) return;
+  const pw = v.clientWidth, ph = v.clientHeight; if (!pw || !ph) return;
+  const f = Math.min(vc.frames - 1, Math.max(0, Math.round(v.currentTime * vc.fps))), [cx, cy, h] = vc.boxes[f];
+  const vw = v.videoWidth || 16, vh = v.videoHeight || 9, k = Math.min(pw / vw, ph / vh), Wd = vw * k, Hd = vh * k;
+  const s = clamp(0.62 * ph / (h * Hd), ph / Hd, 3.2);
+  const px = (cx - 0.5) * Wd, py = (cy - 0.5) * Hd;
+  const maxX = Math.max(0, (Wd * s - pw) / 2), maxY = Math.max(0, (Hd * s - ph) / 2);
+  const tx = clamp(-px * s, -maxX, maxX), ty = clamp(-py * s + 0.04 * ph, -maxY, maxY);
+  const z = vcoach.zoom, g = 0.08; z.s += (s - z.s) * g; z.x += (tx - z.x) * g; z.y += (ty - z.y) * g;
+  v.style.transform = `translate(${z.x.toFixed(1)}px, ${z.y.toFixed(1)}px) scale(${z.s.toFixed(3)})`;
+  const c = vcoach.fx; fit(c); const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+  const fx = pw / 2 + px * z.s + z.x, fy = ph / 2 + (cy + h / 2 - 0.5) * Hd * z.s + z.y, rw = h * Hd * z.s * 0.26;
+  ctx.save(); ctx.scale(dpr, dpr); ctx.strokeStyle = '#5fe08a'; ctx.lineWidth = 3; ctx.globalAlpha = 0.9;
+  ctx.beginPath(); ctx.ellipse(fx, fy, rw, rw * 0.32, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+}
+
 /* ---------- result screen: the avatar cheers (or claps politely) ---------- */
 function drawResult(now){
   const c = res3 && state.cheer && clips[state.cheer.clip]; if (!c) return;
@@ -1196,10 +1264,11 @@ function drawResult(now){
 
 /* ---------- home demo loop ---------- */
 const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
-function buildDemo(){ const ids = STYLES[STYLE_ID].levels[0].phrases.map(p => p.clip).filter(id => MOCAP[id]).slice(0, 3); ids.forEach(id => loadClip(id).catch(() => null)); }
+const demoClipIds = () => STYLES[STYLE_ID].levels.flatMap(l => l.phrases).map(p => p.clip).filter(id => id && MOCAP[id]).slice(0, 3);
+function buildDemo(){ demoClipIds().forEach(id => loadClip(id).catch(() => null)); }
 function drawDemo(now){
   const u = (now - demo.t0) / 1000;
-  const segs = STYLES[STYLE_ID].levels[0].phrases.map(p => clips[p.clip]).filter(Boolean).slice(0, 3).map(c => ({c, d: Math.min(12, Math.max(6, c.dur))}));
+  const segs = demoClipIds().map(id => clips[id]).filter(Boolean).map(c => ({c, d: Math.min(12, Math.max(6, c.dur))}));
   if (clips.stretch) segs.push({c: clips.stretch, d: clips.stretch.dur});
   if (segs.length){
     const per = segs.reduce((s, e) => s + e.d, 0); let x = u % per, i = 0;
@@ -1787,7 +1856,7 @@ function waitForLock(maxMs){
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
   state.clipPlay = null;
-  const list = m.clip ? m.steps.filter((_, i) => i % Math.max(2, Math.round(m.steps.length / 6)) === 0).map(x => x.pose) : uniquePoses(m);
+  const list = (m.clip || m.video) ? m.steps.filter((_, i) => i % Math.max(2, Math.round(m.steps.length / 6)) === 0).map(x => x.pose) : uniquePoses(m);
   state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
   setMoveHud(m);
   $('phaseChip').textContent = flowPrefix() + 'לומדים לאט';
@@ -1886,6 +1955,13 @@ function rhythmCoach(ph, bPos){
   if (bPos < 0) i = -1;
   if (bPos >= ph.total) i = tl.length-1;
   const live = i >= 0 ? tl[i] : null;
+  if (live && live.pose.videoBeat !== undefined && bPos >= 0 && bPos < ph.total && vclips[live.move.video]){
+    const vc = vclips[live.move.video], spb = 60 / vc.bpm;
+    state.vplay = {id: live.move.video, t: (live.pose.videoBeat + (bPos - live.t0) / live.dur) * spb, rate: spb / (live.dur * ph.bd)};
+    state.clipPlay = null;
+    return live.pose.a;
+  }
+  state.vplay = null;
   if (live && live.pose.clipBeat !== undefined && bPos >= 0 && bPos < ph.total && clips[live.move.clip]){
     const c = clips[live.move.clip];
     const t = (live.pose.clipBeat + (bPos - live.t0) / live.dur) * (60 / c.bpm);   // one clip beat per step, so slow phases play in slow motion
@@ -2011,7 +2087,7 @@ function finishRhythm(){
 $('resAgain').addEventListener('click', () => begin(state.plan));
 $('resHome').addEventListener('click', goHome);
 $('exitBtn').addEventListener('click', goHome);
-function goHome(){ stopMusic(); stopEar(); spotPause(); state.phase = null; state.mix = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
+function goHome(){ stopMusic(); stopEar(); spotPause(); state.phase = null; state.vplay = null; vcoachHide(); state.mix = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
 
 /* ---------- main loop ---------- */
 let lastNow = performance.now();
@@ -2032,9 +2108,14 @@ function loop(now){
   let res = null, coachA = currentCoach(now), target = null, glow = null;
   const ph = state.phase;
   let clipO = null;
+  if (ph?.kind !== 'learn' && ph?.kind !== 'rhythm') state.vplay = null;
   if (ph?.kind === 'wait' && clips.stretch){ const c = clips.stretch, t = (now - (ph.t0 || (ph.t0 = now))) / 1000; coachA = clipAngles(c, t); clipO = {clip: c, t}; }
   if (ph?.kind === 'learn'){
     const lp = ph.list[ph.step]; target = lp?.a;
+    if (lp && lp.videoBeat !== undefined && vclips[ph.move.video]){
+      const vc = vclips[ph.move.video], spb = 60 / vc.bpm, seg = 1.5 * spb;
+      state.vplay = {id: ph.move.video, t: Math.max(0, (lp.videoBeat - 0.5) * spb + (((now - ph.stepStart) / 1000) * 0.5) % seg), rate: 0.5};
+    } else state.vplay = null;
     if (lp && lp.clipBeat !== undefined && clips[ph.move.clip]){     // show the captured motion itself, swinging slowly around this count
       const c = clips[ph.move.clip], spb = 60 / c.bpm, seg = 1.5 * spb;
       const t = (lp.clipBeat - 0.5) * spb + (((now - ph.stepStart) / 1000) * 0.5) % seg;   // half speed, looped: the way into the count and the count itself
@@ -2046,8 +2127,12 @@ function loop(now){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
   const ph3 = beatPhase(), bc = beatCount();
-  if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
-  else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
+  if (state.vplay){ vcoachShow(state.vplay.id); vcoachDrive(state.vplay.t, state.vplay.rate); vcoachFrame(); }
+  else {
+    vcoachHide();
+    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
+    else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
+  }
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
@@ -2088,6 +2173,7 @@ const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url
 /* ---------- dance styles ---------- */
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
+    {name:'וידאו אמיתי', en:'REAL VIDEO', phrases:VIDEO_PHRASES, always:true, desc:'המאמנת היא רקדנית אמיתית בסרטון. בלימוד הסרטון רץ לאט ובלולאה, בקצב הוא רץ עם השיר, והמצלמה בודקת אותך מולו.'},
     {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
