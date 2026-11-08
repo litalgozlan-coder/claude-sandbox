@@ -569,7 +569,8 @@ const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.inde
    Each clip file holds per-frame bone rotations, hips offset and the 2D pose data used for scoring. */
 const MOCAP = {
   hiphop1: {file:'mocap/hiphop1.json', bpm:84.9, beats:10},
-  hiphop2: {file:'mocap/hiphop2.json', bpm:107.5, beats:8}
+  hiphop2: {file:'mocap/hiphop2.json', bpm:107.5, beats:8},
+  hiphop3: {file:'mocap/hiphop3.json', bpm:98.4, beats:10}
 };
 const clips = {};
 function loadClip(id){
@@ -600,7 +601,8 @@ async function ensureClips(){
 }
 const HH4_PHRASES = [
   mocapPhrase('hiphop1', 'היפ־הופ מקצועי 1', 'HIP HOP DANCING', 'ריקוד שלם שנלכד מרקדן היפ־הופ מקצועי: סיבובים, העברות משקל וגרוב אמיתי. 10 ספירות.'),
-  mocapPhrase('hiphop2', 'היפ־הופ מקצועי 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.')
+  mocapPhrase('hiphop2', 'היפ־הופ מקצועי 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.'),
+  mocapPhrase('hiphop3', 'היפ־הופ מקצועי 3', 'HIP HOP DANCING III', 'קטע שלישי: גרוב רחב עם הרבה עבודת ידיים. 10 ספירות.')
 ];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
