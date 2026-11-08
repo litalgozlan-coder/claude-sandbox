@@ -78,6 +78,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .seg label{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;color:var(--muted)}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label:has(input:checked){background:var(--coach);color:#1a0d05}
+.style-seg{background:var(--panel);padding:5px}
+.style-seg label{font-family:var(--display);font-size:30px;font-weight:700;padding:6px 8px}
+:root[data-style="zumba"] .style-seg label:has(input:checked){background:#22c3a6;color:#04261f}
+:root[data-style="zumba"] .brand{text-shadow:5px 5px 0 #22c3a6}
 .own{display:flex;flex-direction:column;gap:10px}
 .own ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:4px}
 .tap-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -178,9 +182,14 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="hero">
       <div>
         <h1 class="brand">ביט<br>ראשון</h1>
-        <p class="tagline">היפ־הופ למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
+        <p class="tagline">היפ־הופ וזומבה למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
       </div>
       <canvas id="demoCanvas" width="264" height="340" aria-label="מאמן מונפש מדגים צעדים"></canvas>
+    </div>
+
+    <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
+      <label for="style-hiphop"><input type="radio" name="style" id="style-hiphop" value="hiphop">היפ־הופ</label>
+      <label for="style-zumba"><input type="radio" name="style" id="style-zumba" value="zumba">זומבה</label>
     </div>
 
     <div class="lessons" id="lessonList"></div>
@@ -374,7 +383,7 @@ const FINISH = pose('פוזת סיום', 'מצביעים לשמיים, נשענ�
 
 // A routine of five 8-counts, like a real hip-hop class. d = beats (0.5 = an "and" count).
 const st = (p, d) => ({pose:p, d});
-const PHRASES = [
+const HH_PHRASES = [
   {id:'p1', name:'גרוב ופאמפ', en:'GROOVE + RAISE THE ROOF', desc:'גרוב לצדדים בברכיים רכות, ואז דוחפים את התקרה על חצאי ביטים', steps:[
     st(GROOVE_R,1), st(GROOVE_L,1), st(GROOVE_R,1), st(GROOVE_L,1),
     st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(ROOF,1)]},
@@ -390,7 +399,44 @@ const PHRASES = [
     st(PUNCH_R,1), st(PUNCH_L,1), st(PUNCH_R,.5), st(PUNCH_L,.5), st(UPPER,1),
     st(WAVE_R,.5), st(WAVE_M,.5), st(WAVE_L,.5), st(WAVE_M,.5), st(WAVE_R,.5), st(WAVE_M,.5), st(FINISH,1)]}
 ];
-const ROUTINE_NAME = 'בלוק פארטי';
+
+// ---------------- Zumba: energetic Latin fitness steps ----------------
+const MARCH_R = pose('מרנגה: ימין', 'צועדים במקום, ברך ימין עולה, אגרוף ימין לחזה', P({rThigh:-58,rShin:-96,lThigh:-95,lShin:-90, rUpper:-70,rFore:60,lUpper:-100,lFore:-95, sx:.02, drop:.2}));
+const MARCH_L = mirror(MARCH_R, 'מרנגה: שמאל', 'צועדים במקום, ברך שמאל עולה, אגרוף שמאל לחזה');
+const SIDE_R = pose('צעד צד ימינה', 'צעד רחב ימינה, שתי הידיים נשלחות ימינה', P({...LEGS_W, rUpper:5,rFore:5,lUpper:-30,lFore:0, sx:.06, lean:5, drop:.3}));
+const SIDE_L = mirror(SIDE_R, 'צעד צד שמאלה', 'צעד רחב שמאלה, שתי הידיים נשלחות שמאלה');
+const TAP_R = pose('קומביה: עקב ימין', 'רגל ימין נשלחת לצד על העקב, הידיים מתנדנדות לצד השני', P({rThigh:-50,rShin:-55,lThigh:-100,lShin:-85, rUpper:-120,rFore:-150,lUpper:-150,lFore:-165, lean:-6, drop:.3}));
+const TAP_L = mirror(TAP_R, 'קומביה: עקב שמאל', 'רגל שמאל נשלחת לצד על העקב, הידיים מתנדנדות לצד השני');
+const TOG_CLAP = pose('רגליים יחד, מחיאה', 'חוזרים לאמצע ומוחאים כף מול החזה', P({...LEGS_N, rUpper:-100,rFore:120,lUpper:-80,lFore:60, drop:.2}));
+const WEPA = pose('ווֶפָּה!', 'ידיים למעלה, עמידה רחבה, צועקים בלב "ווֶפָּה!"', P({...LEGS_W, rUpper:62,rFore:68,lUpper:118,lFore:112}));
+const GV_OUT_R = pose('גרייפוויין: צד ימין', 'צעד לצד ימין, ידיים פתוחות לצדדים', P({...LEGS_W, rUpper:0,rFore:0,lUpper:180,lFore:180, sx:.06}));
+const GV_CROSS_R = pose('גרייפוויין: הצלבה', 'רגל שמאל עוברת מאחורי ימין, ידיים מוצלבות על החזה', P({rThigh:-101,rShin:-96,lThigh:-79,lShin:-84, rUpper:-115,rFore:160,lUpper:-65,lFore:20, sx:.04, drop:.2}));
+const CLAP_UP = pose('מחיאה למעלה', 'רגליים יחד, מוחאים כף מעל הראש', P({...LEGS_N, rUpper:80,rFore:110,lUpper:100,lFore:70}));
+const GV_OUT_L = mirror(GV_OUT_R, 'גרייפוויין: צד שמאל', 'צעד לצד שמאל, ידיים פתוחות לצדדים');
+const GV_CROSS_L = mirror(GV_CROSS_R, 'גרייפוויין: הצלבה', 'רגל ימין עוברת מאחורי שמאל, ידיים מוצלבות על החזה');
+const JACK_OUT = pose('ג׳אמפינג ג׳ק: פתוח', 'קופצים לפתיחה, ידיים למעלה', P({...LEGS_W, rThigh:-66,lThigh:-114, rUpper:58,rFore:62,lUpper:122,lFore:118}));
+const JACK_IN = pose('ג׳אמפינג ג׳ק: סגור', 'קופצים לרגליים צמודות, ידיים למטה', P({rThigh:-90,rShin:-90,lThigh:-90,lShin:-90, rUpper:-82,rFore:-86,lUpper:-98,lFore:-94}));
+const PUP_R = pose('אגרוף למעלה: ימין', 'אגרוף ימין לשמיים, אגרוף שמאל ליד החזה', P({...LEGS_W, rUpper:85,rFore:88,lUpper:-120,lFore:60, drop:.3}));
+const PUP_L = mirror(PUP_R, 'אגרוף למעלה: שמאל', 'אגרוף שמאל לשמיים, אגרוף ימין ליד החזה');
+const YES = pose('יֶס!', 'מושכים אגרוף למטה בניצחון, ברכיים מתכופפות', P({...LEGS_W, rUpper:-40,rFore:92,lUpper:-130,lFore:-60, drop:.6}));
+const ROLL_A = pose('גלגול ידיים', 'האמות מסתובבות אחת סביב השנייה מול החזה', P({...LEGS_N, rUpper:-60,rFore:175,lUpper:-120,lFore:5, drop:.3}));
+const ROLL_B = pose('גלגול ידיים', 'ממשיכים לגלגל, האמות מתחלפות', P({...LEGS_N, rUpper:-48,rFore:160,lUpper:-132,lFore:20, drop:.3}));
+const SWAY_R = pose('נדנוד ימינה', 'משקל ימינה, ידיים נשלחות למעלה ימינה', P({...LEGS_W, rUpper:30,rFore:35,lUpper:10,lFore:30, sx:.05, lean:6}));
+const SWAY_L = mirror(SWAY_R, 'נדנוד שמאלה', 'משקל שמאלה, ידיים נשלחות למעלה שמאלה');
+const ZB_PHRASES = [
+  {id:'z1', name:'מרנגה', en:'MERENGUE MARCH', desc:'צעידה קצבית במקום עם אגרופים לחזה, וצעדי צד עם ידיים', steps:[
+    st(MARCH_R,1), st(MARCH_L,1), st(MARCH_R,1), st(MARCH_L,1), st(SIDE_R,1), st(SIDE_L,1), st(SIDE_R,1), st(SIDE_L,1)]},
+  {id:'z2', name:'קומביה', en:'CUMBIA TAP', desc:'עקב לצד וחזרה עם מחיאה, פעמיים מהר, ו"ווֶפָּה!"', steps:[
+    st(TAP_R,1), st(TOG_CLAP,1), st(TAP_L,1), st(TOG_CLAP,1), st(TAP_R,.5), st(TOG_CLAP,.5), st(TAP_L,.5), st(TOG_CLAP,.5), st(WEPA,2)]},
+  {id:'z3', name:'גרייפוויין', en:'GRAPEVINE', desc:'צעד, הצלבה, צעד ומחיאה מעל הראש, לשני הצדדים', steps:[
+    st(GV_OUT_R,1), st(GV_CROSS_R,1), st(GV_OUT_R,1), st(CLAP_UP,1), st(GV_OUT_L,1), st(GV_CROSS_L,1), st(GV_OUT_L,1), st(CLAP_UP,1)]},
+  {id:'z4', name:'ג׳אמפינג ג׳ק ואגרופים', en:'JACKS + PUNCHES', desc:'קפיצות פתוח־סגור, אגרופים לשמיים מהר, ו"יֶס!"', steps:[
+    st(JACK_OUT,1), st(JACK_IN,1), st(JACK_OUT,1), st(JACK_IN,1), st(PUP_R,.5), st(PUP_L,.5), st(PUP_R,.5), st(PUP_L,.5), st(PUP_R,.5), st(PUP_L,.5), st(YES,1)]},
+  {id:'z5', name:'גלגול ונדנוד', en:'ARM ROLL + SWAY', desc:'גלגול ידיים מהיר מול החזה, נדנוד לצדדים, וסיום בידיים למעלה', steps:[
+    st(ROLL_A,.5), st(ROLL_B,.5), st(ROLL_A,.5), st(ROLL_B,.5), st(SWAY_R,1), st(SWAY_L,1),
+    st(ROLL_A,.5), st(ROLL_B,.5), st(ROLL_A,.5), st(ROLL_B,.5), st(WEPA,2)]}
+];
+
 const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.indexOf(p) === i);
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
@@ -411,20 +457,22 @@ function starSvg(on){ return `<svg viewBox="0 0 24 24" aria-hidden="true"><path 
 function starsHtml(n, total=3){ let h=''; for(let i=0;i<total;i++) h+=starSvg(i<n); return h; }
 
 function renderHome(){
+  buildDemo();
+  for (const id in STYLES) { const r = $('style-' + id); if (r) r.checked = id === STYLE_ID; }
   const st = loadStars();
   const list = $('lessonList');
   list.innerHTML = '';
   const fl = document.createElement('button');
   fl.className = 'lesson flow';
   fl.innerHTML = `<span class="num">▶</span>
-    <span><span class="title"><span class="name">הריקוד המלא: ${ROUTINE_NAME}</span><span class="en">FULL CLASS</span></span>
-    <div class="desc">כמו שיעור היפ־הופ אמיתי: לומדים 5 חלקים של 8 ספירות, ואחרי כל חלק חדש רוקדים מההתחלה. בסוף כל הריקוד ברצף, יותר מהר. בערך 7 דקות.</div></span>
-    <span class="stars" aria-label="${st.flow||0} כוכבים מתוך 3">${starsHtml(st.flow||0)}</span>`;
+    <span><span class="title"><span class="name">הריקוד המלא: ${cur().routine}</span><span class="en">FULL CLASS</span></span>
+    <div class="desc">${cur().flowDesc}</div></span>
+    <span class="stars" aria-label="${st[starKey('flow')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('flow')]||0)}</span>`;
   fl.addEventListener('click', () => begin({type:'flow'}));
   list.appendChild(fl);
   const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = 'או לתרגל חלק אחד';
   list.appendChild(lbl);
-  PHRASES.forEach((m,i) => {
+  cur().phrases.forEach((m,i) => {
     const b = document.createElement('button');
     b.className = 'lesson';
     b.innerHTML = `<span class="num">${i+1}</span>
@@ -441,7 +489,7 @@ function renderHome(){
   f.innerHTML = `<span class="num">★</span>
     <span><span class="title"><span class="name">רק לרקוד</span><span class="en">JUST DANCE</span></span>
     <div class="desc">כל הריקוד פעמיים ברצף, בלי שלב הלימוד. למי שכבר יודעת את הצעדים.</div></span>
-    <span class="stars" aria-label="${st.full||0} כוכבים מתוך 3">${starsHtml(st.full||0)}</span>`;
+    <span class="stars" aria-label="${st[starKey('full')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('full')]||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
   list.appendChild(f);
 }
@@ -486,7 +534,7 @@ const ease = t => t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
 // Volumetric look on a 2D canvas: shaded capsules and spheres lit from the upper left.
 const LIGHT = [-0.6, -0.8];
 const PAL = {
-  top:   ['#ffb385','#ff7a3d','#b8461a'],   // hoodie
+  top:   ['#ffb385','#ff7a3d','#b8461a'],   // hoodie (changes with the style)
   pants: ['#5b6c99','#33416a','#1a2238'],
   skin:  ['#f1c9a5','#d9a07a','#9c6a4b'],
   shoe:  ['#ffffff','#ecebe6','#a8a49b'],
@@ -562,8 +610,12 @@ function drawCoach(ctx, w, h, angles, opts={}){
   sphere(ctx, hc, hr, PAL.skin);
   const cg = ctx.createRadialGradient(hc[0]-hr*0.4, hc[1]-hr*0.8, hr*0.1, hc[0], hc[1]-hr*0.2, hr*1.1);
   cg.addColorStop(0, PAL.cap[0]); cg.addColorStop(0.6, PAL.cap[1]); cg.addColorStop(1, PAL.cap[2]);
-  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(hc[0], hc[1]-hr*0.05, hr*1.04, Math.PI*1.05, Math.PI*1.95); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = PAL.cap[2]; ctx.beginPath(); ctx.ellipse(hc[0]+hr*0.55, hc[1]-hr*0.32, hr*0.75, hr*0.14, -0.08, 0, Math.PI*2); ctx.fill();
+  if (PAL.headband){
+    capsule(ctx, [hc[0]-hr*0.95, hc[1]-hr*0.42], [hc[0]+hr*0.95, hc[1]-hr*0.42], hr*0.16, hr*0.16, PAL.headband);
+  } else {
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(hc[0], hc[1]-hr*0.05, hr*1.04, Math.PI*1.05, Math.PI*1.95); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = PAL.cap[2]; ctx.beginPath(); ctx.ellipse(hc[0]+hr*0.55, hc[1]-hr*0.32, hr*0.75, hr*0.14, -0.08, 0, Math.PI*2); ctx.fill();
+  }
   // arms in front of the body: the far arm a little darker, the near arm last
   capsule(ctx, P(J.lSh), P(J.lEl), u(0.058), u(0.05), PAL.top, 0.1);
   capsule(ctx, P(J.lEl), P(J.lWr), u(0.05), u(0.042), PAL.top, 0.1);
@@ -581,7 +633,7 @@ function drawCoach(ctx, w, h, angles, opts={}){
 
 /* ---------- home demo loop ---------- */
 const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.now()};
-PHRASES.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d})));
+function buildDemo(){ demo.seq = []; cur().phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); }
 function drawDemo(now){
   const bd = 60/100*1000, beats = (now-demo.t0)/bd;
   const total = demo.seq.reduce((s,e)=>s+e.dur,0);
@@ -620,17 +672,24 @@ function click(t,hi){ const o=actx.createOscillator(), g=actx.createGain(); o.ty
 function chime(){ if(!ensureAudio()) return; const t=actx.currentTime; [880,1320].forEach((f,i)=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=f; env(g,t+i*0.07,0.22,0.35); o.connect(g).connect(master); o.start(t+i*0.07); o.stop(t+i*0.07+0.4); }); }
 
 /* Original songs the game picks from. Chords are [root midi, 'm'|'M'] per bar. */
-const SONGS = [
+const HH_SONGS = [
   {name:'קיץ בשכונה',  bpm:94, style:'boom',   prog:[[57,'m'],[53,'M'],[48,'M'],[55,'M']], key:57, minor:true,  motif:[0,null,2,3, null,2,1,null]},
   {name:'גג בעיר',      bpm:98, style:'lofi',   prog:[[50,'m'],[46,'M'],[53,'M'],[48,'M']], key:50, minor:true,  motif:[4,null,3,null, 2,null,0,null]},
   {name:'אור ירח',      bpm:96, style:'lofi',   prog:[[48,'m'],[56,'M'],[51,'M'],[58,'M']], key:48, minor:true,  motif:[0,2,null,3, null,null,2,1]},
   {name:'ריצת בוקר',    bpm:102, style:'bounce', prog:[[52,'m'],[48,'M'],[55,'M'],[50,'M']], key:52, minor:true,  motif:[0,0,2,null, 3,null,2,null]},
   {name:'סוף שבוע',     bpm:106, style:'bounce', prog:[[55,'M'],[52,'m'],[48,'M'],[50,'M']], key:55, minor:false, motif:[2,null,3,2, 0,null,1,null]}
 ];
+const ZB_SONGS = [
+  {name:'פיאסטה',      bpm:124, style:'merengue', swing:0, prog:[[60,'M'],[65,'M'],[67,'M'],[65,'M']], key:60, minor:false, motif:[0,2,3,2, 4,null,3,null]},
+  {name:'שמש לטינית',  bpm:110, style:'cumbia',   swing:0, prog:[[57,'m'],[55,'M'],[53,'M'],[52,'M']], key:57, minor:true,  motif:[2,null,3,4, 3,null,2,null]},
+  {name:'קרנבל',       bpm:118, style:'merengue', swing:0, prog:[[62,'M'],[67,'M'],[69,'M'],[67,'M']], key:62, minor:false, motif:[4,3,2,null, 2,3,4,null]},
+  {name:'חוף הים',     bpm:100, style:'dembow',   swing:0, prog:[[57,'m'],[53,'M'],[60,'M'],[55,'M']], key:57, minor:true,  motif:[0,null,2,null, 3,2,null,0]}
+];
 const mtof = m => 440*Math.pow(2,(m-69)/12);
 const PENTA = {minor:[0,3,5,7,10,12,15], major:[0,2,4,7,9,12,14]};
 let lastSong = -1;
 function pickSong(){
+  const SONGS = cur().songs;
   let i; do { i = Math.floor(Math.random()*SONGS.length); } while (SONGS.length>1 && i===lastSong);
   lastSong = i; return SONGS[i];
 }
@@ -673,7 +732,50 @@ function queueCountIn(){
   music.countIn = b;
   return b + 4;
 }
+function conga(t, f, v){ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.setValueAtTime(f*1.6,t); o.frequency.exponentialRampToValueAtTime(f,t+0.03); env(g,t,v,0.2); o.connect(g).connect(master); o.start(t); o.stop(t+0.24); }
+function clave(t, v=0.18){ const o=actx.createOscillator(), g=actx.createGain(); o.type='sine'; o.frequency.value=2300; env(g,t,v,0.05); o.connect(g).connect(master); o.start(t); o.stop(t+0.08); }
+function cowbell(t, v=0.1){ for (const f of [560,845]){ const o=actx.createOscillator(), bp=actx.createBiquadFilter(), g=actx.createGain(); o.type='square'; o.frequency.value=f; bp.type='bandpass'; bp.frequency.value=f; env(g,t,v,0.12); o.connect(bp).connect(g).connect(master); o.start(t); o.stop(t+0.16); } }
+function guira(t, v){ noise(t, 6500, v, 0.035); }
+function stab(t, root, q, dur){
+  for (const m of [root+12, root+12+(q==='m'?3:4), root+19]){
+    const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=mtof(m);
+    env(g,t,0.06,dur); o.connect(g).connect(master); o.start(t); o.stop(t+dur+0.05);
+  }
+}
+function playLatinStep(sg, n, t){
+  const p = n%8, bar = Math.floor(n/8), bd = music.bd;
+  const [root, q] = sg.prog[bar % sg.prog.length];
+  if (sg.style === 'merengue'){
+    if (p%2===0) kick(t);
+    guira(t, p%2===0 ? 0.12 : 0.07); guira(t + bd*0.25, 0.05);
+    if (p%2===1) conga(t, 330, 0.25);
+    if (p===3 || p===7) conga(t + bd*0.25, 220, 0.3);
+    if (p%2===1) stab(t, root, q, bd*0.3);
+    if (p%2===0) bass(t, mtof(root - 24 + (p===2 || p===6 ? 7 : 0)), bd*0.45);
+    if (p===0 || p===4) cowbell(t, 0.07);
+  } else if (sg.style === 'cumbia'){
+    if (p===0 || p===4) kick(t);
+    guira(t, p%2 ? 0.11 : 0.05); if (p%2) guira(t + bd*0.25, 0.06);
+    if (p===2 || p===6) conga(t, 200, 0.3);
+    if (p===3 || p===7) conga(t, 320, 0.22);
+    if (p===1 || p===5) stab(t, root, q, bd*0.35);
+    if (p===0 || p===3 || p===4 || p===7) bass(t, mtof(root - 24 + (p===3 || p===7 ? 7 : 0)), bd*(p%2 ? 0.4 : 0.8));
+  } else {   // dembow
+    if (p%2===0) kick(t);
+    if (p===0 || p===4) snare(t + bd*0.75);       // "boom-ch"
+    if (p===3 || p===7) snare(t);                 // "boom-chick"
+    hat(t, p%2 ? 0.05 : 0.09);
+    if (p===0) chordPad(t, root, q, bd*3.9);
+    if (p===0 || p===4) bass(t, mtof(root - 24), bd*1.6);
+    if (p===6) clave(t, 0.12);
+  }
+  if (bar >= 4 && bar%8 >= 4){
+    const deg = sg.motif[p];
+    if (deg !== null){ const sc = sg.minor ? PENTA.minor : PENTA.major; lead(t, sg.key + 12 + sc[deg % sc.length], bd*0.4); }
+  }
+}
 function playSongStep(sg, n, t){
+  if (['merengue','cumbia','dembow'].includes(sg.style)) return playLatinStep(sg, n, t);
   const p = n%8, bar = Math.floor(n/8), bd = music.bd;
   const [root, q] = sg.prog[bar % sg.prog.length];
   const intro = false;                         // drums from the very first beat, so the music is heard right away
@@ -704,7 +806,7 @@ function scheduleMusic(){
   const ahead = actx.currentTime + 0.12;
   while (true){
     const n = music.next8, beat = n/2;
-    const swing = (n%2!==0) ? music.bd*0.09 : 0;
+    const swing = (n%2!==0) ? music.bd*(music.song?.swing ?? 0.09) : 0;
     const t = music.t0 + beat*music.bd + swing;
     if (t > ahead) break;
     if (t >= actx.currentTime - 0.01){
@@ -914,13 +1016,13 @@ function updateSetupStatus(){
 $('goBtn').addEventListener('click', () => { ensureAudio(); startPlay(); });
 $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
-function movesForPlan(plan){ return plan.type==='lesson' ? [plan.index] : PHRASES.map((_,i)=>i); }
+function movesForPlan(plan){ return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i); }
 
 function startPlay(){
   show('play');
   keepAwake();
   const idxs = movesForPlan(state.plan);
-  const first = PHRASES[idxs[0]];
+  const first = cur().phrases[idxs[0]];
   setMoveHud(first);
   state.coachFrom = STAND; state.coachTo = STAND; state.coachT0 = performance.now();
   const own = musicPrefs.mode === 'own';
@@ -957,7 +1059,7 @@ function startPlay(){
   }
   else go();
 }
-function flowPrefix(){ return state.plan?.type === 'flow' && state.flow ? `חלק ${state.flow.i+1} מתוך ${PHRASES.length} · ` : ''; }
+function flowPrefix(){ return state.plan?.type === 'flow' && state.flow ? `חלק ${state.flow.i+1} מתוך ${cur().phrases.length} · ` : ''; }
 function setMoveHud(m){ $('moveName').textContent = m.name; $('moveEn').textContent = m.en; }
 function setCoachTarget(a){ state.coachFrom = currentCoach(performance.now()); state.coachTo = a; state.coachT0 = performance.now(); }
 function currentCoach(now){ const t = clamp((now-state.coachT0)/280,0,1); return lerpAngles(state.coachFrom, state.coachTo, ease(t)); }
@@ -1138,7 +1240,7 @@ function learnNext(scored){
   if (ph.step >= ph.list.length){
     state.phase = {kind:'wait'};
     $('topBar').style.width = '100%';
-    const inFlow = state.plan.type === 'flow', i = PHRASES.indexOf(ph.move);
+    const inFlow = state.plan.type === 'flow', i = cur().phrases.indexOf(ph.move);
     banner('עכשיו עם המוזיקה!', inFlow && i > 0 ? 'קודם לאט, אחר כך בקצב, ובסוף מההתחלה עם כל מה שלמדנו.' : 'קודם לאט, אחר כך בקצב. המאמן יספור 5, 6, 7, 8.', 2400).then(() => {
       if (ui.screen==='play') startRhythm([i], music.on ? 60/music.bd : state.bpm, {flow: inFlow});
     });
@@ -1158,17 +1260,17 @@ function startRhythm(idxs, bpm, opts={}){
   const add = (ph, times, scale, section) => {
     for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*scale, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*scale; }
   };
-  const one = PHRASES[idxs[0]];
+  const one = cur().phrases[idxs[0]];
   if (idxs.length === 1 && opts.flow){
     const i = idxs[0], pre = flowPrefix();
     add(one, 1, 2, pre + 'לאט');
     add(one, 2, 1, pre + 'בקצב');
-    if (i > 0) for (let j=0; j<=i; j++) add(PHRASES[j], 1, 1, `מההתחלה · חלקים 1–${i+1}`);
+    if (i > 0) for (let j=0; j<=i; j++) add(cur().phrases[j], 1, 1, `מההתחלה · חלקים 1–${i+1}`);
   } else if (idxs.length === 1){
     add(one, 1, 2, 'שלב 2 · לאט');
     let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, 'שלב 3 · בקצב'); reps++; }
   } else {
-    for (let r=0; r<2; r++) for (const i of idxs) add(PHRASES[i], 1, 1, opts.fast ? `${ROUTINE_NAME} · כל הריקוד` : `${ROUTINE_NAME} · סיבוב ${r+1}`);
+    for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · כל הריקוד` : `${cur().routine} · סיבוב ${r+1}`);
   }
   let t0, clock, base;
   if (music.on && actx){
@@ -1259,7 +1361,7 @@ function flowNext(ph){
   state.phase = {kind:'wait'};
   if (!ph.final && f.i < f.idxs.length-1){
     f.i++;
-    const m = PHRASES[f.idxs[f.i]];
+    const m = cur().phrases[f.idxs[f.i]];
     banner(ph.hits/tl.length > 0.6 ? 'מעולה!' : 'יפה!', `חלק ${f.i+1}: ${m.name}. המוזיקה ממשיכה.`, 2400).then(() => { if (ui.screen==='play') startLearn(m); });
     return true;
   }
@@ -1267,7 +1369,7 @@ function flowNext(ph){
     // speed up the game's own song a little for the finale (a Spotify song keeps its tempo; the moves get faster)
     let bpm = 60/music.bd;
     if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); setNow(`${music.song.name} · קצב ${bpm}`); }
-    banner('כל הריקוד!', `${ROUTINE_NAME} מההתחלה ועד הסוף, פעמיים, ויותר מהר.`, 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
+    banner('כל הריקוד!', `${cur().routine} מההתחלה ועד הסוף, פעמיים, ויותר מהר.`, 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
     return true;
   }
   return false;
@@ -1282,7 +1384,7 @@ function finishRhythm(){
   if (state.plan.type === 'flow'){ acc = state.flow.sum/state.flow.n; ph.hits = state.flow.hits; tl = {length: state.flow.n}; }
   let stars = 0;
   if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
-  const id = state.plan.type==='lesson' ? PHRASES[state.plan.index].id : state.plan.type;
+  const id = state.plan.type==='lesson' ? cur().phrases[state.plan.index].id : starKey(state.plan.type);
   if (!state.noCam && stars>0) saveStar(id, stars);
   $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
   $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
@@ -1290,7 +1392,7 @@ function finishRhythm(){
   $('resDetail').textContent = state.noCam
     ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
     : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`;
-  const nextIdx = state.plan.type==='lesson' && state.plan.index < PHRASES.length-1 ? state.plan.index+1 : null;
+  const nextIdx = state.plan.type==='lesson' && state.plan.index < cur().phrases.length-1 ? state.plan.index+1 : null;
   $('resNext').hidden = !(state.plan.type==='lesson');
   $('resNext').textContent = nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
   $('resNext').onclick = () => begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx});
@@ -1359,11 +1461,34 @@ $('tapBtn').addEventListener('pointerdown', e => {
   clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'להקיש בקצב'; }, 2200);
 });
 $('tapBtn').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $('tapBtn').dispatchEvent(new Event('pointerdown')); } });
-const PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}];
+const HH_PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}];
 /* ---------- Spotify player inside the game (official Spotify embed) ---------- */
+const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}];
+
+/* ---------- dance styles ---------- */
+const STYLES = {
+  hiphop: {id:'hiphop', name:'היפ־הופ', routine:'בלוק פארטי', phrases:HH_PHRASES, songs:HH_SONGS, playlists:HH_PLAYLISTS,
+           top:['#ffb385','#ff7a3d','#b8461a'], headband:null,
+           flowDesc:'כמו שיעור היפ־הופ אמיתי: לומדים 5 חלקים של 8 ספירות, ואחרי כל חלק חדש רוקדים מההתחלה. בסוף כל הריקוד ברצף, יותר מהר. בערך 7 דקות.'},
+  zumba:  {id:'zumba', name:'זומבה', routine:'פיאסטה', phrases:ZB_PHRASES, songs:ZB_SONGS, playlists:ZB_PLAYLISTS,
+           top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'],
+           flowDesc:'שיעור זומבה מלא על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, קפיצות ואגרופים. 5 חלקים, ואחרי כל חלק חוזרים מההתחלה. בערך 7 דקות של אימון.'}
+};
+let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
+if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
+function cur(){ return STYLES[STYLE_ID]; }
+function setStyle(id){
+  STYLE_ID = id; try { localStorage.setItem('bitrishon.style', id); } catch {}
+  PAL.top = cur().top; PAL.headband = cur().headband; lastSong = -1; lastPick = -1;
+  document.documentElement.dataset.style = id;
+  renderHome();
+}
+const starKey = k => STYLE_ID === 'hiphop' ? k : `${STYLE_ID}-${k}`;
+
 let lastPick = -1;
 const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, preview:false, uri:null, checkTimer:null};
 function pickPlaylist(){
+  const PLAYLISTS = cur().playlists;
   let i; do { i = Math.floor(Math.random()*PLAYLISTS.length); } while (PLAYLISTS.length>1 && i===lastPick);
   lastPick = i; return PLAYLISTS[i];
 }
@@ -1434,8 +1559,8 @@ function stopFallbackSong(){
 }
 function spotPause(){ clearTimeout(spot.checkTimer); spot.fallback = false; try { spot.ctrl?.pause(); } catch {} }
 // load the player ahead of time, so it can start the moment a lesson begins
-if (musicPrefs.mode === 'own') ensureController(toUri(PLAYLISTS[0].url)).catch(() => {});
-for (const id of ['mOwn']) $(id).addEventListener('change', () => ensureController(toUri(PLAYLISTS[0].url)).catch(() => {}));
+if (musicPrefs.mode === 'own') ensureController(toUri(cur().playlists[0].url)).catch(() => {});
+for (const id of ['mOwn']) $(id).addEventListener('change', () => ensureController(toUri(cur().playlists[0].url)).catch(() => {}));
 renderMusic();
 
 $('soundBtn').addEventListener('click', () => {
@@ -1446,6 +1571,8 @@ $('soundBtn').addEventListener('click', () => {
   chordPad(t, 57, 'm', bd*8);
   setTimeout(chime, 2600);
 });
+for (const id in STYLES) $('style-' + id).addEventListener('change', () => setStyle(id));
+PAL.top = cur().top; PAL.headband = cur().headband; document.documentElement.dataset.style = STYLE_ID;
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
