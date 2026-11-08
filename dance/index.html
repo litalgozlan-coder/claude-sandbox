@@ -1998,6 +1998,8 @@ function rhythmCoach(ph, bPos){
   if (bPos < 0) i = -1;
   if (bPos >= ph.total) i = tl.length-1;
   const live = i >= 0 ? tl[i] : null;
+  // during the count-in a captured dance holds its first count, so you see where it starts
+  if (bPos < 0 && tl[0].pose.clipBeat !== undefined && clips[tl[0].move.clip]){ const c = clips[tl[0].move.clip]; state.clipPlay = {clip: c, t: tl[0].pose.clipBeat * 60 / c.bpm}; return clipAngles(c, state.clipPlay.t); }
   if (live && live.pose.videoBeat !== undefined && bPos >= 0 && bPos < ph.total && vclips[live.move.video]){
     const vc = vclips[live.move.video], spb = 60 / vc.bpm;
     state.vplay = {id: live.move.video, t: (live.pose.videoBeat + (bPos - live.t0) / live.dur) * spb, rate: spb / (live.dur * ph.bd)};
