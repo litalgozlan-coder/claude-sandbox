@@ -1031,13 +1031,13 @@ function makeCoach3D(canvas, opts={}){
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
         const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
-        const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,230,120,0.95)'); gr.addColorStop(0.35, 'rgba(255,215,80,0.45)'); gr.addColorStop(1, 'rgba(255,200,60,0)');
+        const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,230,120,0.7)'); gr.addColorStop(0.3, 'rgba(255,215,80,0.28)'); gr.addColorStop(1, 'rgba(255,200,60,0)');
         g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
         const tex = new T.CanvasTexture(c);
         for (const hn of ['LeftHand', 'RightHand']){
           const hb = bones[hn]; if (!hb) continue;
           const sp = new T.Sprite(new T.SpriteMaterial({map: tex, transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending}));
-          sp.scale.set(0.3, 0.3, 1); sp.position.set(0, 0.07, 0); sp.renderOrder = 5; hb.add(sp); avatar.hands.push(sp);
+          sp.scale.set(0.2, 0.2, 1); sp.position.set(0, 0.07, 0); sp.renderOrder = 5; hb.add(sp); avatar.hands.push(sp);
         }
       }
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
@@ -1094,6 +1094,14 @@ function makeCoach3D(canvas, opts={}){
     }
     if (!fade) applyClip(c, cp.t, 1);
     if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * 0.4 * k);   // relaxed hands
+    // this rig's feet are not children of the legs: put each foot at the end of its shin, or the shoe stretches
+    root.updateMatrixWorld(true);
+    for (const [foot, L] of Object.entries(A.loose)){
+      const f = B[foot]; L.leg.updateMatrixWorld(true);
+      const start = L.leg.getWorldPosition(new T.Vector3()), dirW = new T.Vector3(0, 1, 0).applyQuaternion(L.leg.getWorldQuaternion(new T.Quaternion()));
+      const p0 = f.parent.worldToLocal(start.clone()), p1 = f.parent.worldToLocal(start.clone().add(dirW));
+      f.position.copy(p0.add(p1.sub(p0).normalize().multiplyScalar(L.len))); f.updateMatrixWorld(true);
+    }
     root.rotation.y = 0; root.position.set(0, 0, 0); root.updateMatrixWorld(true);
     const minToe = Math.min(...A.toes.map(A.wy), B.LeftHand ? A.wy(B.LeftHand) + 0.02 : 9, B.RightHand ? A.wy(B.RightHand) + 0.02 : 9);
     if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // feet (or hands, in a freeze) on the floor, real jumps may leave it
