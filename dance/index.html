@@ -570,7 +570,12 @@ const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.inde
 const MOCAP = {
   hiphop1: {file:'mocap/hiphop1.json', bpm:84.9, beats:10},
   hiphop2: {file:'mocap/hiphop2.json', bpm:107.5, beats:8},
-  hiphop3: {file:'mocap/hiphop3.json', bpm:98.4, beats:10}
+  hiphop3: {file:'mocap/hiphop3.json', bpm:98.4, beats:10},
+  uprock: {file:'mocap/uprock.json', bpm:114.3, beats:8},
+  freeze: {file:'mocap/freeze.json', bpm:116.1, beats:8},
+  charleston: {file:'mocap/charleston.json', bpm:91.9, beats:16},
+  macarena: {file:'mocap/macarena.json', bpm:116.6, beats:16},
+  chicken: {file:'mocap/chicken.json', bpm:100.7, beats:8}
 };
 const clips = {};
 function loadClip(id){
@@ -602,7 +607,14 @@ async function ensureClips(){
 const HH4_PHRASES = [
   mocapPhrase('hiphop1', 'היפ־הופ מקצועי 1', 'HIP HOP DANCING', 'ריקוד שלם שנלכד מרקדן היפ־הופ מקצועי: סיבובים, העברות משקל וגרוב אמיתי. 10 ספירות.'),
   mocapPhrase('hiphop2', 'היפ־הופ מקצועי 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.'),
-  mocapPhrase('hiphop3', 'היפ־הופ מקצועי 3', 'HIP HOP DANCING III', 'קטע שלישי: גרוב רחב עם הרבה עבודת ידיים. 10 ספירות.')
+  mocapPhrase('hiphop3', 'היפ־הופ מקצועי 3', 'HIP HOP DANCING III', 'קטע שלישי: גרוב רחב עם הרבה עבודת ידיים. 10 ספירות.'),
+  mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
+  mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!')
+];
+const ZB4_PHRASES = [
+  mocapPhrase('charleston', 'צ׳רלסטון', 'SWING CHARLESTON', 'סווינג צ׳רלסטון מרקדן אמיתי: ברכיים, בעיטות וידיים. 16 ספירות.'),
+  mocapPhrase('macarena', 'מקרנה', 'MACARENA', 'המקרנה המלאה, 16 ספירות: ידיים, כתפיים, ראש, מותניים וקפיצה.'),
+  mocapPhrase('chicken', 'ריקוד התרנגולת', 'CHICKEN DANCE', 'מקור, כנפיים, זנב ומחיאות. 8 ספירות של צחוק.')
 ];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
@@ -951,8 +963,8 @@ function makeCoach3D(canvas, opts={}){
     const h = c.hips;
     B.Hips.position.set(A.hipsRest.x + h[i0*3]*(1-u) + h[i1*3]*u, A.hipsRest.y + h[i0*3+1]*(1-u) + h[i1*3+1]*u, A.hipsRest.z + h[i0*3+2]*(1-u) + h[i1*3+2]*u);
     root.rotation.y = 0; root.position.set(0, 0, 0); root.updateMatrixWorld(true);
-    const minToe = Math.min(...A.toes.map(A.wy));
-    if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // keep the feet on the floor, but let real jumps leave it
+    const minToe = Math.min(...A.toes.map(A.wy), B.LeftHand ? A.wy(B.LeftHand) + 0.02 : 9, B.RightHand ? A.wy(B.RightHand) + 0.02 : 9);
+    if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // feet (or hands, in a freeze) on the floor, real jumps may leave it
     root.updateMatrixWorld(true);
   }
   function poseAvatar(j){
@@ -1673,7 +1685,7 @@ function waitForLock(maxMs){
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
   state.clipPlay = null;
-  const list = m.clip ? m.steps.filter((_, i) => i % 2 === 0).map(x => x.pose) : uniquePoses(m);
+  const list = m.clip ? m.steps.filter((_, i) => i % Math.max(2, Math.round(m.steps.length / 6)) === 0).map(x => x.pose) : uniquePoses(m);
   state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
   setMoveHud(m);
   $('phaseChip').textContent = flowPrefix() + 'לומדים לאט';
@@ -1972,7 +1984,8 @@ const STYLES = {
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'פיאסטה', en:'FIESTA', phrases:ZB_PHRASES, desc:'הבסיס על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, ג׳קים ואגרופים. בערך 7 דקות של אימון.'},
     {name:'סלסה פארטי', en:'SALSA PARTY', phrases:ZB2_PHRASES, desc:'סלסה, צ׳ה־צ׳ה, רגאטון עם זריקות מותן, שימי, סקי וסקוואט־קפיצה.'},
-    {name:'קרדיו בלאסט', en:'CARDIO BLAST', phrases:ZB3_PHRASES, desc:'ברכיים גבוהות, ג׳קים מהירים, אגרופים וקפיצות. דופק גבוה מההתחלה ועד הסוף.'}]}
+    {name:'קרדיו בלאסט', en:'CARDIO BLAST', phrases:ZB3_PHRASES, desc:'ברכיים גבוהות, ג׳קים מהירים, אגרופים וקפיצות. דופק גבוה מההתחלה ועד הסוף.'},
+    {name:'סטודיו', en:'STUDIO', phrases:ZB4_PHRASES, always:true, desc:'ריקודי מסיבה אמיתיים בלכידת תנועה: צ׳רלסטון, מקרנה וריקוד התרנגולת. פתוח תמיד.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
