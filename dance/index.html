@@ -45,6 +45,8 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .tagline{margin:10px 0 0;color:var(--muted);font-size:17px;max-width:34ch}
 #demoCanvas,#demo3d{width:132px;height:170px;display:block;background:var(--panel);border-radius:14px}
 .demo-box{width:132px;height:170px}
+.res-box{margin:8px auto 0;width:150px;height:190px}
+#result3d{width:150px;height:190px;display:block;background:var(--panel);border-radius:14px}
 .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:0}
 
 .lessons{display:flex;flex-direction:column;gap:10px}
@@ -320,6 +322,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 <section id="result" class="screen pad" hidden>
   <h2 id="resTitle">כל הכבוד!</h2>
   <div id="resStars"></div>
+  <div class="demo-box res-box"><canvas id="result3d" aria-label="האווטאר חוגג"></canvas></div>
   <div id="resPct"></div>
   <p id="resDetail"></p>
   <div class="row" style="justify-content:center">
@@ -575,7 +578,23 @@ const MOCAP = {
   freeze: {file:'mocap/freeze.json', bpm:116.1, beats:8},
   charleston: {file:'mocap/charleston.json', bpm:91.9, beats:16},
   macarena: {file:'mocap/macarena.json', bpm:116.6, beats:16},
-  chicken: {file:'mocap/chicken.json', bpm:100.7, beats:8}
+  chicken: {file:'mocap/chicken.json', bpm:100.7, beats:8},
+  runningman: {file:'mocap/runningman.json', bpm:98.4, beats:10},
+  shuffle: {file:'mocap/shuffle.json', bpm:96.0, beats:12},
+  shimmy: {file:'mocap/shimmy.json', bpm:110.3, beats:22},
+  tut: {file:'mocap/tut.json', bpm:120.5, beats:34},
+  wave: {file:'mocap/wave.json', bpm:114.1, beats:32},
+  locking: {file:'mocap/locking.json', bpm:120.0, beats:34},
+  robot: {file:'mocap/robot.json', bpm:128.3, beats:33},
+  house: {file:'mocap/house.json', bpm:105.5, beats:46},
+  salsa1: {file:'mocap/salsa1.json', bpm:105.9, beats:4},
+  salsa2: {file:'mocap/salsa2.json', bpm:105.9, beats:4},
+  samba: {file:'mocap/samba.json', bpm:115.9, beats:36},
+  rumba: {file:'mocap/rumba.json', bpm:126.8, beats:5},
+  // not dances: the avatar warms up before a round, and cheers or claps on the result screen
+  stretch: {file:'mocap/stretch.json', bpm:0, beats:0, extra:true},
+  cheer: {file:'mocap/cheer.json', bpm:0, beats:0, extra:true},
+  clap: {file:'mocap/clap.json', bpm:0, beats:0, extra:true}
 };
 const clips = {};
 function loadClip(id){
@@ -597,7 +616,7 @@ function buildMocapSteps(ph){
 }
 async function ensureClips(){
   const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]) ids.add(ph.clip); }));
-  if (!ids.size) return;
+  for (const id in MOCAP) if (MOCAP[id].extra) ids.add(id);
   const missing = [...ids].filter(id => !clips[id]);
   if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
@@ -608,6 +627,16 @@ const HH4_PHRASES = [
   mocapPhrase('hiphop1', 'היפ־הופ מקצועי 1', 'HIP HOP DANCING', 'ריקוד שלם שנלכד מרקדן היפ־הופ מקצועי: סיבובים, העברות משקל וגרוב אמיתי. 10 ספירות.'),
   mocapPhrase('hiphop2', 'היפ־הופ מקצועי 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.'),
   mocapPhrase('hiphop3', 'היפ־הופ מקצועי 3', 'HIP HOP DANCING III', 'קטע שלישי: גרוב רחב עם הרבה עבודת ידיים. 10 ספירות.'),
+  mocapPhrase('runningman', 'ראנינג מן מקצועי', 'HIP HOP RUNNING MAN', 'הראנינג מן כמו שרקדן אמיתי עושה אותו: החלקה אחורה עם הידיים. 10 ספירות.'),
+  mocapPhrase('shuffle', 'שאפל', 'SHUFFLING', 'צעדי שאפל מהירים: עקב־בוהן והחלפות משקל. 12 ספירות.'),
+  mocapPhrase('shimmy', 'שימי היפ־הופ', 'HIP HOP SHIMMY', 'כתפיים רועדות עם גרוב בברכיים ומעברים. 22 ספירות.')
+];
+const HH5_PHRASES = [
+  mocapPhrase('tut', 'טאטינג', 'TUTTING', 'זוויות ישרות עם הידיים והמרפקים, כמו ציור מצרי. דיוק לפני מהירות. 34 ספירות.'),
+  mocapPhrase('wave', 'וייב', 'WAVING', 'גל שעובר מיד ליד דרך הכתפיים והחזה. 32 ספירות.'),
+  mocapPhrase('locking', 'לוקינג', 'LOCKING', 'תנועות גדולות שננעלות בפתאומיות, עם הצבעות וסיבובי ידיים. 34 ספירות.'),
+  mocapPhrase('robot', 'רובוט', 'ROBOT', 'תנועות קצובות עם עצירות חדות, כולל הכפיפה הרובוטית. 33 ספירות.'),
+  mocapPhrase('house', 'האוס', 'HOUSE DANCE', 'עבודת רגליים מהירה של ריקוד האוס, עם קפיצה בגוף העליון. 46 ספירות.'),
   mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
   mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!')
 ];
@@ -615,6 +644,12 @@ const ZB4_PHRASES = [
   mocapPhrase('charleston', 'צ׳רלסטון', 'SWING CHARLESTON', 'סווינג צ׳רלסטון מרקדן אמיתי: ברכיים, בעיטות וידיים. 16 ספירות.'),
   mocapPhrase('macarena', 'מקרנה', 'MACARENA', 'המקרנה המלאה, 16 ספירות: ידיים, כתפיים, ראש, מותניים וקפיצה.'),
   mocapPhrase('chicken', 'ריקוד התרנגולת', 'CHICKEN DANCE', 'מקור, כנפיים, זנב ומחיאות. 8 ספירות של צחוק.')
+];
+const ZB5_PHRASES = [
+  mocapPhrase('salsa1', 'סלסה מצד לצד', 'SALSA SIDE TO SIDE', 'צעד הבסיס של הסלסה לצדדים, עם מותניים וידיים. 4 ספירות שחוזרות.'),
+  mocapPhrase('salsa2', 'סלסה: סיבוב ומחיאה', 'SALSA TWIRL & CLAP', 'סיבוב מלא ומחיאת כף על הספירה. 4 ספירות.'),
+  mocapPhrase('samba', 'סמבה', 'SAMBA', 'הקפצה של הסמבה הברזילאית: שלושה צעדים על כל שתי ספירות. 36 ספירות.'),
+  mocapPhrase('rumba', 'רומבה', 'RUMBA', 'צעדי רומבה איטיים ורכים עם מותניים. 5 ספירות שחוזרות.')
 ];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
@@ -1040,7 +1075,8 @@ function makeCoach3D(canvas, opts={}){
     const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
     if (avatarOn && avatar){
-      if (state.clipPlay && ui.screen === 'play') poseAvatarClip(state.clipPlay);
+      const cp = o.clip || (ui.screen === 'play' ? state.clipPlay : null);
+      if (cp) poseAvatarClip(cp);
       else poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
@@ -1078,22 +1114,30 @@ function makeCoach3D(canvas, opts={}){
   }
   return {draw, setAvatar};
 }
-let coach3 = null, demo3 = null;
+let coach3 = null, demo3 = null, res3 = null;
 const AVATAR_FIST_SIGN = -1;  // measured on the rig: negative X curls the fingers into the palm
 const AVATAR_URL = 'avatar/me.glb';   // set to null when there is no personal avatar file
 let AVATAR_ON = (() => { try { return localStorage.getItem('bitrishon.avatar') !== 'coach'; } catch { return true; } })();
 function applyAvatar(){
   const seg = $('avatarSeg');
   $('av-me').checked = AVATAR_ON; $('av-coach').checked = !AVATAR_ON;
-  for (const c of [coach3, demo3]) if (c) c.setAvatar(!!AVATAR_URL && AVATAR_ON, AVATAR_URL).then(ok => { if (c === (coach3 || demo3)) seg.hidden = !ok; });
+  for (const c of [coach3, demo3, res3]) if (c) c.setAvatar(!!AVATAR_URL && AVATAR_ON, AVATAR_URL).then(ok => { if (c === (coach3 || demo3)) seg.hidden = !ok; });
   if (!AVATAR_URL || !(coach3 || demo3)) seg.hidden = true;
 }
 function init3D(){
   coach3 = makeCoach3D($('coach3d'));
   demo3 = makeCoach3D($('demo3d'));
+  res3 = makeCoach3D($('result3d'));
   applyAvatar();
   if (coach3){ $('coach3d').hidden = false; $('coachCanvas').hidden = true; }
   if (demo3){ $('demo3d').hidden = false; $('demoCanvas').hidden = true; }
+}
+
+/* ---------- result screen: the avatar cheers (or claps politely) ---------- */
+function drawResult(now){
+  const c = res3 && state.cheer && clips[state.cheer.clip]; if (!c) return;
+  const t = (now - state.cheer.t0) / 1000;
+  res3.draw(clipAngles(c, t), {clip: {clip: c, t}, time: now, topPad: 4, bottomPad: 14});
 }
 
 /* ---------- home demo loop ---------- */
@@ -1101,6 +1145,9 @@ const demo = {ctx: $('demoCanvas').getContext('2d'), seq: [], t0: performance.no
 function buildDemo(){ demo.seq = []; cur().phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); if (!demo.seq.length) STYLES[STYLE_ID].levels[0].phrases.forEach(ph => ph.steps.forEach(x => demo.seq.push({a:x.pose.a, dur:x.d}))); }
 function drawDemo(now){
   const bd = 60/100*1000, beats = (now-demo.t0)/bd;
+  // every so often the dancer stops for a captured warm-up stretch, then the routine resumes
+  const st = clips.stretch;
+  if (st){ const per = 24 + st.dur, u = ((now - demo.t0) / 1000) % per; if (u > 24){ const t = u - 24, a = clipAngles(st, t); if (demo3) demo3.draw(a, {clip: {clip: st, t}, time: now, topPad: 4, bottomPad: 22}); else drawCoach(demo.ctx, 264, 340, a); return; } }
   const total = demo.seq.reduce((s,e)=>s+e.dur,0);
   let b = beats % total, i = 0;
   while (b >= demo.seq[i].dur) { b -= demo.seq[i].dur; i++; }
@@ -1893,6 +1940,7 @@ function finishRhythm(){
     const li = levelIdx();
     if (markDone(li) && li + 1 < STYLES[STYLE_ID].levels.length) unlockedMsg = ` נפתח שלב ${li+2}: ${STYLES[STYLE_ID].levels[li+1].name}!`;
   }
+  state.cheer = {clip: (state.noCam || stars >= 2) ? 'cheer' : 'clap', t0: performance.now()};
   $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
   $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
   $('resPct').textContent = state.noCam ? '' : Math.round(acc*100)+'%';
@@ -1923,10 +1971,13 @@ function loop(now){
     updateSetupStatus();
     return;
   }
+  if (ui.screen === 'result'){ drawResult(now); return; }
   if (ui.screen !== 'play') return;
   fit(coachCanvas); fit(camCanvas);
   let res = null, coachA = currentCoach(now), target = null, glow = null;
   const ph = state.phase;
+  let clipO = null;
+  if (ph?.kind === 'wait' && clips.stretch){ const c = clips.stretch, t = (now - (ph.t0 || (ph.t0 = now))) / 1000; coachA = clipAngles(c, t); clipO = {clip: c, t}; }
   if (ph?.kind === 'learn'){
     target = ph.list[ph.step]?.a;
     res = updateLearn(now, dt);
@@ -1935,7 +1986,7 @@ function loop(now){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
   const ph3 = beatPhase(), bc = beatCount();
-  if (coach3) coach3.draw(groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62});
+  if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO});
   else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   drawCam(camCanvas, camCtx, res, target);
 }
@@ -1980,12 +2031,14 @@ const STYLES = {
     {name:'בלוק פארטי', en:'BLOCK PARTY', phrases:HH_PHRASES, desc:'הבסיס: גרוב, קריס קרוס, קבג׳ פאץ׳, ברכיים, אגרופים וגל. לומדים חלק, רוקדים אותו, וחוזרים מההתחלה. בערך 7 דקות.'},
     {name:'סטריט ג׳אם', en:'STREET JAM', phrases:HH2_PHRASES, desc:'יותר מהר ויותר גדול: ראנינג מן, קיק־בול־צ׳יינג׳, בודי רול, דאב, ברוקלין בונס וקפיצות.'},
     {name:'באטל', en:'BATTLE', phrases:HH3_PHRASES, desc:'קומבינציות על חצאי ביטים שמחברות הכל, בקצב מלא. השלב הקשה.'},
-    {name:'סטודיו', en:'STUDIO', phrases:HH4_PHRASES, always:true, desc:'ריקודים של רקדן היפ־הופ מקצועי, בלכידת תנועה, על האווטאר שלך. פתוח תמיד.'}]},
+    {name:'סטודיו', en:'STUDIO', phrases:HH4_PHRASES, always:true, desc:'ריקודים של רקדן היפ־הופ מקצועי, בלכידת תנועה, על האווטאר שלך: שלושה ריקודים שלמים, ראנינג מן, שאפל ושימי. פתוח תמיד.'},
+    {name:'סטודיו · סטייל', en:'STUDIO STYLES', phrases:HH5_PHRASES, always:true, desc:'סגנונות הרחוב בלכידת תנועה: טאטינג, וייב, לוקינג, רובוט, האוס, אפרוק ופריז. פתוח תמיד.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'פיאסטה', en:'FIESTA', phrases:ZB_PHRASES, desc:'הבסיס על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, ג׳קים ואגרופים. בערך 7 דקות של אימון.'},
     {name:'סלסה פארטי', en:'SALSA PARTY', phrases:ZB2_PHRASES, desc:'סלסה, צ׳ה־צ׳ה, רגאטון עם זריקות מותן, שימי, סקי וסקוואט־קפיצה.'},
     {name:'קרדיו בלאסט', en:'CARDIO BLAST', phrases:ZB3_PHRASES, desc:'ברכיים גבוהות, ג׳קים מהירים, אגרופים וקפיצות. דופק גבוה מההתחלה ועד הסוף.'},
-    {name:'סטודיו', en:'STUDIO', phrases:ZB4_PHRASES, always:true, desc:'ריקודי מסיבה אמיתיים בלכידת תנועה: צ׳רלסטון, מקרנה וריקוד התרנגולת. פתוח תמיד.'}]}
+    {name:'סטודיו · מסיבה', en:'STUDIO PARTY', phrases:ZB4_PHRASES, always:true, desc:'ריקודי מסיבה אמיתיים בלכידת תנועה: צ׳רלסטון, מקרנה וריקוד התרנגולת. פתוח תמיד.'},
+    {name:'סטודיו · לטיני', en:'STUDIO LATIN', phrases:ZB5_PHRASES, always:true, desc:'סלסה, סמבה ורומבה מרקדנים אמיתיים, בלכידת תנועה. פתוח תמיד.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
@@ -2103,7 +2156,9 @@ $('soundBtn').addEventListener('click', () => {
 });
 for (const id in STYLES) $('style-' + id).addEventListener('change', () => setStyle(id));
 for (const [id, on] of [['av-me', true], ['av-coach', false]]) $(id).addEventListener('change', () => { AVATAR_ON = on; try { localStorage.setItem('bitrishon.avatar', on ? 'me' : 'coach'); } catch {} applyAvatar(); });
-try { init3D(); } catch { coach3 = demo3 = null; }
+try { init3D(); } catch { coach3 = demo3 = res3 = null; }
+$('result3d').parentElement.hidden = !res3;
+for (const id in MOCAP) if (MOCAP[id].extra) loadClip(id).catch(() => null);     // warm-up and cheer clips for the home and result screens
 PAL.top = cur().top; PAL.headband = cur().headband; document.documentElement.dataset.style = STYLE_ID;
 $('tapSync').addEventListener('pointerdown', e => { e.preventDefault(); tapBeat(); });
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
