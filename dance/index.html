@@ -1413,6 +1413,7 @@ function earSync(){
     const hold = performance.now() < ear.holdUntil;        // after the player tapped the beat, trust the taps' phase
     setMusicGrid(bpm, music.t0 + k*music.bd + (hold ? 0 : err*0.6));
     setEarChip(rateText());
+  } else if (performance.now() < ear.holdUntil){ ear.misses = 0;   // the player's taps win while they are fresh
   } else if (++ear.misses >= 2){                             // a new song with another tempo
     ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.holdUntil = 0;
     setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
