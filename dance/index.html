@@ -530,15 +530,23 @@ function coachJoints(a){
   return J;
 }
 // Knees dip and the body bobs on every beat of the music, so the coach always moves with the song.
-function beatPhase(){ return (music.on && actx) ? (((actx.currentTime - music.t0)/music.bd) % 1 + 1) % 1 : ((performance.now()/1000) / 0.6) % 1; }
-function groove(a, phase){
+function beatCount(){ return (music.on && actx) ? (actx.currentTime - music.t0)/music.bd : (performance.now()/1000)/0.6; }
+function beatPhase(){ return ((beatCount() % 1) + 1) % 1; }
+// Continuous groove on top of the poses: a knee dip on every beat, a small hop between beats,
+// hips swaying over two beats, shoulders and arms pumping, so the body never stands still.
+function groove(a, beats){
+  const phase = ((beats % 1) + 1) % 1;
   const beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);   // strongest right on the beat
-  const dip = Math.min(1.2, (a.drop||0) + beat*0.7);
+  const two = Math.sin(beats*Math.PI);                             // -1..1 over two beats
+  const dip = Math.min(1.3, (a.drop||0) + beat*0.85);
   const o = Object.assign({}, a);
   const legUp = a.rThigh > -60 || a.lThigh < -120;               // a knee is lifted: leave the legs alone
-  if (!legUp){ o.rThigh += 9*dip; o.rShin -= 11*dip; o.lThigh -= 9*dip; o.lShin += 11*dip; }
-  o.rUpper -= 3*beat; o.lUpper += 3*beat;
-  o.lean = (a.lean||0) + Math.sin(phase*Math.PI*2)*1.5;          // a little chest bounce
+  if (!legUp){ o.rThigh += 12*dip; o.rShin -= 14*dip; o.lThigh -= 12*dip; o.lShin += 14*dip; }
+  o.rUpper -= 6*beat; o.lUpper += 6*beat; o.rFore += 5*beat; o.lFore -= 5*beat;
+  o.lean = (a.lean||0) + two*2.5 + Math.sin(phase*Math.PI*2)*1.5;
+  o.sx = (a.sx||0) + two*0.03;                                    // hips swing side to side
+  o.bob = 0.03*Math.max(0, Math.sin(phase*Math.PI*2));           // lift between the beats, land on the beat
+  o.twist = two*0.16;
   return o;
 }
 function lerpAngles(a,b,t){ const o={}; for (const k in a) o[k] = a[k] + norm(b[k]-a[k])*t; return o; }
@@ -776,7 +784,7 @@ function makeCoach3D(canvas, opts={}){
       f.quaternion.copy(pq.invert().multiply(want));
     }
     root.updateMatrixWorld(true);
-    const minToe = Math.min(...A.toes.map(A.wy)); root.position.y += 0.03 - minToe; root.updateMatrixWorld(true);
+    const minToe = Math.min(...A.toes.map(A.wy)); root.position.y += 0.03 - minToe + (j.bob||0); root.updateMatrixWorld(true);
   }
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
@@ -787,10 +795,10 @@ function makeCoach3D(canvas, opts={}){
     if (!(avatarOn && avatar)){ parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband; }
     if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
     const phase = o.phase || 0, beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);
-    const J = coachJoints(a), lift = 0.07;
+    const J = coachJoints(a), lift = 0.07 + (a.bob||0);
     // twist toward an arm that crosses the body, plus a small groove sway
     const cross = (J.rWr[0] < J.shC[0] - 0.05 ? 1 : 0) - (J.lWr[0] > J.shC[0] + 0.05 ? 1 : 0);
-    const tw = 0.32*cross + 0.06*Math.sin(phase*Math.PI*2) + (a.sx||0)*1.2;
+    const tw = 0.32*cross + (a.twist||0) + (a.sx||0)*1.2;
     const yaw = (a.sx||0)*2.2 + (a.lean||0)*0.006;
     const spine = J.shC[0];
     const sh = (p, sign) => V(spine + (p[0]-spine)*Math.cos(tw), p[1] + lift, sign*Math.abs(p[0]-spine)*Math.sin(tw));
@@ -806,13 +814,13 @@ function makeCoach3D(canvas, opts={}){
     const rKn = V(J.rKn[0], J.rKn[1]+lift, knee(J.rHip, J.rKn, J.rAn)), lKn = V(J.lKn[0], J.lKn[1]+lift, knee(J.lHip, J.lKn, J.lAn));
     const rAn = V(J.rAn[0], J.rAn[1]+lift, 0), lAn = V(J.lAn[0], J.lAn[1]+lift, 0);
     const shC = V(J.shC[0], J.shC[1]+lift, 0), hipC = V(J.hipC[0], J.hipC[1]+lift, 0);
-    const head = V(J.head[0], J.head[1]+lift - 0.012*beat, 0.035*beat);
+    const head = V(J.head[0], J.head[1]+lift - 0.03*beat, 0.06*beat);
     // whole body turns a little toward the side it steps to
     const pivot = hipC.x, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
     if (avatarOn && avatar){
-      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw});
+      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0});
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
@@ -876,7 +884,7 @@ function drawDemo(now){
   while (b >= demo.seq[i].dur) { b -= demo.seq[i].dur; i++; }
   const cur = demo.seq[i], prev = demo.seq[(i-1+demo.seq.length)%demo.seq.length];
   const t = clamp(b/Math.min(0.3,cur.dur*0.3),0,1);
-  const a = groove(lerpAngles(prev.a, cur.a, ease(t)), (beats % 1));
+  const a = groove(lerpAngles(prev.a, cur.a, ease(t)), beats);
   if (demo3) demo3.draw(a, {phase: beats % 1, time: now, topPad: 4, bottomPad: 22}); else drawCoach(demo.ctx, 264, 340, a);
 }
 
@@ -1553,9 +1561,9 @@ function rhythmCoach(ph, bPos){
   const cur = i>=0 ? tl[i].pose.a : STAND;
   const next = tl[i+1]?.pose.a;
   const endAt = i>=0 ? tl[i].t0+tl[i].dur : 0;
-  const w = Math.min(0.28, (i>=0?tl[i].dur:1)*0.3);
+  const w = Math.min(0.6, (i>=0?tl[i].dur:1)*0.6);
   const rem = endAt - bPos;
-  if (next && rem < w) return lerpAngles(cur, next, ease(1 - rem/w));
+  if (next && rem < w){ const t = 1 - rem/w, c1 = 1.25, c3 = c1 + 1; return lerpAngles(cur, next, 1 + c3*Math.pow(t-1, 3) + c1*Math.pow(t-1, 2)); }
   return cur;
 }
 function updateRhythm(now){
@@ -1687,9 +1695,9 @@ function loop(now){
   } else if (ph?.kind === 'rhythm'){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
-  const ph3 = beatPhase();
-  if (coach3) coach3.draw(groove(coachA, ph3), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62});
-  else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, ph3), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
+  const ph3 = beatPhase(), bc = beatCount();
+  if (coach3) coach3.draw(groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62});
+  else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
