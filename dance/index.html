@@ -151,6 +151,9 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 @keyframes pop{0%{opacity:0;transform:scale(.6)}20%{opacity:1;transform:scale(1.08)}70%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1)}}
 #topBar{position:fixed;top:0;left:0;height:4px;background:var(--coach);width:0;z-index:5;transition:width .2s linear}
 #banner{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:rgba(18,20,24,.88);z-index:6;text-align:center;padding:24px}
+#pauseOverlay{position:fixed;inset:0;z-index:8;border:0;background:rgba(18,20,24,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:24px;text-align:center}
+#pauseOverlay b{font-family:var(--display);font-size:64px;line-height:.9;color:var(--coach)}
+#pauseOverlay span{font-size:18px;max-width:28ch}
 #banner b{font-family:var(--display);font-size:72px;line-height:.9;color:var(--coach)}
 #banner span{color:var(--fg);font-size:18px;max-width:30ch}
 
@@ -279,6 +282,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
   </div>
 </section>
 <div id="topBar"></div>
+<button id="pauseOverlay" type="button" hidden><b>המשחק נעצר</b><span>הנייד עצר את הצליל. ללחוץ כאן כדי להמשיך מאותו מקום.</span></button>
 <div id="banner" hidden><b id="bannerBig"></b><span id="bannerSmall"></span></div>
 
 <!-- RESULT -->
@@ -421,53 +425,111 @@ function coachJoints(a){
   for (const k in J) J[k] = [J[k][0], J[k][1]-minY];
   return J;
 }
+// Knees dip and the body bobs on every beat of the music, so the coach always moves with the song.
+function beatPhase(){ return (music.on && actx) ? (((actx.currentTime - music.t0)/music.bd) % 1 + 1) % 1 : ((performance.now()/1000) / 0.6) % 1; }
+function groove(a, phase){
+  const dip = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);   // strongest right on the beat
+  const o = Object.assign({}, a);
+  const legUp = a.rThigh > -60 || a.lThigh < -120;               // a knee is lifted: leave the legs alone
+  if (!legUp){ o.rThigh += 7*dip; o.rShin -= 8*dip; o.lThigh -= 7*dip; o.lShin += 8*dip; }
+  o.rUpper -= 3*dip; o.lUpper += 3*dip;
+  return o;
+}
 function lerpAngles(a,b,t){ const o={}; for (const k in a) o[k] = a[k] + norm(b[k]-a[k])*t; return o; }
 const ease = t => t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
 
+// Volumetric look on a 2D canvas: shaded capsules and spheres lit from the upper left.
+const LIGHT = [-0.6, -0.8];
+const PAL = {
+  top:   ['#ffb385','#ff7a3d','#b8461a'],   // hoodie
+  pants: ['#5b6c99','#33416a','#1a2238'],
+  skin:  ['#f1c9a5','#d9a07a','#9c6a4b'],
+  shoe:  ['#ffffff','#ecebe6','#a8a49b'],
+  cap:   ['#ffffff','#eeebe4','#b3aea3']
+};
+function capsule(ctx, a, b, ra, rb, pal, shade){
+  const dx = b[0]-a[0], dy = b[1]-a[1], L = Math.hypot(dx,dy) || 1, nx = -dy/L, ny = dx/L;
+  const ang = Math.atan2(dy, dx), R = Math.max(ra, rb), mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+  const lit = nx*LIGHT[0] + ny*LIGHT[1] > 0 ? 1 : -1;
+  const g = ctx.createLinearGradient(mx + nx*R*lit, my + ny*R*lit, mx - nx*R*lit, my - ny*R*lit);
+  g.addColorStop(0, pal[0]); g.addColorStop(0.4, pal[1]); g.addColorStop(1, pal[2]);
+  ctx.beginPath();
+  ctx.arc(a[0], a[1], ra, ang + Math.PI/2, ang + Math.PI*1.5);
+  ctx.arc(b[0], b[1], rb, ang - Math.PI/2, ang + Math.PI/2);
+  ctx.closePath();
+  ctx.fillStyle = g; ctx.fill();
+  if (shade){ ctx.fillStyle = `rgba(10,12,20,${shade})`; ctx.fill(); }
+}
+function sphere(ctx, c, r, pal, shade){
+  const g = ctx.createRadialGradient(c[0] + LIGHT[0]*r*0.45, c[1] + LIGHT[1]*r*0.45, r*0.1, c[0], c[1], r);
+  g.addColorStop(0, pal[0]); g.addColorStop(0.55, pal[1]); g.addColorStop(1, pal[2]);
+  ctx.beginPath(); ctx.arc(c[0], c[1], r, 0, Math.PI*2); ctx.fillStyle = g; ctx.fill();
+  if (shade){ ctx.fillStyle = `rgba(10,12,20,${shade})`; ctx.fill(); }
+}
 function drawCoach(ctx, w, h, angles, opts={}){
   ctx.clearRect(0,0,w,h);
   const J = coachJoints(angles);
-  // fixed scale that fits arms raised overhead (about 2.45 body units tall)
   const top = opts.topPad||0, bottom = Math.max(10, h*0.04) + (opts.bottomPad||0);
   const s = Math.min(w/1.6, (h-top-bottom)/2.45);
-  const ox = w/2, oy = h - bottom;
-  const X = p => ox + p[0]*s, Y = p => oy - p[1]*s;
-  // floor
-  ctx.fillStyle = 'rgba(0,0,0,.28)';
-  ctx.beginPath(); ctx.ellipse(ox, oy+4, s*0.42, s*0.05, 0, 0, Math.PI*2); ctx.fill();
-  const col = opts.color || '#ff7a3d';
-  const dark = opts.dark || '#c4521f';
-  const lw = s*0.085;
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  const limb = (a,b,c,wid) => { ctx.strokeStyle=c; ctx.lineWidth=wid; ctx.beginPath(); ctx.moveTo(X(a),Y(a)); ctx.lineTo(X(b),Y(b)); ctx.stroke(); };
-  // back limbs slightly darker to read depth
-  limb(J.lHip,J.lKn,dark,lw); limb(J.lKn,J.lAn,dark,lw);
-  limb(J.lSh,J.lEl,dark,lw*0.9); limb(J.lEl,J.lWr,dark,lw*0.85);
-  // torso
-  ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.moveTo(X(J.lSh),Y(J.lSh)); ctx.lineTo(X(J.rSh),Y(J.rSh));
-  ctx.lineTo(X(J.rHip),Y(J.rHip)); ctx.lineTo(X(J.lHip),Y(J.lHip)); ctx.closePath();
-  ctx.lineWidth = lw*0.9; ctx.strokeStyle = col; ctx.fill(); ctx.stroke();
-  // front limbs
-  limb(J.rHip,J.rKn,col,lw); limb(J.rKn,J.rAn,col,lw);
-  limb(J.rSh,J.rEl,col,lw*0.9); limb(J.rEl,J.rWr,col,lw*0.85);
-  // shoes
-  ctx.fillStyle = '#f3efe6';
-  for (const an of [J.lAn,J.rAn]) { ctx.beginPath(); ctx.ellipse(X(an), Y(an)+lw*0.15, lw*0.75, lw*0.42, 0, 0, Math.PI*2); ctx.fill(); }
-  // hands
-  ctx.fillStyle = dark;
-  for (const wr of [J.lWr,J.rWr]) { ctx.beginPath(); ctx.arc(X(wr),Y(wr),lw*0.55,0,Math.PI*2); ctx.fill(); }
-  // neck + head
-  limb([0,J.rSh[1]],[0,J.head[1]],col,lw*0.7);
-  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(X(J.head),Y(J.head),BODY.head*s,0,Math.PI*2); ctx.fill();
-  // cap
-  ctx.fillStyle = '#f3efe6';
-  ctx.beginPath(); ctx.arc(X(J.head),Y(J.head),BODY.head*s*1.04,Math.PI*1.08,Math.PI*1.92); ctx.closePath(); ctx.fill();
-  ctx.fillRect(X(J.head)-BODY.head*s*0.2, Y(J.head)-BODY.head*s*0.42, BODY.head*s*1.45, BODY.head*s*0.22);
+  const ox = w/2, oy = h - bottom, lift = opts.lift || 0;
+  const P = p => [ox + p[0]*s, oy - (p[1] + lift)*s];
+  const u = v => v*s;
+  // floor shadow, smaller when the body is up
+  const sh = ctx.createRadialGradient(ox, oy+4, 2, ox, oy+4, s*0.5);
+  sh.addColorStop(0, 'rgba(0,0,0,.45)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh; ctx.beginPath(); ctx.ellipse(ox, oy+4, s*0.5, s*0.07, 0, 0, Math.PI*2); ctx.fill();
+  const shoe = (an, kn, shade) => {
+    const c = P(an), dir = an[0] >= 0 ? 1 : -1;
+    const g = ctx.createLinearGradient(c[0], c[1]-u(0.05), c[0], c[1]+u(0.05));
+    g.addColorStop(0, PAL.shoe[0]); g.addColorStop(1, PAL.shoe[2]);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(c[0] + dir*u(0.02), c[1] + u(0.02), u(0.085), u(0.045), 0, 0, Math.PI*2); ctx.fill();
+    if (shade){ ctx.fillStyle = `rgba(10,12,20,${shade})`; ctx.fill(); }
+  };
+  // back side (dancer's left) first, a little darker for depth
+  const back = 0.16;
+  capsule(ctx, P(J.lHip), P(J.lKn), u(0.075), u(0.062), PAL.pants, back);
+  capsule(ctx, P(J.lKn), P(J.lAn), u(0.062), u(0.05), PAL.pants, back);
+  shoe(J.lAn, J.lKn, back);
+  // front leg and hips
+  capsule(ctx, P(J.rHip), P(J.rKn), u(0.075), u(0.062), PAL.pants);
+  capsule(ctx, P(J.rKn), P(J.rAn), u(0.062), u(0.05), PAL.pants);
+  shoe(J.rAn, J.rKn);
+  const hipL = P(J.lHip), hipR = P(J.rHip);
+  capsule(ctx, [hipL[0]-u(0.02), hipL[1]], [hipR[0]+u(0.02), hipR[1]], u(0.075), u(0.075), PAL.pants);
+  // torso: a rounded hoodie, lit from the upper left
+  const sL = P(J.lSh), sR = P(J.rSh), mid = P([0, (J.lSh[1]+J.lHip[1])/2]);
+  const tg = ctx.createRadialGradient(mid[0]-u(0.12), mid[1]-u(0.16), u(0.05), mid[0], mid[1], u(0.42));
+  tg.addColorStop(0, PAL.top[0]); tg.addColorStop(0.5, PAL.top[1]); tg.addColorStop(1, PAL.top[2]);
+  ctx.fillStyle = tg; ctx.beginPath();
+  ctx.moveTo(sL[0]-u(0.04), sL[1]+u(0.02));
+  ctx.quadraticCurveTo(mid[0], sL[1]-u(0.07), sR[0]+u(0.04), sR[1]+u(0.02));
+  ctx.quadraticCurveTo(sR[0]+u(0.05), mid[1], hipR[0]+u(0.06), hipR[1]-u(0.03));
+  ctx.lineTo(hipL[0]-u(0.06), hipL[1]-u(0.03));
+  ctx.quadraticCurveTo(sL[0]-u(0.05), mid[1], sL[0]-u(0.04), sL[1]+u(0.02));
+  ctx.fill();
+  // pocket line
+  ctx.strokeStyle = 'rgba(80,30,10,.35)'; ctx.lineWidth = u(0.012); ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(hipL[0]+u(0.02), hipL[1]-u(0.12)); ctx.lineTo(hipR[0]-u(0.02), hipR[1]-u(0.12)); ctx.stroke();
+  // neck and head with cap
+  const neckTop = P([0, J.head[1]-0.1]), neckBot = P([0, J.lSh[1]+0.01]);
+  capsule(ctx, neckBot, neckTop, u(0.045), u(0.045), PAL.skin);
+  const hc = P(J.head), hr = u(BODY.head);
+  sphere(ctx, hc, hr, PAL.skin);
+  const cg = ctx.createRadialGradient(hc[0]-hr*0.4, hc[1]-hr*0.8, hr*0.1, hc[0], hc[1]-hr*0.2, hr*1.1);
+  cg.addColorStop(0, PAL.cap[0]); cg.addColorStop(0.6, PAL.cap[1]); cg.addColorStop(1, PAL.cap[2]);
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(hc[0], hc[1]-hr*0.05, hr*1.04, Math.PI*1.05, Math.PI*1.95); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = PAL.cap[2]; ctx.beginPath(); ctx.ellipse(hc[0]+hr*0.55, hc[1]-hr*0.32, hr*0.75, hr*0.14, -0.08, 0, Math.PI*2); ctx.fill();
+  // arms in front of the body: the far arm a little darker, the near arm last
+  capsule(ctx, P(J.lSh), P(J.lEl), u(0.058), u(0.05), PAL.top, 0.1);
+  capsule(ctx, P(J.lEl), P(J.lWr), u(0.05), u(0.042), PAL.top, 0.1);
+  sphere(ctx, P(J.lWr), u(0.045), PAL.skin, 0.1);
+  capsule(ctx, P(J.rSh), P(J.rEl), u(0.058), u(0.05), PAL.top);
+  capsule(ctx, P(J.rEl), P(J.rWr), u(0.05), u(0.042), PAL.top);
+  sphere(ctx, P(J.rWr), u(0.045), PAL.skin);
   if (opts.glow){
     ctx.strokeStyle = opts.glow; ctx.lineWidth = 4; ctx.globalAlpha = 0.9;
-    ctx.beginPath(); ctx.arc(ox, Y(J.head)+ (oy-Y(J.head))/2, (oy-Y(J.head))*0.62, 0, Math.PI*2); ctx.stroke();
+    const yh = P(J.head)[1];
+    ctx.beginPath(); ctx.arc(ox, yh + (oy-yh)/2, (oy-yh)*0.62, 0, Math.PI*2); ctx.stroke();
     ctx.globalAlpha = 1;
   }
 }
@@ -482,7 +544,7 @@ function drawDemo(now){
   while (b >= demo.seq[i].dur) { b -= demo.seq[i].dur; i++; }
   const cur = demo.seq[i], prev = demo.seq[(i-1+demo.seq.length)%demo.seq.length];
   const t = clamp(b/Math.min(0.3,cur.dur*0.3),0,1);
-  drawCoach(demo.ctx, 264, 340, lerpAngles(prev.a, cur.a, ease(t)));
+  drawCoach(demo.ctx, 264, 340, groove(lerpAngles(prev.a, cur.a, ease(t)), (beats % 1)));
 }
 
 /* =========================================================
@@ -749,7 +811,17 @@ window.addEventListener('orientationchange', () => setTimeout(resizeAll, 200));
 
 let wakeLock = null;
 async function keepAwake(){ try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState==='visible' && ui.screen==='play') keepAwake(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState==='visible' && ui.screen==='play'){ keepAwake(); if (actx && actx.state !== 'running') actx.resume().catch(()=>{}); }
+});
+// When the phone pauses the sound (a call, a notification, switching apps) the music clock stops,
+// so the game offers a tap to continue instead of sitting frozen.
+function checkPaused(){
+  const paused = ui.screen === 'play' && actx && music.on && actx.state !== 'running' && document.visibilityState === 'visible';
+  if (paused && $('pauseOverlay').hidden) actx.resume().catch(()=>{});
+  $('pauseOverlay').hidden = !paused;
+}
+setInterval(checkPaused, 700);
 
 function popText(txt, color){ const p = $('pop'); p.textContent = txt; p.style.color = color; p.classList.remove('show'); void p.offsetWidth; p.classList.add('show'); }
 function banner(big, small, ms){ return new Promise(res => { $('bannerBig').textContent = big; $('bannerSmall').textContent = small||''; $('banner').hidden = false; setTimeout(() => { $('banner').hidden = true; res(); }, ms); }); }
@@ -995,7 +1067,8 @@ function updateLearn(now, dt){
     $('hint').textContent = ok ? 'בול! להחזיק ככה…' : (hintFor(res, p.a) || 'כמעט… להעתיק את המאמן');
     $('legWarn').hidden = !res || res.legsSeen;
     if (ph.hold >= 0.6) return learnNext(true);
-    if (now - ph.stepStart > 25000) $('hint').textContent = 'אפשר לנסות שוב, או להקיש על המאמן כדי לדלג';
+    if (now - ph.stepStart > 9000) { popText('ממשיכים!', '#ffd23f'); return learnNext(false); }   // never wait forever on one pose
+    if (now - ph.stepStart > 5000) $('hint').textContent = (hintFor(res, p.a) || 'כמעט…') + ' · עוד רגע ממשיכים';
   } else {
     $('legWarn').hidden = true;
     const frac = (now - ph.stepStart)/2000;
@@ -1201,7 +1274,7 @@ function loop(now){
   } else if (ph?.kind === 'rhythm'){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
-  drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, coachA, {glow, topPad: 8*dpr, bottomPad: 58*dpr});
+  drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, beatPhase()), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   drawCam(camCanvas, camCtx, res, target);
 }
 /* ---------- music choice + tap tempo ---------- */
@@ -1322,6 +1395,7 @@ $('soundBtn').addEventListener('click', () => {
   chordPad(t, 57, 'm', bd*8);
   setTimeout(chime, 2600);
 });
+$('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
 </script>
