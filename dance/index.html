@@ -149,6 +149,8 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 #legWarn{background:rgba(255,210,63,.92);color:#211a00;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700}
 .cam-bottom{position:absolute;left:0;right:0;bottom:0;padding:22px max(14px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(14px,env(safe-area-inset-left,0px));background:linear-gradient(to top,rgba(0,0,0,.8),rgba(0,0,0,0));display:flex;flex-direction:column;gap:8px}
 #hint{font-weight:800;font-size:20px;text-align:center;min-height:1.45em;text-shadow:0 1px 3px #000}
+#tapSync{align-self:center;border:0;border-radius:999px;padding:10px 18px;font-weight:800;font-size:16px;background:rgba(30,215,96,.92);color:#06210f;touch-action:manipulation}
+#tapSync.hit{background:var(--gold)}
 .meter{height:10px;border-radius:99px;background:rgba(255,255,255,.18);overflow:hidden}
 #meterFill{height:100%;width:0;background:var(--you);border-radius:99px;transition:width .12s linear}
 #meterFill.full{background:var(--good)}
@@ -293,6 +295,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     </div>
     <div id="pop"></div>
     <div class="cam-bottom">
+      <button id="tapSync" type="button" hidden>לא על הביט? הקישי כאן בקצב</button>
       <div id="hint"></div>
       <div class="meter"><div id="meterFill"></div></div>
     </div>
@@ -1267,7 +1270,7 @@ function startPlay(){
   if (song) { setNow(`${song.name} · קצב ${song.bpm}`); popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
   const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'flow'){ state.flow = {i:0, idxs, sum:0, n:0, hits:0}; startLearn(first); } else if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, music.on ? 60/music.bd : bpm); };
-  $('spotWrap').hidden = !own;
+  $('spotWrap').hidden = !own; $('tapSync').hidden = !own; ear.taps = []; ear.holdUntil = 0;
   if (own){
     setEarChip('מקשיבים…');
     spotPlay();
@@ -1301,7 +1304,11 @@ function currentCoach(now){ const t = clamp((now-state.coachT0)/280,0,1); return
    Ear: listens to the song through the microphone, finds its tempo and beat,
    and keeps the music clock (music.t0 / music.bd) locked to it.
    ========================================================= */
-const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], timer:null, sync:null, locked:false, misses:0, denied:false};
+const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], timer:null, sync:null, locked:false, misses:0, denied:false, rawBpm:0, mult:1, holdUntil:0, taps:[]};
+const MIC_LATENCY = 0.1;   // seconds between a sound and the moment the microphone path delivers it
+// steps per minute that feel like dancing: slow songs get two steps per beat, very fast ones one step per two beats
+function danceRate(raw){ let mult = 1; if (raw < 80) mult = 2; else if (raw > 160) mult = 0.5; return {bpm: raw*mult, mult}; }
+function rateText(){ const r = Math.round(ear.rawBpm*ear.mult); return `קצב ${r}` + (ear.mult === 2 ? ' (×2)' : ear.mult === 0.5 ? ' (½)' : ''); }
 async function startEar(){
   if (ear.stream) return true;
   if (!ensureAudio() || !navigator.mediaDevices?.getUserMedia) return false;
@@ -1314,7 +1321,7 @@ async function startEar(){
   ear.a = new Uint8Array(ear.an.frequencyBinCount); ear.b = new Uint8Array(ear.an.frequencyBinCount);
   ear.t = []; ear.v = []; ear.locked = false; ear.misses = 0;
   clearInterval(ear.timer); ear.timer = setInterval(earSample, 10);
-  clearInterval(ear.sync); ear.sync = setInterval(earSync, 2000);
+  clearInterval(ear.sync); ear.sync = setInterval(earSync, 1000);
   return true;
 }
 function stopEar(){
@@ -1383,34 +1390,53 @@ function setMusicGrid(bpm, beatTime){
 }
 function earSync(){
   if (!music.on || !music.own || !ear.stream) return;
-  const win = earWindow(ear.locked ? 8 : 6);
+  const win = earWindow(6);
   if (!win) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
   const est = estimateTempo(win);
   if (est.conf < 1.25) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
-  const cur = 60/music.bd;
   if (!ear.locked){
-    const bpm = Math.round(est.bpm*10)/10;
-    setMusicGrid(bpm, beatTimeIn(win, bpm));
-    ear.locked = true; ear.misses = 0;
-    setEarChip(`קצב ${Math.round(bpm)}`);
-    popText(`קצב ${Math.round(bpm)}!`, '#1ed760');
+    ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.locked = true;
+    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
+    setEarChip(rateText()); popText(rateText() + '!', '#1ed760');
     return;
   }
-  if (Math.abs(est.bpm - cur) < 4){
+  // the same tempo may come back as its double or half; bring it to the scale we locked on
+  let e = est.bpm;
+  if (Math.abs(e*2 - ear.rawBpm) < 4) e *= 2; else if (Math.abs(e/2 - ear.rawBpm) < 4) e /= 2;
+  if (Math.abs(e - ear.rawBpm) < 4){
     ear.misses = 0;
-    const bpm = cur + 0.3*(est.bpm - cur);
-    const bt = beatTimeIn(win, bpm);
+    ear.rawBpm = ear.rawBpm + 0.3*(e - ear.rawBpm);
+    const bpm = ear.rawBpm*ear.mult;
+    const bt = beatTimeIn(win, ear.rawBpm) - MIC_LATENCY;
     const k = Math.round((bt - music.t0)/music.bd);
     const err = bt - (music.t0 + k*music.bd);
-    setMusicGrid(bpm, music.t0 + k*music.bd + err*0.5);   // nudge halfway toward the heard beat
-    setEarChip(`קצב ${Math.round(bpm)}`);
-  } else if (++ear.misses >= 2){                          // new song with another tempo
-    const bpm = Math.round(est.bpm*10)/10;
-    setMusicGrid(bpm, beatTimeIn(win, bpm));
-    ear.misses = 0;
-    setEarChip(`קצב ${Math.round(bpm)}`);
-    popText(`שיר חדש · קצב ${Math.round(bpm)}`, '#1ed760');
+    const hold = performance.now() < ear.holdUntil;        // after the player tapped the beat, trust the taps' phase
+    setMusicGrid(bpm, music.t0 + k*music.bd + (hold ? 0 : err*0.6));
+    setEarChip(rateText());
+  } else if (++ear.misses >= 2){                             // a new song with another tempo
+    ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.holdUntil = 0;
+    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
+    setEarChip(rateText()); popText('שיר חדש · ' + rateText(), '#1ed760');
   }
+}
+// Tap the beat on screen: aligns the coach to the beat the player actually hears, latency and all
+function tapBeat(){
+  if (!actx) return;
+  const t = performance.now();
+  if (ear.taps.length && t - ear.taps[ear.taps.length-1] > 2500) ear.taps = [];
+  ear.taps.push(t); if (ear.taps.length > 8) ear.taps.shift();
+  const b = $('tapSync'); b.classList.add('hit'); setTimeout(() => b.classList.remove('hit'), 90);
+  if (ear.taps.length < 4){ b.textContent = `עוד ${4 - ear.taps.length}…`; return; }
+  const gaps = ear.taps.slice(1).map((x, i) => x - ear.taps[i]).sort((a, c) => a - c);
+  const period = gaps[Math.floor(gaps.length/2)]/1000;
+  const raw = clamp(60/period, 50, 200), d = danceRate(raw);
+  const lastTapAudio = actx.currentTime - (t - ear.taps[ear.taps.length-1])/1000;
+  if (!music.on) startMusic(d.bpm, true, null);
+  ear.rawBpm = raw; ear.mult = d.mult; ear.locked = true; ear.misses = 0; ear.holdUntil = t + 40000;
+  setMusicGrid(d.bpm, lastTapAudio);
+  music.own = true;
+  setEarChip(rateText()); b.textContent = 'מסונכרן ✓'; popText('מסונכרן!', '#1ed760');
+  clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'לא על הביט? הקישי כאן בקצב'; }, 2500);
 }
 function setNow(txt){ $('songChip').hidden = false; $('songChip').textContent = '♪ ' + txt; $('nowBar').hidden = false; $('nowText').textContent = txt; }
 function setEarChip(txt){ setNow(`ספוטיפיי · ${txt}`); }
@@ -1810,6 +1836,7 @@ for (const id in STYLES) $('style-' + id).addEventListener('change', () => setSt
 for (const [id, on] of [['av-me', true], ['av-coach', false]]) $(id).addEventListener('change', () => { AVATAR_ON = on; try { localStorage.setItem('bitrishon.avatar', on ? 'me' : 'coach'); } catch {} applyAvatar(); });
 try { init3D(); } catch { coach3 = demo3 = null; }
 PAL.top = cur().top; PAL.headband = cur().headband; document.documentElement.dataset.style = STYLE_ID;
+$('tapSync').addEventListener('pointerdown', e => { e.preventDefault(); tapBeat(); });
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
