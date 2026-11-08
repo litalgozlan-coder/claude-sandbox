@@ -94,7 +94,16 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .own details > *:not(summary){margin-top:8px}
 .spotify.big{background:#1ed760;border-color:#1ed760;color:#06210f;font-size:17px;padding:13px 20px}
 .spotify.big::before{background:#06210f}
-#spotWrap{position:absolute;top:52px;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));z-index:2;display:flex;flex-direction:column;gap:6px}
+#topStack{position:absolute;top:52px;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));z-index:2;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#topStack > *{pointer-events:auto}
+#nowBar{display:flex;align-items:center;gap:10px;background:rgba(18,20,24,.82);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-weight:800;font-size:16px}
+#nowBar small{display:block;font-size:11px;letter-spacing:.12em;color:var(--muted);font-weight:800}
+.eq{display:flex;align-items:flex-end;gap:3px;height:18px;flex:none}
+.eq i{display:block;width:4px;background:var(--you);border-radius:2px;animation:eq .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.6s}
+@keyframes eq{0%,100%{height:5px}50%{height:18px}}
+@media (prefers-reduced-motion:reduce){.eq i{animation:none;height:12px}}
+#spotWrap{display:flex;flex-direction:column;gap:6px}
 #spotWrap iframe{border:0;width:100%;height:80px;border-radius:12px;display:block}
 #spotNote{background:rgba(0,0,0,.7);border-radius:10px;padding:6px 10px;font-size:13px;font-weight:600}
 .spotify::before{content:"";width:10px;height:10px;border-radius:50%;background:#1ed760}
@@ -258,7 +267,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <button class="exit" id="exitBtn">✕ יציאה</button>
       <span id="legWarn" hidden>להתרחק קצת, הרגליים לא בתמונה</span>
     </div>
-    <div id="spotWrap" hidden><div id="spotEmbed"></div><div id="spotNote" hidden></div></div>
+    <div id="topStack">
+      <div id="nowBar" hidden><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span><small>עכשיו מתנגן</small><span id="nowText"></span></span></div>
+      <div id="spotWrap" hidden><div id="spotEmbed"></div><div id="spotNote" hidden></div></div>
+    </div>
     <div id="pop"></div>
     <div class="cam-bottom">
       <div id="hint"></div>
@@ -790,8 +802,8 @@ function startPlay(){
   const bpm = own ? musicPrefs.bpm : song.bpm;
   state.bpm = bpm;
   startMusic(bpm, own, song);
-  $('songChip').hidden = own;
-  if (song) { $('songChip').textContent = `♪ ${song.name} · קצב ${song.bpm}`; popText(`♪ ${song.name}`, '#46d3e8'); }
+  $('songChip').hidden = own; $('nowBar').hidden = own;
+  if (song) { setNow(`${song.name} · קצב ${song.bpm}`); popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
   const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'flow'){ state.flow = {i:0, idxs, sum:0, n:0, hits:0}; startLearn(first); } else if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, music.on ? 60/music.bd : bpm); };
   $('spotWrap').hidden = !own;
@@ -939,7 +951,8 @@ function earSync(){
     popText(`שיר חדש · קצב ${Math.round(bpm)}`, '#1ed760');
   }
 }
-function setEarChip(txt){ $('songChip').hidden = false; $('songChip').textContent = `♪ ספוטיפיי · ${txt}`; }
+function setNow(txt){ $('songChip').hidden = false; $('songChip').textContent = '♪ ' + txt; $('nowBar').hidden = false; $('nowText').textContent = txt; }
+function setEarChip(txt){ setNow(`ספוטיפיי · ${txt}`); }
 function waitForLock(maxMs){
   return new Promise(res => {
     const t0 = performance.now();
@@ -1129,7 +1142,7 @@ function flowNext(ph){
   if (!ph.final){
     // speed up the game's own song a little for the finale (a Spotify song keeps its tempo; the moves get faster)
     let bpm = 60/music.bd;
-    if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); $('songChip').textContent = `♪ ${music.song.name} · קצב ${bpm}`; }
+    if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); setNow(`${music.song.name} · קצב ${bpm}`); }
     banner('מחברים הכל!', 'כל חמשת הצעדים ברצף, יותר מהר: תנועה על כל ביט.', 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
     return true;
   }
@@ -1275,7 +1288,7 @@ async function spotPlay(){
     c.loadUri(spot.uri);
     c.play();
     clearTimeout(spot.checkTimer);
-    spot.checkTimer = setTimeout(() => { if (!spot.playing && ui.screen === 'play') startFallbackSong(); }, 6000);
+    spot.checkTimer = setTimeout(() => { if (!spot.playing && ui.screen === 'play') startFallbackSong(); }, 4000);
     return true;
   } catch {
     startFallbackSong();
@@ -1288,7 +1301,7 @@ function startFallbackSong(){
   const now = (actx.currentTime - music.t0)/music.bd;
   setMusicGrid(song.bpm, music.t0 + Math.ceil(now + 0.5)*music.bd);
   music.song = song; music.own = false; spot.fallback = true;
-  $('songChip').hidden = false; $('songChip').textContent = `♪ ${song.name} · קצב ${song.bpm}`;
+  setNow(`${song.name} · קצב ${song.bpm}`);
   spotNote('ספוטיפיי לא מתנגן, אז המשחק מנגן שיר משלו. אפשר ללחוץ ▶ בנגן כדי לעבור לספוטיפיי.');
 }
 function stopFallbackSong(){
