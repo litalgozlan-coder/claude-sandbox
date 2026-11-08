@@ -146,6 +146,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .panel{position:relative;overflow:hidden;min-width:0;min-height:0}
 .panel canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 #coachPanel{background:var(--panel)}
+#videoLoading{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2}
 #coachVideo{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:center;background:#0b0d12;will-change:transform}
 .coach-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
 #moveName{font-family:var(--display);font-weight:700;font-size:44px;line-height:.9}
@@ -285,6 +286,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <canvas id="coach3d" hidden></canvas>
     <video id="coachVideo" muted playsinline preload="auto" hidden></video>
     <canvas id="coachVideoFx" hidden></canvas>
+    <div id="videoLoading" class="chip" hidden>טוענים את הסרטון…</div>
     <div class="coach-top">
       <div>
         <div id="moveName">באונס</div>
@@ -637,6 +639,8 @@ function describePose(a){
 }
 /* Real-video coach: a clip of a real dancer, with the poses the game scores against extracted from it once (video/*.json). */
 const VIDEOS = {
+  v4: {file:'video/v4.mp4', pose:'video/v4.json', bpm:125.0, beats:8},
+  v2: {file:'video/v2.mp4', pose:'video/v2.json', bpm:96.5, beats:22},
   v1: {file:'video/v1.mp4', pose:'video/v1.json', bpm:125.6, beats:34}
 };
 const vclips = {};
@@ -654,7 +658,9 @@ function buildVideoSteps(ph){
   }
 }
 const VIDEO_PHRASES = [
-  videoPhrase('v1', 'קרו רחוב', 'STREET CREW', 'סרטון של להקת רחוב אמיתית. עוקבים אחרי הרקדנית עם הטבעת הירוקה מתחת לרגליים. 34 ספירות.')
+  videoPhrase('v4', 'שלוש בסטודיו', 'STUDIO TRIO', 'שלוש רקדניות בסטודיו, צעד קצר וברור. עוקבים אחרי האמצעית, עם הטבעת הירוקה. 8 ספירות שחוזרות.'),
+  videoPhrase('v2', 'כיתת ריקוד', 'DANCE CLASS', 'קבוצה באולם מואר, כולם רוקדים ביחד. עוקבים אחרי הרקדנית עם הטבעת. 22 ספירות.'),
+  videoPhrase('v1', 'קרו רחוב', 'STREET CREW', 'להקת רחוב בתוך עשן סגול. עוקבים אחרי הרקדנית עם הטבעת. 34 ספירות.')
 ];
 const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
 function buildMocapSteps(ph){
@@ -671,6 +677,9 @@ async function ensureClips(){
   const vids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && VIDEOS[ph.video]) vids.add(ph.video); }));
   await Promise.all([...vids].map(id => loadVideoPose(id).catch(() => null)));
   STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && vclips[ph.video]) buildVideoSteps(ph); }));
+  // start fetching the first video of the chosen level now, so it is ready when the lesson starts
+  const firstVid = cur().phrases.find(ph => ph.video && VIDEOS[ph.video]);
+  if (firstVid && vcoach.id !== firstVid.video){ vcoach.id = firstVid.video; vcoach.el.src = VIDEOS[firstVid.video].file; vcoach.el.load(); vcoach.zoom = {s: 1, x: 0, y: 0}; if (vcoach.el.readyState < 2) popHome('טוענים את הסרטון…'); }
   const missing = [...ids].filter(id => !clips[id]);
   if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
@@ -1222,6 +1231,7 @@ function vcoachShow(id){
 }
 function vcoachHide(){
   if (!vcoach.on) return;
+  $('videoLoading').hidden = true;
   vcoach.on = false; vcoach.el.pause(); vcoach.el.hidden = true; vcoach.fx.hidden = true;
   if (coach3) $('coach3d').hidden = false; else $('coachCanvas').hidden = false;
 }
@@ -1229,6 +1239,7 @@ function vcoachHide(){
 // nudging the rate, big ones by a seek (at most four a second)
 function vcoachDrive(t, rate){
   const v = vcoach.el;
+  $('videoLoading').hidden = v.readyState >= 2;
   if (v.readyState < 2){ v.play().catch(() => {}); return; }
   const dt = t - v.currentTime;
   if (Math.abs(dt) > 0.25 || v.paused || v.ended){
@@ -1243,10 +1254,10 @@ function vcoachFrame(){
   const pw = v.clientWidth, ph = v.clientHeight; if (!pw || !ph) return;
   const f = Math.min(vc.frames - 1, Math.max(0, Math.round(v.currentTime * vc.fps))), [cx, cy, h] = vc.boxes[f];
   const vw = v.videoWidth || 16, vh = v.videoHeight || 9, k = Math.min(pw / vw, ph / vh), Wd = vw * k, Hd = vh * k;
-  const s = clamp(0.62 * ph / (h * Hd), ph / Hd, 3.2);
+  const s = clamp(0.56 * ph / (h * Hd), ph / Hd, 3.2);     // the dancer about half the panel height, head clear of the top HUD
   const px = (cx - 0.5) * Wd, py = (cy - 0.5) * Hd;
   const maxX = Math.max(0, (Wd * s - pw) / 2), maxY = Math.max(0, (Hd * s - ph) / 2);
-  const tx = clamp(-px * s, -maxX, maxX), ty = clamp(-py * s + 0.04 * ph, -maxY, maxY);
+  const tx = clamp(-px * s, -maxX, maxX), ty = clamp(-py * s + 0.07 * ph, -maxY, maxY);
   const z = vcoach.zoom, g = 0.08; z.s += (s - z.s) * g; z.x += (tx - z.x) * g; z.y += (ty - z.y) * g;
   v.style.transform = `translate(${z.x.toFixed(1)}px, ${z.y.toFixed(1)}px) scale(${z.s.toFixed(3)})`;
   const c = vcoach.fx; fit(c); const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
@@ -2178,6 +2189,7 @@ const STYLES = {
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
+    {name:'וידאו אמיתי', en:'REAL VIDEO', phrases:VIDEO_PHRASES, always:true, desc:'המאמנת היא רקדנית אמיתית בסרטון. בלימוד הסרטון רץ לאט ובלולאה, בקצב הוא רץ עם השיר, והמצלמה בודקת אותך מולו.'},
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
 };
