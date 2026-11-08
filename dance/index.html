@@ -383,10 +383,10 @@ const POINT_R = pose('פוינט ימין', 'יד ימין מצביעה לשמי
 const POINT_L = mirror(POINT_R, 'פוינט שמאל', 'יד שמאל מצביעה לשמיים, יד ימין על המותן');
 const STANCE = pose('עמידת בי־בוי', 'ידיים משוכלות על החזה, רגליים רחבות, קצת אטיטיוד', P({...LEGS_W, rUpper:-115,rFore:160,lUpper:-65,lFore:20, lean:-5, drop:.3}));
 // --- part 3: cabbage patch and side steps
-const CP_R = pose('קבג׳ פאץ׳: ימין', 'אגרופים צמודים מימין לחזה, מותן ימינה', P({...LEGS_N, rUpper:-30,rFore:170,lUpper:-70,lFore:15, sx:.05, lean:5, drop:.3}));
-const CP_U = pose('קבג׳ פאץ׳: למעלה', 'אגרופים צמודים למעלה מול הראש', P({...LEGS_N, rUpper:65,rFore:175,lUpper:115,lFore:5}));
+const CP_R = pose('קבג׳ פאץ׳: ימין', 'אגרופים צמודים מימין לחזה, מותן ימינה', P({fist:1, ...LEGS_N, rUpper:-30,rFore:170,lUpper:-70,lFore:15, sx:.05, lean:5, drop:.3}));
+const CP_U = pose('קבג׳ פאץ׳: למעלה', 'אגרופים צמודים למעלה מול הראש', P({fist:1, ...LEGS_N, rUpper:65,rFore:175,lUpper:115,lFore:5}));
 const CP_L = mirror(CP_R, 'קבג׳ פאץ׳: שמאל', 'אגרופים צמודים משמאל לחזה, מותן שמאלה');
-const CP_D = pose('קבג׳ פאץ׳: למטה', 'אגרופים צמודים למטה, ברכיים מתכופפות', P({...LEGS_N, rUpper:-70,rFore:-165,lUpper:-110,lFore:-15, drop:.4}));
+const CP_D = pose('קבג׳ פאץ׳: למטה', 'אגרופים צמודים למטה, ברכיים מתכופפות', P({fist:1, ...LEGS_N, rUpper:-70,rFore:-165,lUpper:-110,lFore:-15, drop:.4}));
 const STEP_R = pose('צעד ימינה', 'צעד גדול ימינה, ידיים פתוחות למטה', P({...LEGS_W, rUpper:-20,rFore:-15,lUpper:-160,lFore:-165, sx:.06, drop:.3}));
 const CLAP = pose('מחיאה', 'רגליים חוזרות פנימה, מוחאים כף מול החזה', P({...LEGS_N, rUpper:-100,rFore:120,lUpper:-80,lFore:60}));
 const STEP_L = mirror(STEP_R, 'צעד שמאלה', 'צעד גדול שמאלה, ידיים פתוחות למטה');
@@ -397,9 +397,9 @@ const KNEE_L = mirror(KNEE_R, 'ברך שמאל', 'מושכים מרפקים למ
 const LEAN_R = pose('שולדר לין ימינה', 'נשענים ימינה, כתף ימין למעלה, ידיים רפויות', P({...LEGS_W, rUpper:-65,rFore:-75,lUpper:-108,lFore:-100, lean:13, sx:.05, drop:.5}));
 const LEAN_L = mirror(LEAN_R, 'שולדר לין שמאלה', 'נשענים שמאלה, כתף שמאל למעלה, ידיים רפויות');
 // --- part 5: punches, arm wave, finish
-const PUNCH_R = pose('פאנץ׳ ימין', 'אגרוף ימין חוצה את הגוף, יד שמאל שומרת על הפנים', P({...LEGS_W, rUpper:178,rFore:178,lUpper:-115,lFore:60, lean:-6, sx:-.03, drop:.4}));
+const PUNCH_R = pose('פאנץ׳ ימין', 'אגרוף ימין חוצה את הגוף, יד שמאל שומרת על הפנים', P({fist:1, ...LEGS_W, rUpper:178,rFore:178,lUpper:-115,lFore:60, lean:-6, sx:-.03, drop:.4}));
 const PUNCH_L = mirror(PUNCH_R, 'פאנץ׳ שמאל', 'אגרוף שמאל חוצה את הגוף, יד ימין שומרת על הפנים');
-const UPPER = pose('אפרקאט', 'אגרוף ימין עולה למעלה, הגוף נשען ימינה', P({...LEGS_W, rUpper:-35,rFore:88,lUpper:-120,lFore:70, lean:8, drop:.2}));
+const UPPER = pose('אפרקאט', 'אגרוף ימין עולה למעלה, הגוף נשען ימינה', P({fist:1, ...LEGS_W, rUpper:-35,rFore:88,lUpper:-120,lFore:70, lean:8, drop:.2}));
 const WAVE_R = pose('גל: ימין', 'הגל מתחיל ביד ימין: מרפק ישר, אמה למעלה', P({...LEGS_N, rUpper:15,rFore:60,lUpper:180,lFore:180}));
 const WAVE_M = pose('גל: באמצע', 'הגל עובר בכתפיים, שתי הידיים פתוחות לצדדים', P({...LEGS_N, rUpper:5,rFore:-10,lUpper:175,lFore:-170, drop:.3}));
 const WAVE_L = mirror(WAVE_R, 'גל: שמאל', 'הגל מגיע ליד שמאל: אמה למעלה');
@@ -425,7 +425,7 @@ const HH_PHRASES = [
 ];
 
 // ---------------- Zumba: energetic Latin fitness steps ----------------
-const MARCH_R = pose('מרנגה: ימין', 'צועדים במקום, ברך ימין עולה, אגרוף ימין לחזה', P({rThigh:-58,rShin:-96,lThigh:-95,lShin:-90, rUpper:-70,rFore:60,lUpper:-100,lFore:-95, sx:.02, drop:.2}));
+const MARCH_R = pose('מרנגה: ימין', 'צועדים במקום, ברך ימין עולה, אגרוף ימין לחזה', P({fist:1, rThigh:-58,rShin:-96,lThigh:-95,lShin:-90, rUpper:-70,rFore:60,lUpper:-100,lFore:-95, sx:.02, drop:.2}));
 const MARCH_L = mirror(MARCH_R, 'מרנגה: שמאל', 'צועדים במקום, ברך שמאל עולה, אגרוף שמאל לחזה');
 const SIDE_R = pose('צעד צד ימינה', 'צעד רחב ימינה, שתי הידיים נשלחות ימינה', P({...LEGS_W, rUpper:5,rFore:5,lUpper:-30,lFore:0, sx:.06, lean:5, drop:.3}));
 const SIDE_L = mirror(SIDE_R, 'צעד צד שמאלה', 'צעד רחב שמאלה, שתי הידיים נשלחות שמאלה');
@@ -440,9 +440,9 @@ const GV_OUT_L = mirror(GV_OUT_R, 'גרייפוויין: צד שמאל', 'צעד
 const GV_CROSS_L = mirror(GV_CROSS_R, 'גרייפוויין: הצלבה', 'רגל ימין עוברת מאחורי שמאל, ידיים מוצלבות על החזה');
 const JACK_OUT = pose('ג׳אמפינג ג׳ק: פתוח', 'קופצים לפתיחה, ידיים למעלה', P({...LEGS_W, rThigh:-66,lThigh:-114, rUpper:58,rFore:62,lUpper:122,lFore:118}));
 const JACK_IN = pose('ג׳אמפינג ג׳ק: סגור', 'קופצים לרגליים צמודות, ידיים למטה', P({rThigh:-90,rShin:-90,lThigh:-90,lShin:-90, rUpper:-82,rFore:-86,lUpper:-98,lFore:-94}));
-const PUP_R = pose('אגרוף למעלה: ימין', 'אגרוף ימין לשמיים, אגרוף שמאל ליד החזה', P({...LEGS_W, rUpper:85,rFore:88,lUpper:-120,lFore:60, drop:.3}));
+const PUP_R = pose('אגרוף למעלה: ימין', 'אגרוף ימין לשמיים, אגרוף שמאל ליד החזה', P({fist:1, ...LEGS_W, rUpper:85,rFore:88,lUpper:-120,lFore:60, drop:.3}));
 const PUP_L = mirror(PUP_R, 'אגרוף למעלה: שמאל', 'אגרוף שמאל לשמיים, אגרוף ימין ליד החזה');
-const YES = pose('יֶס!', 'מושכים אגרוף למטה בניצחון, ברכיים מתכופפות', P({...LEGS_W, rUpper:-40,rFore:92,lUpper:-130,lFore:-60, drop:.6}));
+const YES = pose('יֶס!', 'מושכים אגרוף למטה בניצחון, ברכיים מתכופפות', P({fist:1, ...LEGS_W, rUpper:-40,rFore:92,lUpper:-130,lFore:-60, drop:.6}));
 const ROLL_A = pose('גלגול ידיים', 'האמות מסתובבות אחת סביב השנייה מול החזה', P({...LEGS_N, rUpper:-60,rFore:175,lUpper:-120,lFore:5, drop:.3}));
 const ROLL_B = pose('גלגול ידיים', 'ממשיכים לגלגל, האמות מתחלפות', P({...LEGS_N, rUpper:-48,rFore:160,lUpper:-132,lFore:20, drop:.3}));
 const SWAY_R = pose('נדנוד ימינה', 'משקל ימינה, ידיים נשלחות למעלה ימינה', P({...LEGS_W, rUpper:30,rFore:35,lUpper:10,lFore:30, sx:.05, lean:6}));
@@ -462,7 +462,7 @@ const ZB_PHRASES = [
 ];
 
 // ===== hip-hop level 2: street jam =====
-const RUN_R = pose('ראנינג מן: ימין', 'ברך ימין עולה, יד שמאל קדימה למעלה, יד ימין אחורה', P({rThigh:-30,rShin:-95,lThigh:-92,lShin:-90, rUpper:-70,rFore:-30,lUpper:-120,lFore:60, lean:-4, drop:.3}));
+const RUN_R = pose('ראנינג מן: ימין', 'ברך ימין עולה, יד שמאל קדימה למעלה, יד ימין אחורה', P({fist:.6, rThigh:-30,rShin:-95,lThigh:-92,lShin:-90, rUpper:-70,rFore:-30,lUpper:-120,lFore:60, lean:-4, drop:.3}));
 const RUN_L = mirror(RUN_R, 'ראנינג מן: שמאל', 'ברך שמאל עולה, יד ימין קדימה למעלה, יד שמאל אחורה');
 const KICK_R = pose('קיק ימין', 'בעיטה קדימה־ימינה עם רגל ישרה, ידיים פתוחות', P({rThigh:-45,rShin:-40,lThigh:-98,lShin:-92, rUpper:-20,rFore:-10,lUpper:-150,lFore:-160, lean:-5, drop:.2}));
 const KICK_L = mirror(KICK_R, 'קיק שמאל', 'בעיטה קדימה־שמאלה עם רגל ישרה, ידיים פתוחות');
@@ -474,7 +474,7 @@ const ROLL2 = pose('בודי רול: בטן', 'הגל יורד לבטן, ברכ�
 const ROLL3 = pose('בודי רול: מותן', 'המותן דוחף קדימה, מתיישרים', P({...LEGS_N, rUpper:-85,rFore:-80,lUpper:-95,lFore:-100, lean:3, drop:.2}));
 const DAB_R = pose('דאב ימין', 'יד ימין ישרה למעלה באלכסון, הפנים לתוך מרפק שמאל', P({...LEGS_W, rUpper:40,rFore:45,lUpper:-30,lFore:110, lean:8, drop:.3}));
 const DAB_L = mirror(DAB_R, 'דאב שמאל', 'יד שמאל ישרה למעלה באלכסון, הפנים לתוך מרפק ימין');
-const BK_R = pose('ברוקלין בונס: ימין', 'עמידה רחבה, הגוף נשען ימינה, אגרופים לפני החזה', P({...LEGS_W, rUpper:-40,rFore:100,lUpper:-60,lFore:60, sx:.06, lean:8, drop:.5}));
+const BK_R = pose('ברוקלין בונס: ימין', 'עמידה רחבה, הגוף נשען ימינה, אגרופים לפני החזה', P({fist:1, ...LEGS_W, rUpper:-40,rFore:100,lUpper:-60,lFore:60, sx:.06, lean:8, drop:.5}));
 const BK_L = mirror(BK_R, 'ברוקלין בונס: שמאל', 'עמידה רחבה, הגוף נשען שמאלה, אגרופים לפני החזה');
 const FREEZE2 = pose('פריז ברך', 'ברך ימין למעלה, ידיים משוכלות, מחזיקים!', P({rThigh:-25,rShin:-92,lThigh:-92,lShin:-90, rUpper:-115,rFore:160,lUpper:-65,lFore:20, lean:-5}));
 const HH2_PHRASES = [
@@ -842,6 +842,7 @@ function makeCoach3D(canvas, opts={}){
   parts.brim.scale.set(1, 1, 1.35);
 
   const V = (x, y, z=0) => new T.Vector3(x, y, z);
+  const stepState = {last:null, t:0, v:0};
   // ---- optional avatar: a skinned GLB with Mixamo-style bone names, posed from the same dance data ----
   let avatar = null, avatarOn = false, avatarLoading = null;
   function setAllParts(on){ for (const k in parts){ const v = parts[k]; if (v.cyl){ v.cyl.visible = v.a.visible = v.b.visible = on; } else v.visible = on; } if (on){ parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband; } }
@@ -869,7 +870,10 @@ function makeCoach3D(canvas, opts={}){
         if (f && l && !isDesc(f, l)){ const lp = f.parent.worldToLocal(l.getWorldPosition(new T.Vector3())); loose[foot] = {leg: l, len: lp.distanceTo(f.position)}; }
       }
       root.scale.setScalar(1.95 / height); root.updateMatrixWorld(true);
-      avatar = {root, bones, rest, footRest, toes, wy, loose};
+      const fingers = [];
+      for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
+      for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
+      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null};
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
       res(true);
     }, undefined, () => res(false)));
@@ -898,8 +902,12 @@ function makeCoach3D(canvas, opts={}){
     A.rest.forEach((q, b) => b.quaternion.copy(q));
     root.rotation.y = j.yaw; root.position.set(j.hipC.x, 0, j.hipC.z * 0.5); root.updateMatrixWorld(true);
     const d = (p, q) => q.clone().sub(p);
-    if (B.Spine && B.Neck){ aim(B.Spine, B.Neck, d(j.hipC, j.shC)); B.Spine.rotateY(j.tw * 0.6); B.Spine.updateMatrixWorld(true); }
-    if (B.Neck && B.Head) aim(B.Neck, B.Head, d(j.shC, j.head));
+    if (B.Hips){ B.Hips.rotateY(-j.tw * 0.4); B.Hips.updateMatrixWorld(true); }          // hips turn against the shoulders
+    if (B.Spine && B.Neck){ aim(B.Spine, B.Neck, d(j.hipC, j.shC)); B.Spine.rotateY(j.tw * 0.9); B.Spine.updateMatrixWorld(true); }
+    if (B.Neck && B.Head){ aim(B.Neck, B.Head, d(j.shC, j.head)); B.Head.rotateY(j.look || 0); B.Head.updateMatrixWorld(true); }
+    // fingers: curl into a fist when the pose asks for it
+    const f = j.fist || 0;
+    if (A.fingers && f > 0.01) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * f * k);
     // mirror view: the dancer's right side is on screen right, which is the model's left
     aim(B.LeftArm, B.LeftForeArm, d(j.rSh, j.rEl)); aim(B.LeftForeArm, B.LeftHand, d(j.rEl, j.rWr));
     aim(B.RightArm, B.RightForeArm, d(j.lSh, j.lEl)); aim(B.RightForeArm, B.RightHand, d(j.lEl, j.lWr));
@@ -942,9 +950,19 @@ function makeCoach3D(canvas, opts={}){
     const rEl = V(J.rEl[0], J.rEl[1]+lift, rSh.z*0.6 + front(J.rEl, 0)*0.5), lEl = V(J.lEl[0], J.lEl[1]+lift, lSh.z*0.6 + front(J.lEl, 0)*0.5);
     const rWr = V(J.rWr[0], J.rWr[1]+lift, rSh.z*0.3 + front(J.rWr, 0)), lWr = V(J.lWr[0], J.lWr[1]+lift, lSh.z*0.3 + front(J.lWr, 0));
     const knee = (hip, kn, an) => { const d = Math.hypot(an[0]-hip[0], an[1]-hip[1]); return Math.min(0.28, Math.max(0, (BODY.th+BODY.sn - d))*2.4); };
-    const rHip = V(J.rHip[0], J.rHip[1]+lift, -Math.sin(tw)*0.04), lHip = V(J.lHip[0], J.lHip[1]+lift, Math.sin(tw)*0.04);
+    const rHip = V(J.rHip[0], J.rHip[1]+lift, Math.sin(tw)*0.03), lHip = V(J.lHip[0], J.lHip[1]+lift, -Math.sin(tw)*0.03);   // hips counter the shoulders
     const rKn = V(J.rKn[0], J.rKn[1]+lift, knee(J.rHip, J.rKn, J.rAn)), lKn = V(J.lKn[0], J.lKn[1]+lift, knee(J.lHip, J.lKn, J.lAn));
     const rAn = V(J.rAn[0], J.rAn[1]+lift, 0), lAn = V(J.lAn[0], J.lAn[1]+lift, 0);
+    // real steps: when the weight travels sideways the trailing foot lifts off the floor
+    const nowT = o.time || performance.now();
+    if (stepState.last !== null){ const dt = Math.max(1, nowT - stepState.t)/1000; stepState.v = stepState.v*0.7 + ((J.hipC[0] - stepState.last)/dt)*0.3; }
+    stepState.last = J.hipC[0]; stepState.t = nowT;
+    const stepLift = Math.min(0.09, Math.abs(stepState.v)*0.3);
+    const legUpNow = a.rThigh > -60 || a.lThigh < -120;
+    if (!legUpNow){ if (stepState.v > 0.03) lAn.y += stepLift; else if (stepState.v < -0.03) rAn.y += stepLift; }
+    // the eyes follow the leading hand when it is up
+    const lead = (J.rWr[1] > J.lWr[1] ? J.rWr : J.lWr);
+    const look = lead[1] > J.shC[1] ? Math.max(-0.6, Math.min(0.6, (lead[0] - J.head[0])*0.9)) : 0;
     const shC = V(J.shC[0], J.shC[1]+lift, 0), hipC = V(J.hipC[0], J.hipC[1]+lift, 0);
     const head = V(J.head[0], J.head[1]+lift - 0.03*beat, 0.06*beat);
     // whole body turns a little toward the side it steps to
@@ -952,7 +970,7 @@ function makeCoach3D(canvas, opts={}){
     const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
     if (avatarOn && avatar){
-      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0});
+      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
@@ -965,7 +983,7 @@ function makeCoach3D(canvas, opts={}){
     parts.rShoe.rotation.y = parts.lShoe.rotation.y = yaw;
     place(parts.neck, shC, V(head.x, head.y - 0.1, head.z*0.5));
     parts.head.position.copy(head);
-    const hy = yaw + tw*0.4;
+    const hy = yaw + tw*0.4 + look;
     const onHead = (dx, dy, dz) => V(head.x + dx*Math.cos(hy) + dz*Math.sin(hy), head.y + dy, head.z - dx*Math.sin(hy) + dz*Math.cos(hy));
     parts.eyeL.position.copy(onHead(-0.042, 0.015, 0.113)); parts.eyeR.position.copy(onHead(0.042, 0.015, 0.113));
     parts.cap.position.copy(onHead(0, 0.012, 0)); parts.cap.rotation.set(-0.12, hy, 0);
@@ -990,6 +1008,7 @@ function makeCoach3D(canvas, opts={}){
   return {draw, setAvatar};
 }
 let coach3 = null, demo3 = null;
+const AVATAR_FIST_SIGN = -1;  // measured on the rig: negative X curls the fingers into the palm
 const AVATAR_URL = 'avatar/me.glb';   // set to null when there is no personal avatar file
 let AVATAR_ON = (() => { try { return localStorage.getItem('bitrishon.avatar') !== 'coach'; } catch { return true; } })();
 function applyAvatar(){
