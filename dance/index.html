@@ -81,6 +81,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .seg label:has(input:checked){background:var(--coach);color:#1a0d05}
 .style-seg{background:var(--panel);padding:5px}
 .style-seg label{font-family:var(--display);font-size:30px;font-weight:700;padding:6px 8px}
+.avatar-seg label{font-size:26px}
 :root[data-style="zumba"] .style-seg label:has(input:checked){background:#22c3a6;color:#04261f}
 :root[data-style="zumba"] .brand{text-shadow:5px 5px 0 #22c3a6}
 .own{display:flex;flex-direction:column;gap:10px}
@@ -186,6 +187,11 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
         <p class="tagline">היפ־הופ וזומבה למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
       </div>
       <div class="demo-box"><canvas id="demoCanvas" width="264" height="340" aria-label="מאמן מונפש מדגים צעדים"></canvas><canvas id="demo3d" hidden aria-label="מאמן תלת־ממדי מדגים צעדים"></canvas></div>
+    </div>
+
+    <div class="seg style-seg avatar-seg" role="radiogroup" aria-label="דמות" id="avatarSeg" hidden>
+      <label for="av-me"><input type="radio" name="avatar" id="av-me" value="me">האווטאר שלי</label>
+      <label for="av-coach"><input type="radio" name="avatar" id="av-coach" value="coach">המאמן</label>
     </div>
 
     <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
@@ -312,6 +318,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 <video id="video" playsinline muted autoplay hidden></video>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
 <script type="module">
 /* =========================================================
    Pose model
@@ -692,13 +699,89 @@ function makeCoach3D(canvas, opts={}){
   parts.brim.scale.set(1, 1, 1.35);
 
   const V = (x, y, z=0) => new T.Vector3(x, y, z);
+  // ---- optional avatar: a skinned GLB with Mixamo-style bone names, posed from the same dance data ----
+  let avatar = null, avatarOn = false, avatarLoading = null;
+  function setAllParts(on){ for (const k in parts){ const v = parts[k]; if (v.cyl){ v.cyl.visible = v.a.visible = v.b.visible = on; } else v.visible = on; } if (on){ parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband; } }
+  function isDesc(c, b){ for (let x = c.parent; x; x = x.parent) if (x === b) return true; return false; }
+  const ALIAS = {Abdomen:'Spine', UpperArmL:'LeftArm', LowerArmL:'LeftForeArm', WristL:'LeftHand', UpperArmR:'RightArm', LowerArmR:'RightForeArm', WristR:'RightHand',
+                 UpperLegL:'LeftUpLeg', LowerLegL:'LeftLeg', FootL:'LeftFoot', UpperLegR:'RightUpLeg', LowerLegR:'RightLeg', FootR:'RightFoot'};
+  function loadAvatar(url){
+    if (!T.GLTFLoader) return Promise.resolve(false);
+    if (avatarLoading) return avatarLoading;
+    avatarLoading = new Promise(res => new T.GLTFLoader().load(url, g => {
+      const root = g.scene;
+      root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.frustumCulled = false; if (o.material) o.material.side = T.DoubleSide; } });
+      const bones = {}; root.traverse(o => { if (o.isBone){ const n = o.name.replace(/^mixamorig:?/, '').replace('.', ''); bones[ALIAS[n] || n] = o; } });
+      if (!bones.Hips || !bones.LeftArm || !bones.LeftUpLeg || !bones.LeftFoot) return res(false);
+      root.updateMatrixWorld(true);
+      const rest = new Map(); Object.values(bones).forEach(b => rest.set(b, b.quaternion.clone()));
+      const footRest = {L: bones.LeftFoot.getWorldQuaternion(new T.Quaternion()), R: bones.RightFoot.getWorldQuaternion(new T.Quaternion())};
+      const wy = b => b.getWorldPosition(new T.Vector3()).y;
+      const toes = [bones.LeftToeBase || bones.LeftFoot, bones.RightToeBase || bones.RightFoot];
+      const topB = bones.HeadTop_End || bones.Head;
+      const height = (wy(topB) - Math.min(...toes.map(wy))) * (bones.HeadTop_End ? 1.03 : 1.16);
+      const loose = {};
+      for (const [leg, foot] of [['LeftLeg', 'LeftFoot'], ['RightLeg', 'RightFoot']]){
+        const f = bones[foot], l = bones[leg];
+        if (f && l && !isDesc(f, l)){ const lp = f.parent.worldToLocal(l.getWorldPosition(new T.Vector3())); loose[foot] = {leg: l, len: lp.distanceTo(f.position)}; }
+      }
+      root.scale.setScalar(1.95 / height); root.updateMatrixWorld(true);
+      avatar = {root, bones, rest, footRest, toes, wy, loose};
+      scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
+      res(true);
+    }, undefined, () => res(false)));
+    return avatarLoading;
+  }
+  function setAvatar(on, url){
+    avatarOn = !!on;
+    if (avatar) avatar.root.visible = avatarOn;
+    setAllParts(!avatarOn || !avatar);
+    if (!avatar && url) return loadAvatar(url).then(ok => { if (!ok){ avatarOn = false; setAllParts(true); } else if (avatar){ avatar.root.visible = avatarOn; setAllParts(!avatarOn); } return ok; });
+    return Promise.resolve(!!avatar);
+  }
+  const tq = new T.Quaternion(), pq = new T.Quaternion(), wq = new T.Quaternion(), a1 = new T.Vector3(), a2 = new T.Vector3();
+  function aim(bone, child, dir){
+    bone.updateMatrixWorld(true);
+    let cur;
+    if (child && isDesc(child, bone)){ bone.getWorldPosition(a1); child.getWorldPosition(a2); cur = a2.sub(a1).normalize(); }
+    else { bone.getWorldQuaternion(wq); cur = new T.Vector3(0, 1, 0).applyQuaternion(wq).normalize(); }
+    tq.setFromUnitVectors(cur, dir.clone().normalize());
+    bone.getWorldQuaternion(wq); bone.parent.getWorldQuaternion(pq);
+    bone.quaternion.copy(pq.invert().multiply(tq.multiply(wq)));
+    bone.updateMatrixWorld(true);
+  }
+  function poseAvatar(j){
+    const A = avatar, B = A.bones, root = A.root;
+    A.rest.forEach((q, b) => b.quaternion.copy(q));
+    root.rotation.y = j.yaw; root.position.set(j.hipC.x, 0, j.hipC.z * 0.5); root.updateMatrixWorld(true);
+    const d = (p, q) => q.clone().sub(p);
+    if (B.Spine && B.Neck){ aim(B.Spine, B.Neck, d(j.hipC, j.shC)); B.Spine.rotateY(j.tw * 0.6); B.Spine.updateMatrixWorld(true); }
+    if (B.Neck && B.Head) aim(B.Neck, B.Head, d(j.shC, j.head));
+    // mirror view: the dancer's right side is on screen right, which is the model's left
+    aim(B.LeftArm, B.LeftForeArm, d(j.rSh, j.rEl)); aim(B.LeftForeArm, B.LeftHand, d(j.rEl, j.rWr));
+    aim(B.RightArm, B.RightForeArm, d(j.lSh, j.lEl)); aim(B.RightForeArm, B.RightHand, d(j.lEl, j.lWr));
+    aim(B.LeftUpLeg, B.LeftLeg, d(j.rHip, j.rKn)); aim(B.LeftLeg, B.LeftFoot, d(j.rKn, j.rAn));
+    aim(B.RightUpLeg, B.RightLeg, d(j.lHip, j.lKn)); aim(B.RightLeg, B.RightFoot, d(j.lKn, j.lAn));
+    for (const [foot, L] of Object.entries(A.loose)){
+      const f = B[foot]; L.leg.updateMatrixWorld(true);
+      const start = L.leg.getWorldPosition(new T.Vector3()), dirW = new T.Vector3(0, 1, 0).applyQuaternion(L.leg.getWorldQuaternion(new T.Quaternion()));
+      const p0 = f.parent.worldToLocal(start.clone()), p1 = f.parent.worldToLocal(start.clone().add(dirW));
+      f.position.copy(p0.add(p1.sub(p0).normalize().multiplyScalar(L.len))); f.updateMatrixWorld(true);
+    }
+    for (const [k, f] of [['L', B.LeftFoot], ['R', B.RightFoot]]){
+      f.parent.getWorldQuaternion(pq); const want = new T.Quaternion().setFromEuler(new T.Euler(0, j.yaw, 0)).multiply(A.footRest[k]);
+      f.quaternion.copy(pq.invert().multiply(want));
+    }
+    root.updateMatrixWorld(true);
+    const minToe = Math.min(...A.toes.map(A.wy)); root.position.y += 0.03 - minToe; root.updateMatrixWorld(true);
+  }
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     if (w !== w0 || h !== h0){ renderer.setSize(w, h, false); w0 = w; h0 = h; }
     M.top.color.copy(col(PAL.top[1]));
-    parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband;
+    if (!(avatarOn && avatar)){ parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband; }
     if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
     const phase = o.phase || 0, beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);
     const J = coachJoints(a), lift = 0.07;
@@ -725,6 +808,9 @@ function makeCoach3D(canvas, opts={}){
     const pivot = hipC.x, cy = Math.cos(yaw), sy = Math.sin(yaw);
     const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
+    if (avatarOn && avatar){
+      poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw});
+    } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
     parts.torso.a.scale.set(1.3, 0.7, 0.8); parts.torso.b.scale.set(1.35, 0.75, 0.82);
@@ -742,6 +828,7 @@ function makeCoach3D(canvas, opts={}){
     parts.cap.position.copy(onHead(0, 0.012, 0)); parts.cap.rotation.set(-0.12, hy, 0);
     parts.brim.position.copy(onHead(0, 0.03, 0.14)); parts.brim.rotation.set(0.12, hy, 0);
     parts.band.position.copy(onHead(0, 0.045, 0)); parts.band.rotation.set(Math.PI/2 - 0.1, 0, hy);
+    }
     // success ring
     if (o.glow) ringT = 1; ringMat.opacity = ringT*0.9; ringT = Math.max(0, ringT - 0.04);
     // camera: fit the dancer above the labels, drifting slowly around
@@ -757,12 +844,21 @@ function makeCoach3D(canvas, opts={}){
     camera.lookAt(0, cyT, 0);
     renderer.render(scene, camera);
   }
-  return {draw};
+  return {draw, setAvatar};
 }
 let coach3 = null, demo3 = null;
+const AVATAR_URL = 'avatar/me.glb';   // set to null when there is no personal avatar file
+let AVATAR_ON = (() => { try { return localStorage.getItem('bitrishon.avatar') !== 'coach'; } catch { return true; } })();
+function applyAvatar(){
+  const seg = $('avatarSeg');
+  $('av-me').checked = AVATAR_ON; $('av-coach').checked = !AVATAR_ON;
+  for (const c of [coach3, demo3]) if (c) c.setAvatar(!!AVATAR_URL && AVATAR_ON, AVATAR_URL).then(ok => { if (c === (coach3 || demo3)) seg.hidden = !ok; });
+  if (!AVATAR_URL || !(coach3 || demo3)) seg.hidden = true;
+}
 function init3D(){
   coach3 = makeCoach3D($('coach3d'));
   demo3 = makeCoach3D($('demo3d'));
+  applyAvatar();
   if (coach3){ $('coach3d').hidden = false; $('coachCanvas').hidden = true; }
   if (demo3){ $('demo3d').hidden = false; $('demoCanvas').hidden = true; }
 }
@@ -1711,6 +1807,7 @@ $('soundBtn').addEventListener('click', () => {
   setTimeout(chime, 2600);
 });
 for (const id in STYLES) $('style-' + id).addEventListener('change', () => setStyle(id));
+for (const [id, on] of [['av-me', true], ['av-coach', false]]) $(id).addEventListener('change', () => { AVATAR_ON = on; try { localStorage.setItem('bitrishon.avatar', on ? 'me' : 'coach'); } catch {} applyAvatar(); });
 try { init3D(); } catch { coach3 = demo3 = null; }
 PAL.top = cur().top; PAL.headband = cur().headband; document.documentElement.dataset.style = STYLE_ID;
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
