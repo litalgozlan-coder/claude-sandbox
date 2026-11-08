@@ -1159,7 +1159,8 @@ function makeCoach3D(canvas, opts={}){
     const needW = 1.75; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
     const visH = 2*dist*Math.tan(vfov/2);
     const cyT = 1.22 - visH*(padFrac - topFrac)/2;
-    const orbit = 0.22*Math.sin((o.time || 0)*0.00025);     // a gentle sway from side to side, never behind
+    // a three-quarter view (o.yaw) so arms that point at the camera stay readable, plus a gentle sway
+    const orbit = (o.yaw || 0) + 0.15*Math.sin((o.time || 0)*0.00025);
     camera.fov = vfov*180/Math.PI; camera.aspect = aspect; camera.updateProjectionMatrix();
     camera.position.set(Math.sin(orbit)*dist, cyT + 0.35, Math.cos(orbit)*dist);
     camera.lookAt(0, cyT, 0);
@@ -1204,7 +1205,7 @@ function drawDemo(now){
     const per = segs.reduce((s, e) => s + e.d, 0); let x = u % per, i = 0;
     while (x >= segs[i].d){ x -= segs[i].d; i++; }
     const c = segs[i].c, a = clipAngles(c, x);
-    if (demo3) demo3.draw(a, {clip: {clip: c, t: x}, time: now, topPad: 4, bottomPad: 22}); else drawCoach(demo.ctx, 264, 340, a);
+    if (demo3) demo3.draw(a, {clip: {clip: c, t: x}, time: now, topPad: 4, bottomPad: 22, yaw: 0.4}); else drawCoach(demo.ctx, 264, 340, a);
     return;
   }
   const beats = u * 100 / 60, a = groove(STAND, beats);
@@ -2045,7 +2046,7 @@ function loop(now){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
   const ph3 = beatPhase(), bc = beatCount();
-  if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO});
+  if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
   else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   drawCam(camCanvas, camCtx, res, target);
 }
