@@ -61,6 +61,16 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .lesson.flow .stars .off{stroke:#0f5866}
 .lesson.flow .stars .on{fill:#04232a}
 .list-label{margin:6px 0 -2px}
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lvl{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:8px 6px;text-align:center;color:var(--fg);display:flex;flex-direction:column;gap:2px;min-width:0}
+.lvl small{font-size:11px;letter-spacing:.1em;color:var(--muted);font-weight:800}
+.lvl b{font-family:var(--display);font-weight:700;font-size:22px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lvl.on{background:var(--coach);border-color:var(--coach);color:#1a0d05}
+.lvl.on small{color:#3b1b08}
+.lvl.locked{opacity:.55}
+.lesson.mix{background:var(--panel-2);border-color:var(--gold)}
+.lesson.mix .num{color:var(--gold)}
+#homeNote{background:var(--panel-2);border-radius:10px;padding:8px 12px;color:var(--fg)}
 .lesson.full{background:var(--coach);border-color:var(--coach);color:#1a0d05}
 .lesson.full .num,.lesson.full .en,.lesson.full .desc{color:#3b1b08}
 .stars{display:flex;gap:2px;direction:ltr}
@@ -201,6 +211,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <label for="style-zumba"><input type="radio" name="style" id="style-zumba" value="zumba">זומבה</label>
     </div>
 
+    <p class="foot" id="homeNote" hidden></p>
     <div class="lessons" id="lessonList"></div>
 
     <div class="tips" id="musicBox">
@@ -450,6 +461,108 @@ const ZB_PHRASES = [
     st(ROLL_A,.5), st(ROLL_B,.5), st(ROLL_A,.5), st(ROLL_B,.5), st(WEPA,2)]}
 ];
 
+// ===== hip-hop level 2: street jam =====
+const RUN_R = pose('ראנינג מן: ימין', 'ברך ימין עולה, יד שמאל קדימה למעלה, יד ימין אחורה', P({rThigh:-30,rShin:-95,lThigh:-92,lShin:-90, rUpper:-70,rFore:-30,lUpper:-120,lFore:60, lean:-4, drop:.3}));
+const RUN_L = mirror(RUN_R, 'ראנינג מן: שמאל', 'ברך שמאל עולה, יד ימין קדימה למעלה, יד שמאל אחורה');
+const KICK_R = pose('קיק ימין', 'בעיטה קדימה־ימינה עם רגל ישרה, ידיים פתוחות', P({rThigh:-45,rShin:-40,lThigh:-98,lShin:-92, rUpper:-20,rFore:-10,lUpper:-150,lFore:-160, lean:-5, drop:.2}));
+const KICK_L = mirror(KICK_R, 'קיק שמאל', 'בעיטה קדימה־שמאלה עם רגל ישרה, ידיים פתוחות');
+const BALL = pose('בול', 'רגליים יחד, ברכיים רכות, ידיים למטה', P({...LEGS_N, rUpper:-80,rFore:-70,lUpper:-100,lFore:-110, drop:.5}));
+const CHANGE_L = pose('צ׳יינג׳', 'משקל עובר שמאלה', P({...LEGS_W, rUpper:-60,rFore:-40,lUpper:-120,lFore:-140, sx:-.05, lean:-6, drop:.3}));
+const CHANGE_R = mirror(CHANGE_L, 'צ׳יינג׳', 'משקל עובר ימינה');
+const ROLL1 = pose('בודי רול: חזה', 'החזה יוצא קדימה, ידיים מעט אחורה', P({...LEGS_N, rUpper:-105,rFore:-115,lUpper:-75,lFore:-65, lean:0, drop:.1}));
+const ROLL2 = pose('בודי רול: בטן', 'הגל יורד לבטן, ברכיים מתכופפות', P({...LEGS_N, rUpper:-70,rFore:-40,lUpper:-110,lFore:-140, lean:0, drop:.6}));
+const ROLL3 = pose('בודי רול: מותן', 'המותן דוחף קדימה, מתיישרים', P({...LEGS_N, rUpper:-85,rFore:-80,lUpper:-95,lFore:-100, lean:3, drop:.2}));
+const DAB_R = pose('דאב ימין', 'יד ימין ישרה למעלה באלכסון, הפנים לתוך מרפק שמאל', P({...LEGS_W, rUpper:40,rFore:45,lUpper:-30,lFore:110, lean:8, drop:.3}));
+const DAB_L = mirror(DAB_R, 'דאב שמאל', 'יד שמאל ישרה למעלה באלכסון, הפנים לתוך מרפק ימין');
+const BK_R = pose('ברוקלין בונס: ימין', 'עמידה רחבה, הגוף נשען ימינה, אגרופים לפני החזה', P({...LEGS_W, rUpper:-40,rFore:100,lUpper:-60,lFore:60, sx:.06, lean:8, drop:.5}));
+const BK_L = mirror(BK_R, 'ברוקלין בונס: שמאל', 'עמידה רחבה, הגוף נשען שמאלה, אגרופים לפני החזה');
+const FREEZE2 = pose('פריז ברך', 'ברך ימין למעלה, ידיים משוכלות, מחזיקים!', P({rThigh:-25,rShin:-92,lThigh:-92,lShin:-90, rUpper:-115,rFore:160,lUpper:-65,lFore:20, lean:-5}));
+const HH2_PHRASES = [
+  {id:'h2p1', name:'ראנינג מן', en:'RUNNING MAN', desc:'ריצה במקום על חצאי ביטים, ואז פאמפ וידיים למעלה', steps:[
+    st(RUN_R,.5), st(RUN_L,.5), st(RUN_R,.5), st(RUN_L,.5), st(RUN_R,.5), st(RUN_L,.5), st(RUN_R,.5), st(RUN_L,.5),
+    st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(ROOF,2)]},
+  {id:'h2p2', name:'קיק בול צ׳יינג׳', en:'KICK BALL CHANGE', desc:'בעיטה, צעד, החלפת משקל, לשני הצדדים, ואז צעדי צד עם מחיאות', steps:[
+    st(KICK_R,1), st(BALL,.5), st(CHANGE_L,.5), st(KICK_L,1), st(BALL,.5), st(CHANGE_R,.5), st(STEP_R,1), st(CLAP,1), st(STEP_L,1), st(CLAP,1)]},
+  {id:'h2p3', name:'בודי רול ודאב', en:'BODY ROLL + DAB', desc:'גל שעובר מהחזה למותן, פעמיים, ואז דאב לשני הצדדים', steps:[
+    st(ROLL1,.5), st(ROLL2,.5), st(ROLL3,1), st(ROLL1,.5), st(ROLL2,.5), st(ROLL3,1), st(DAB_R,2), st(DAB_L,2)]},
+  {id:'h2p4', name:'ברוקלין בונס', en:'BROOKLYN BOUNCE', desc:'נדנוד כבד מצד לצד, גרוב מהיר, ופריז עם ברך', steps:[
+    st(BK_R,1), st(BK_L,1), st(BK_R,.5), st(BK_L,.5), st(BK_R,1), st(GROOVE_R,.5), st(GROOVE_L,.5), st(GROOVE_R,.5), st(GROOVE_L,.5), st(FREEZE2,2)]},
+  {id:'h2p5', name:'גל וקפיצות', en:'WAVE + JUMPS', desc:'גל ידיים, קפיצה לידיים למעלה, קריס קרוס מהיר וסיום', steps:[
+    st(WAVE_R,.5), st(WAVE_M,.5), st(WAVE_L,.5), st(WAVE_M,.5), st(ROOF,1), st(CROSS,1), st(OPEN,.5), st(CROSS,.5), st(OPEN,.5), st(CROSS,.5), st(FINISH,2)]}
+];
+// ===== hip-hop level 3: battle =====
+const HH3_PHRASES = [
+  {id:'h3p1', name:'קומבו 1', en:'COMBO 1', desc:'ראנינג מן, קיקים, אגרופים, דאב, הכל מהר', steps:[
+    st(RUN_R,.5), st(RUN_L,.5), st(RUN_R,.5), st(RUN_L,.5), st(KICK_R,.5), st(BALL,.5), st(KICK_L,.5), st(BALL,.5),
+    st(PUNCH_R,.5), st(PUNCH_L,.5), st(UPPER,1), st(DAB_R,1), st(ROOF,1)]},
+  {id:'h3p2', name:'קומבו 2', en:'COMBO 2', desc:'קבג׳ פאץ׳, קריס קרוס, ברכיים וברוקלין בונס על חצאי ביטים', steps:[
+    st(CP_R,.5), st(CP_U,.5), st(CP_L,.5), st(CP_D,.5), st(CROSS,.5), st(OPEN,.5), st(CROSS,.5), st(OPEN,.5),
+    st(KNEE_R,.5), st(UP_V,.5), st(KNEE_L,.5), st(UP_V,.5), st(BK_R,.5), st(BK_L,.5), st(FREEZE2,1)]},
+  {id:'h3p3', name:'קומבו 3', en:'COMBO 3', desc:'גל, שולדר לין מהיר, בודי רול ופוינטים', steps:[
+    st(WAVE_R,.5), st(WAVE_M,.5), st(WAVE_L,.5), st(WAVE_M,.5), st(LEAN_R,.5), st(LEAN_L,.5), st(LEAN_R,.5), st(LEAN_L,.5),
+    st(ROLL1,.5), st(ROLL2,.5), st(ROLL3,1), st(POINT_R,.5), st(POINT_L,.5), st(STANCE,1)]},
+  {id:'h3p4', name:'קומבו 4', en:'COMBO 4', desc:'צעדים ומחיאות מהר, פאמפ, קיקים ודאב', steps:[
+    st(STEP_R,.5), st(CLAP,.5), st(STEP_L,.5), st(CLAP,.5), st(PUMP_D,.5), st(PUMP_U,.5), st(PUMP_D,.5), st(PUMP_U,.5),
+    st(KICK_R,1), st(KICK_L,1), st(DAB_L,1), st(ROOF,1)]},
+  {id:'h3p5', name:'פינאלה', en:'FINALE', desc:'גרוב, ברוקלין בונס, ארבעה אגרופים, קריס קרוס ופוזת סיום', steps:[
+    st(GROOVE_R,.5), st(GROOVE_L,.5), st(GROOVE_R,.5), st(GROOVE_L,.5), st(BK_R,.5), st(BK_L,.5), st(BK_R,.5), st(BK_L,.5),
+    st(PUNCH_R,.5), st(PUNCH_L,.5), st(PUNCH_R,.5), st(PUNCH_L,.5), st(CROSS,.5), st(OPEN,.5), st(FINISH,1)]}
+];
+// ===== zumba level 2: salsa party =====
+const SALSA_R = pose('סלסה: ימין', 'משקל ימינה, יד שמאל בקשת למעלה, יד ימין ליד המותן', P({rThigh:-75,rShin:-85,lThigh:-100,lShin:-95, rUpper:-130,rFore:-60,lUpper:-40,lFore:60, sx:.05, lean:6, drop:.3}));
+const SALSA_L = mirror(SALSA_R, 'סלסה: שמאל', 'משקל שמאלה, יד ימין בקשת למעלה, יד שמאל ליד המותן');
+const SALSA_C = pose('סלסה: אמצע', 'חוזרים לאמצע, ברכיים רכות', P({...LEGS_N, rUpper:-110,rFore:-50,lUpper:-70,lFore:-130, drop:.35}));
+const CHA_R = pose('צ׳ה', 'צעד קטן ימינה', P({...LEGS_N, rUpper:-50,rFore:-30,lUpper:-130,lFore:-150, sx:.04, drop:.35}));
+const CHA_C = pose('צ׳ה', 'צעד קטן לאמצע', P({...LEGS_N, rUpper:-60,rFore:-40,lUpper:-120,lFore:-140, drop:.3}));
+const CHA_L = mirror(CHA_R, 'צ׳ה', 'צעד קטן שמאלה');
+const STOMP_R = pose('רגאטון: רקיעה ימין', 'ברך ימין גבוה, ידיים דוחפות למטה', P({rThigh:-20,rShin:-100,lThigh:-95,lShin:-90, rUpper:-60,rFore:-70,lUpper:-120,lFore:-110, lean:-5, drop:.4}));
+const STOMP_L = mirror(STOMP_R, 'רגאטון: רקיעה שמאל', 'ברך שמאל גבוה, ידיים דוחפות למטה');
+const HIP_R = pose('מותן ימינה', 'ידיים על המותניים, המותן נזרק ימינה', P({...LEGS_W, rUpper:-130,rFore:-40,lUpper:-50,lFore:-140, sx:.07, lean:-8, drop:.3}));
+const HIP_L = mirror(HIP_R, 'מותן שמאלה', 'ידיים על המותניים, המותן נזרק שמאלה');
+const SHIMMY_A = pose('שימי', 'כתפיים רועדות, מרפקים כפופים לצדדים, כתף ימין קדימה', P({...LEGS_N, rUpper:-10,rFore:60,lUpper:-170,lFore:120, lean:4, drop:.3}));
+const SHIMMY_B = pose('שימי', 'כתפיים רועדות, כתף שמאל קדימה', P({...LEGS_N, rUpper:-5,rFore:70,lUpper:-175,lFore:110, lean:-4, drop:.3}));
+const TWIST_R = pose('טוויסט ימינה', 'ברכיים מכופפות, הידיים נזרקות ימינה', P({...LEGS_N, rUpper:-20,rFore:-10,lUpper:-40,lFore:-20, sx:.03, drop:.4}));
+const TWIST_L = mirror(TWIST_R, 'טוויסט שמאלה', 'ברכיים מכופפות, הידיים נזרקות שמאלה');
+const SWAY2_R = pose('נדנוד ידיים ימינה', 'שתי הידיים למעלה נוטות ימינה', P({...LEGS_W, rUpper:35,rFore:40,lUpper:20,lFore:35, sx:.04, lean:6}));
+const SWAY2_L = mirror(SWAY2_R, 'נדנוד ידיים שמאלה', 'שתי הידיים למעלה נוטות שמאלה');
+const SKI_R = pose('סקי ימינה', 'שתי הרגליים קופצות ימינה, הידיים שמאלה', P({...LEGS_N, rUpper:-150,rFore:-150,lUpper:-150,lFore:-150, sx:.07, lean:-4, drop:.5}));
+const SKI_L = mirror(SKI_R, 'סקי שמאלה', 'שתי הרגליים קופצות שמאלה, הידיים ימינה');
+const SQUAT = pose('סקוואט', 'יורדים עמוק, ידיים ישרות קדימה', P({...LEGS_W, rUpper:-10,rFore:0,lUpper:-170,lFore:180, drop:1.0}));
+const SQ_JUMP = pose('קפיצה!', 'מתפרצים למעלה, ידיים לשמיים', P({...LEGS_N, rUpper:68,rFore:72,lUpper:112,lFore:108}));
+const HK_R = pose('ברך גבוהה ימין', 'ברך ימין לגובה המותן, ידיים רצות', P({rThigh:-15,rShin:-100,lThigh:-95,lShin:-90, rUpper:-70,rFore:-20,lUpper:-110,lFore:50, drop:.2}));
+const HK_L = mirror(HK_R, 'ברך גבוהה שמאל', 'ברך שמאל לגובה המותן, ידיים רצות');
+const ZB2_PHRASES = [
+  {id:'z2p1', name:'סלסה', en:'SALSA BASIC', desc:'מהר־מהר־לאט לכל צד, עם ידיים בקשת', steps:[
+    st(SALSA_R,.5), st(SALSA_C,.5), st(SALSA_C,1), st(SALSA_L,.5), st(SALSA_C,.5), st(SALSA_C,1),
+    st(SALSA_R,.5), st(SALSA_C,.5), st(SALSA_C,1), st(SALSA_L,.5), st(SALSA_C,.5), st(SALSA_C,1)]},
+  {id:'z2p2', name:'צ׳ה צ׳ה', en:'CHA CHA', desc:'צעד, צעד, צ׳ה־צ׳ה־צ׳ה לשני הצדדים', steps:[
+    st(SIDE_R,1), st(SIDE_L,1), st(CHA_R,.5), st(CHA_C,.5), st(CHA_L,1), st(SIDE_L,1), st(SIDE_R,1), st(CHA_L,.5), st(CHA_C,.5), st(CHA_R,1)]},
+  {id:'z2p3', name:'רגאטון', en:'REGGAETON', desc:'רקיעות עם ברך גבוהה, זריקות מותן וטוויסט', steps:[
+    st(STOMP_R,1), st(STOMP_L,1), st(STOMP_R,.5), st(STOMP_L,.5), st(HIP_R,.5), st(HIP_L,.5), st(HIP_R,1), st(HIP_L,1), st(TWIST_R,1), st(TWIST_L,1)]},
+  {id:'z2p4', name:'שימי ונדנוד', en:'SHIMMY + SWAY', desc:'כתפיים רועדות מהר, ואז נדנוד ידיים גדול וווֶפָּה', steps:[
+    st(SHIMMY_A,.5), st(SHIMMY_B,.5), st(SHIMMY_A,.5), st(SHIMMY_B,.5), st(SHIMMY_A,.5), st(SHIMMY_B,.5), st(SHIMMY_A,.5), st(SHIMMY_B,.5),
+    st(SWAY2_R,1), st(SWAY2_L,1), st(SWAY2_R,.5), st(SWAY2_L,.5), st(WEPA,1)]},
+  {id:'z2p5', name:'סקי וסקוואט', en:'SKI + SQUAT JUMP', desc:'קפיצות סקי לצדדים, ואז סקוואט עמוק וקפיצה למעלה', steps:[
+    st(SKI_R,1), st(SKI_L,1), st(SKI_R,.5), st(SKI_L,.5), st(SKI_R,1), st(SQUAT,1), st(SQ_JUMP,1), st(SQUAT,1), st(SQ_JUMP,1)]}
+];
+// ===== zumba level 3: cardio blast =====
+const ZB3_PHRASES = [
+  {id:'z3p1', name:'ברכיים גבוהות', en:'HIGH KNEES', desc:'ריצה עם ברכיים גבוהות, ואז אגרופים לשמיים', steps:[
+    st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5),
+    st(PUP_R,.5), st(PUP_L,.5), st(PUP_R,.5), st(PUP_L,.5)]},
+  {id:'z3p2', name:'ג׳קים מהירים', en:'FAST JACKS', desc:'ג׳אמפינג ג׳קס על כל חצי ביט, ו"ווֶפָּה!"', steps:[
+    st(JACK_OUT,.5), st(JACK_IN,.5), st(JACK_OUT,.5), st(JACK_IN,.5), st(JACK_OUT,.5), st(JACK_IN,.5), st(JACK_OUT,.5), st(JACK_IN,.5),
+    st(JACK_OUT,.5), st(JACK_IN,.5), st(JACK_OUT,.5), st(JACK_IN,.5), st(WEPA,2)]},
+  {id:'z3p3', name:'אגרופים וסקוואט', en:'PUNCH + SQUAT', desc:'אגרופים מהירים, סקוואט־קפיצה, רקיעות, ושוב', steps:[
+    st(PUP_R,.5), st(PUP_L,.5), st(PUP_R,.5), st(PUP_L,.5), st(SQUAT,1), st(SQ_JUMP,1),
+    st(STOMP_R,.5), st(STOMP_L,.5), st(STOMP_R,.5), st(STOMP_L,.5), st(SQUAT,1), st(SQ_JUMP,1)]},
+  {id:'z3p4', name:'סקי ושימי', en:'SKI + SHIMMY', desc:'סקי מהיר, שימי, וטוויסטים', steps:[
+    st(SKI_R,.5), st(SKI_L,.5), st(SKI_R,.5), st(SKI_L,.5), st(SKI_R,.5), st(SKI_L,.5), st(SKI_R,.5), st(SKI_L,.5),
+    st(SHIMMY_A,.5), st(SHIMMY_B,.5), st(SHIMMY_A,.5), st(SHIMMY_B,.5), st(TWIST_R,.5), st(TWIST_L,.5), st(TWIST_R,.5), st(TWIST_L,.5)]},
+  {id:'z3p5', name:'פינאלה', en:'FINALE', desc:'ברכיים, ג׳קים, גרייפוויין ו"יֶס!"', steps:[
+    st(HK_R,.5), st(HK_L,.5), st(HK_R,.5), st(HK_L,.5), st(JACK_OUT,.5), st(JACK_IN,.5), st(JACK_OUT,.5), st(JACK_IN,.5),
+    st(GV_OUT_R,1), st(GV_CROSS_R,1), st(CLAP_UP,1), st(YES,1)]}
+];
 const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.indexOf(p) === i);
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
@@ -475,10 +588,19 @@ function renderHome(){
   const st = loadStars();
   const list = $('lessonList');
   list.innerHTML = '';
+  const lvRow = document.createElement('div'); lvRow.className = 'levels';
+  STYLES[STYLE_ID].levels.forEach((lv, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl' + (i === levelIdx() ? ' on' : '') + (levelUnlocked(i) ? '' : ' locked');
+    b.innerHTML = `<small>שלב ${i+1}</small><b></b>`; b.querySelector('b').textContent = levelUnlocked(i) ? lv.name : '🔒 ' + lv.name;
+    b.title = levelUnlocked(i) ? lv.name : `נפתח אחרי שמסיימים את שלב ${i}`;
+    b.addEventListener('click', () => { if (levelUnlocked(i)) setLevel(i); else popHome(`שלב ${i+1} נפתח אחרי שמסיימים את הריקוד המלא של שלב ${i}`); });
+    lvRow.appendChild(b);
+  });
+  list.appendChild(lvRow);
   const fl = document.createElement('button');
   fl.className = 'lesson flow';
   fl.innerHTML = `<span class="num">▶</span>
-    <span><span class="title"><span class="name">הריקוד המלא: ${cur().routine}</span><span class="en">FULL CLASS</span></span>
+    <span><span class="title"><span class="name">שלב ${levelIdx()+1}: ${cur().routine}</span><span class="en">${STYLES[STYLE_ID].levels[levelIdx()].en}</span></span>
     <div class="desc">${cur().flowDesc}</div></span>
     <span class="stars" aria-label="${st[starKey('flow')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('flow')]||0)}</span>`;
   fl.addEventListener('click', () => begin({type:'flow'}));
@@ -505,7 +627,17 @@ function renderHome(){
     <span class="stars" aria-label="${st[starKey('full')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('full')]||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
   list.appendChild(f);
+  const mx = document.createElement('button');
+  mx.className = 'lesson mix';
+  const nPool = STYLES[STYLE_ID].levels.filter((_, i) => levelUnlocked(i)).reduce((n, lv) => n + lv.phrases.length, 0);
+  mx.innerHTML = `<span class="num">⚡</span>
+    <span><span class="title"><span class="name">מיקס אקראי</span><span class="en">SHUFFLE</span></span>
+    <div class="desc">ריקוד אחר בכל פעם: 6 קטעים שמוגרלים מתוך ${nPool} הקטעים שנפתחו עד עכשיו, פעמיים ברצף.</div></span>
+    <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
+  mx.addEventListener('click', () => begin({type:'mix'}));
+  list.appendChild(mx);
 }
+function popHome(txt){ const n = $('homeNote'); n.textContent = txt; n.hidden = false; clearTimeout(n._t); n._t = setTimeout(() => { n.hidden = true; }, 3500); }
 
 /* =========================================================
    Coach figure (forward kinematics from the same angles)
@@ -1260,7 +1392,7 @@ function updateSetupStatus(){
 $('goBtn').addEventListener('click', () => { ensureAudio(); startPlay(); });
 $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
-function movesForPlan(plan){ return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i); }
+function movesForPlan(plan){ if (plan.type === 'mix' && !state.mix) state.mix = makeMix(); return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i); }
 
 function startPlay(){
   show('play');
@@ -1654,22 +1786,28 @@ function finishRhythm(){
   if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
   const id = state.plan.type==='lesson' ? cur().phrases[state.plan.index].id : starKey(state.plan.type);
   if (!state.noCam && stars>0) saveStar(id, stars);
+  // finishing a level's class or full routine opens the next level
+  let unlockedMsg = '';
+  if ((state.plan.type === 'flow' || state.plan.type === 'full') && (state.noCam || acc >= 0.4)){
+    const li = levelIdx();
+    if (markDone(li) && li + 1 < STYLES[STYLE_ID].levels.length) unlockedMsg = ` נפתח שלב ${li+2}: ${STYLES[STYLE_ID].levels[li+1].name}!`;
+  }
   $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
   $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
   $('resPct').textContent = state.noCam ? '' : Math.round(acc*100)+'%';
-  $('resDetail').textContent = state.noCam
+  $('resDetail').textContent = (state.noCam
     ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
-    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`;
+    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`) + unlockedMsg;
   const nextIdx = state.plan.type==='lesson' && state.plan.index < cur().phrases.length-1 ? state.plan.index+1 : null;
-  $('resNext').hidden = !(state.plan.type==='lesson');
-  $('resNext').textContent = nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
-  $('resNext').onclick = () => begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx});
+  $('resNext').hidden = !(state.plan.type==='lesson' || state.plan.type==='mix');
+  $('resNext').textContent = state.plan.type==='mix' ? 'מיקס חדש' : nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
+  $('resNext').onclick = () => { if (state.plan.type==='mix'){ state.mix = null; begin({type:'mix'}); } else begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx}); };
   show('result');
 }
 $('resAgain').addEventListener('click', () => begin(state.plan));
 $('resHome').addEventListener('click', goHome);
 $('exitBtn').addEventListener('click', goHome);
-function goHome(){ stopMusic(); stopEar(); spotPause(); state.phase = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
+function goHome(){ stopMusic(); stopEar(); spotPause(); state.phase = null; state.mix = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
 
 /* ---------- main loop ---------- */
 let lastNow = performance.now();
@@ -1737,23 +1875,42 @@ const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url
 
 /* ---------- dance styles ---------- */
 const STYLES = {
-  hiphop: {id:'hiphop', name:'היפ־הופ', routine:'בלוק פארטי', phrases:HH_PHRASES, songs:HH_SONGS, playlists:HH_PLAYLISTS,
-           top:['#ffb385','#ff7a3d','#b8461a'], headband:null,
-           flowDesc:'כמו שיעור היפ־הופ אמיתי: לומדים 5 חלקים של 8 ספירות, ואחרי כל חלק חדש רוקדים מההתחלה. בסוף כל הריקוד ברצף, יותר מהר. בערך 7 דקות.'},
-  zumba:  {id:'zumba', name:'זומבה', routine:'פיאסטה', phrases:ZB_PHRASES, songs:ZB_SONGS, playlists:ZB_PLAYLISTS,
-           top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'],
-           flowDesc:'שיעור זומבה מלא על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, קפיצות ואגרופים. 5 חלקים, ואחרי כל חלק חוזרים מההתחלה. בערך 7 דקות של אימון.'}
+  hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
+    {name:'בלוק פארטי', en:'BLOCK PARTY', phrases:HH_PHRASES, desc:'הבסיס: גרוב, קריס קרוס, קבג׳ פאץ׳, ברכיים, אגרופים וגל. לומדים חלק, רוקדים אותו, וחוזרים מההתחלה. בערך 7 דקות.'},
+    {name:'סטריט ג׳אם', en:'STREET JAM', phrases:HH2_PHRASES, desc:'יותר מהר ויותר גדול: ראנינג מן, קיק־בול־צ׳יינג׳, בודי רול, דאב, ברוקלין בונס וקפיצות.'},
+    {name:'באטל', en:'BATTLE', phrases:HH3_PHRASES, desc:'קומבינציות על חצאי ביטים שמחברות הכל, בקצב מלא. השלב הקשה.'}]},
+  zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
+    {name:'פיאסטה', en:'FIESTA', phrases:ZB_PHRASES, desc:'הבסיס על מוזיקה לטינית: מרנגה, קומביה, גרייפוויין, ג׳קים ואגרופים. בערך 7 דקות של אימון.'},
+    {name:'סלסה פארטי', en:'SALSA PARTY', phrases:ZB2_PHRASES, desc:'סלסה, צ׳ה־צ׳ה, רגאטון עם זריקות מותן, שימי, סקי וסקוואט־קפיצה.'},
+    {name:'קרדיו בלאסט', en:'CARDIO BLAST', phrases:ZB3_PHRASES, desc:'ברכיים גבוהות, ג׳קים מהירים, אגרופים וקפיצות. דופק גבוה מההתחלה ועד הסוף.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
-function cur(){ return STYLES[STYLE_ID]; }
+// which level is selected per style, and how far the player has got (highest level finished)
+const LEVEL_SEL = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.level') || '{}'); } catch { return {}; } })();
+const DONE = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.done') || '{}'); } catch { return {}; } })();
+function levelIdx(){ const n = STYLES[STYLE_ID].levels.length; return clamp(LEVEL_SEL[STYLE_ID] || 0, 0, n - 1); }
+function levelUnlocked(i){ return i === 0 || (DONE[STYLE_ID] ?? -1) >= i - 1; }
+function setLevel(i){ if (!levelUnlocked(i)) return; LEVEL_SEL[STYLE_ID] = i; try { localStorage.setItem('bitrishon.level', JSON.stringify(LEVEL_SEL)); } catch {} renderHome(); }
+function markDone(i){ if ((DONE[STYLE_ID] ?? -1) < i){ DONE[STYLE_ID] = i; try { localStorage.setItem('bitrishon.done', JSON.stringify(DONE)); } catch {} return true; } return false; }
+function cur(){
+  const st = STYLES[STYLE_ID], lv = st.levels[levelIdx()];
+  const mix = state.plan && state.plan.type === 'mix' && state.mix;
+  return Object.assign({}, st, {routine: mix ? 'מיקס' : lv.name, phrases: mix ? state.mix : lv.phrases, flowDesc: lv.desc, level: levelIdx()});
+}
+function makeMix(){
+  const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (levelUnlocked(i)) pool.push(...lv.phrases); });
+  const picked = []; const bag = pool.slice();
+  while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); picked.push(bag.splice(k, 1)[0]); }
+  return picked;
+}
 function setStyle(id){
   STYLE_ID = id; try { localStorage.setItem('bitrishon.style', id); } catch {}
   PAL.top = cur().top; PAL.headband = cur().headband; lastSong = -1; lastPick = -1;
   document.documentElement.dataset.style = id;
   renderHome();
 }
-const starKey = k => STYLE_ID === 'hiphop' ? k : `${STYLE_ID}-${k}`;
+const starKey = k => { const L = levelIdx() ? `-L${levelIdx()+1}` : ''; return (STYLE_ID === 'hiphop' ? k : `${STYLE_ID}-${k}`) + L; };
 
 let lastPick = -1;
 const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, preview:false, uri:null, checkTimer:null};
