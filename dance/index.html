@@ -1206,9 +1206,9 @@ function makeCoach3D(canvas, opts={}){
     if (o.glow) ringT = 1; ringMat.opacity = ringT*0.9; ringT = Math.max(0, ringT - 0.04);
     // camera: fit the dancer above the labels, drifting slowly around
     const aspect = w/h, padFrac = (o.bottomPad||0)/h, topFrac = (o.topPad||0)/h;
-    const needH = 2.3/(1 - padFrac - topFrac), dist = 5.6;
+    const needH = 2.05/(1 - padFrac - topFrac), dist = 5.6;      // the dancer fills most of the free height
     let vfov = 2*Math.atan(needH/2/dist);
-    const needW = 1.75; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
+    const needW = 1.55; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
     const visH = 2*dist*Math.tan(vfov/2);
     const cyT = 1.22 - visH*(padFrac - topFrac)/2;
     // a three-quarter view (o.yaw) so arms that point at the camera stay readable, plus a gentle sway
@@ -1968,14 +1968,14 @@ function startRhythm(idxs, bpm, opts={}){
     for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*scale, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*scale; }
   };
   const one = cur().phrases[idxs[0]];
+  const captured = !!(one.clip || one.video);        // a captured dance at half speed looks lifeless: it was already learned slowly
   if (idxs.length === 1 && opts.flow){
     const i = idxs[0], pre = flowPrefix();
-    add(one, 1, 2, pre + 'לאט');
-    add(one, 2, 1, pre + 'בקצב');
+    if (captured) add(one, 3, 1, pre + 'בקצב'); else { add(one, 1, 2, pre + 'לאט'); add(one, 2, 1, pre + 'בקצב'); }
     if (i > 0) for (let j=0; j<=i; j++) add(cur().phrases[j], 1, 1, `מההתחלה · חלקים 1–${i+1}`);
   } else if (idxs.length === 1){
-    add(one, 1, 2, 'שלב 2 · לאט');
-    let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, 'שלב 3 · בקצב'); reps++; }
+    if (!captured) add(one, 1, 2, 'שלב 2 · לאט');
+    let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, captured ? 'שלב 2 · בקצב' : 'שלב 3 · בקצב'); reps++; }
   } else {
     for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · כל הריקוד` : `${cur().routine} · סיבוב ${r+1}`);
   }
@@ -1998,6 +1998,8 @@ function rhythmCoach(ph, bPos){
   if (bPos < 0) i = -1;
   if (bPos >= ph.total) i = tl.length-1;
   const live = i >= 0 ? tl[i] : null;
+  // during the count-in a captured dance holds its first count, so you see where it starts
+  if (bPos < 0 && tl[0].pose.clipBeat !== undefined && clips[tl[0].move.clip]){ const c = clips[tl[0].move.clip]; state.clipPlay = {clip: c, t: tl[0].pose.clipBeat * 60 / c.bpm}; return clipAngles(c, state.clipPlay.t); }
   if (live && live.pose.videoBeat !== undefined && bPos >= 0 && bPos < ph.total && vclips[live.move.video]){
     const vc = vclips[live.move.video], spb = 60 / vc.bpm;
     state.vplay = {id: live.move.video, t: (live.pose.videoBeat + (bPos - live.t0) / live.dur) * spb, rate: spb / (live.dur * ph.bd)};
@@ -2175,7 +2177,7 @@ function loop(now){
   if (state.vplay){ vcoachShow(state.vplay.id); vcoachDrive(state.vplay.t, state.vplay.rate); vcoachFrame(); }
   else {
     vcoachHide();
-    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 60, bottomPad: 62, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
+    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 52, bottomPad: 50, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
     else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   }
   drawCam(camCanvas, camCtx, res, target);
