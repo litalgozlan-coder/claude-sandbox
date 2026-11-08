@@ -638,22 +638,24 @@ function drawCoach(ctx, w, h, angles, opts={}){
    3D coach (Three.js): a lit figure built from capsules and spheres.
    It is posed from the same 2D dance data, then given depth: the torso
    twists, arms pass in front of the body, knees bend forward, the head
-   nods on the beat and the camera drifts slowly around the dancer.
+   nods on the beat and the camera sways gently around the dancer.
    ========================================================= */
-// Characters the player can pick. top: null = the dance style's colour.
+// Dancer looks. top: null = the dance style's colour.
 const CHARACTERS = {
-  dancer: {name:'רקדן',     head:'cap',   top:null,      pants:'#33416a', skin:'#d9a07a', shoe:'#f2f0ea', k:1},
-  robot:  {name:'רובוט',    head:'robot', top:'#c3cbd6', pants:'#8c96a5', skin:'#dde3ea', shoe:'#5c6573', k:1.05, metal:0.75, rough:0.28, glow:'#46d3e8', joints:true},
-  bear:   {name:'דובי',     head:'bear',  top:null,      pants:'#8b5a3c', skin:'#8b5a3c', shoe:'#5a3a26', k:1.3, rough:0.9},
-  wood:   {name:'בובת עץ',  head:'egg',   top:'#d9a86c', pants:'#d9a86c', skin:'#d9a86c', shoe:'#c4925a', k:0.82, rough:0.55, joints:true, jointColor:'#9c6b38'},
-  neon:   {name:'ניאון',    head:'neon',  top:null,      pants:'#46d3e8', skin:'#ffffff', shoe:'#ffffff', k:0.9, neon:true},
-  alien:  {name:'חייזר',    head:'alien', top:null,      pants:'#2f3a52', skin:'#7bd96b', shoe:'#e8e6e0', k:0.95}
+  classic: {name:'קלאסי',  top:null,      pants:'#33416a', skin:'#d9a07a', shoe:'#f2f0ea', hat:'cap', capColor:'#f4f1ea'},
+  street:  {name:'סטריט',  top:null,      pants:'#3d4237', skin:'#c98e66', shoe:'#f4f4f4', sole:'#e04848', hat:'beanie', hatColor:'#22252c', hood:true, legK:1.28, armK:1.18, bodyK:1.12, shoeK:1.25},
+  sport:   {name:'ספורט',  top:'#24356b', pants:'#24356b', skin:'#e2b08c', shoe:'#ffffff', sole:'#24356b', hat:'capBack', capColor:'#e04848', trim:'#ffffff'},
+  bomber:  {name:'בומבר',  top:'#56603f', pants:'#6f8db5', skin:'#a8714f', shoe:'#efe9df', sole:'#c9a36b', hair:'#1e1712', phones:'#1b1f26', trim:'#c87533'},
+  toon:    {name:'מצויר',  top:null,      pants:'#2c7be5', skin:'#f0bf96', shoe:'#ffd23f', sole:'#ffffff', hair:'#3a2618', headK:1.5, shoeK:1.35, toon:true, bigEyes:true},
+  low:     {name:'לואו־פולי', top:null,   pants:'#3b4a6b', skin:'#d49a72', shoe:'#f2f0ea', hair:'#2b2b33', lowpoly:true},
+  smooth:  {name:'חלק',    top:null,      pants:'#2f3442', skin:'#d6a07c', shoe:'#f6f6f6', sole:'#9aa3b5', hair:'#3b2a1f', smooth:true, bodyK:0.95}
 };
-let CHAR_ID = (() => { try { return localStorage.getItem('bitrishon.char') || 'dancer'; } catch { return 'dancer'; } })();
-if (!CHARACTERS[CHAR_ID]) CHAR_ID = 'dancer';
-function makeCoach3D(canvas, opts={}){
+let CHAR_ID = (() => { try { return localStorage.getItem('bitrishon.char') || 'classic'; } catch { return 'classic'; } })();
+if (!CHARACTERS[CHAR_ID]) CHAR_ID = 'classic';
+function makeCoach3D(canvas){
   const T = window.THREE;
   if (!T) return null;
+  const c = CHARACTERS[CHAR_ID], builtFor = CHAR_ID;
   let renderer;
   try { renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true}); } catch { return null; }
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
@@ -662,7 +664,7 @@ function makeCoach3D(canvas, opts={}){
   const col = hex => new T.Color(hex).convertSRGBToLinear();
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(28, 1, 0.1, 60);
-  scene.add(new T.HemisphereLight(col('#e6eeff'), col('#1b1f26'), 0.8));
+  scene.add(new T.HemisphereLight(col('#e6eeff'), col('#1b1f26'), c.toon ? 1.0 : 0.8));
   const key = new T.DirectionalLight(0xffffff, 1.05);
   key.position.set(-2.2, 4.2, 3.2); key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
@@ -675,154 +677,142 @@ function makeCoach3D(canvas, opts={}){
   const ringMat = new T.MeshBasicMaterial({color: col('#5fe08a'), transparent: true, opacity: 0});
   const ring = new T.Mesh(new T.RingGeometry(1.05, 1.14, 72), ringMat); ring.rotation.x = -Math.PI/2; ring.position.y = 0.004; scene.add(ring);
 
-  const mat = c => new T.MeshStandardMaterial({color: col(c), roughness: 0.62, metalness: 0.02});
-  const M = {top: mat('#ff7a3d'), pants: mat('#33416a'), skin: mat('#d9a07a'), shoe: mat('#f2f0ea'), cap: mat('#f4f1ea'), band: mat('#ffc83d'), eye: mat('#1b1f26'),
-             joint: mat('#46d3e8'), visor: mat('#46d3e8'), snout: mat('#d8b08a'), white: mat('#ffffff')};
+  // materials: standard, cartoon (3 flat tones) or faceted
+  let toonMap = null;
+  if (c.toon){ toonMap = new T.DataTexture(new Uint8Array([90, 170, 255]), 3, 1, T.LuminanceFormat); toonMap.minFilter = toonMap.magFilter = T.NearestFilter; toonMap.needsUpdate = true; }
+  const mat = (hex, rough=0.62) => c.toon ? new T.MeshToonMaterial({color: col(hex), gradientMap: toonMap})
+                                         : new T.MeshStandardMaterial({color: col(hex), roughness: c.smooth ? 0.45 : rough, metalness: 0.02, flatShading: !!c.lowpoly});
+  const M = {top: mat('#ff7a3d'), pants: mat(c.pants), skin: mat(c.skin, 0.5), shoe: mat(c.shoe), sole: mat(c.sole || c.shoe),
+             hat: mat(c.hatColor || c.capColor || '#f4f1ea'), band: mat('#ffc83d'), eye: mat('#1b1f26'), hair: mat(c.hair || '#222'),
+             trim: mat(c.trim || '#ffffff'), phones: mat(c.phones || '#1b1f26'), white: mat('#ffffff')};
+  const SEG = c.lowpoly ? 6 : (c.smooth ? 32 : 22), RSEG = c.lowpoly ? 5 : (c.smooth ? 28 : 20);
   const up = new T.Vector3(0,1,0), tmp = new T.Vector3();
   const add = m => { m.castShadow = true; scene.add(m); return m; };
-  const sphere = (r, m) => add(new T.Mesh(new T.SphereGeometry(r, 24, 16), m));
-  function limb(m, r1, r2){ return {cyl: add(new T.Mesh(new T.CylinderGeometry(r2, r1, 1, 20, 1, true), m)), a: sphere(r1, m), b: sphere(r2, m)}; }
-  function place(L, a, b, sx=1, sz=1){
+  const sphere = (r, m) => add(new T.Mesh(new T.SphereGeometry(r, SEG, Math.max(4, Math.round(SEG*0.7))), m));
+  function limb(m, r1, r2){ return {cyl: add(new T.Mesh(new T.CylinderGeometry(r2, r1, 1, RSEG, 1, true), m)), a: sphere(r1, m), b: sphere(r2, m)}; }
+  const bodyK = c.bodyK || 1, armK = c.armK || 1, legK = c.legK || 1, shoeK = c.shoeK || 1, headK = c.headK || 1;
+  function place(L, a, b, k=1, sx=1, sz=1){
     tmp.subVectors(b, a); const len = Math.max(1e-4, tmp.length());
     L.cyl.position.copy(a).addScaledVector(tmp, 0.5); L.cyl.scale.set(sx*k, len, sz*k);
-    L.a.scale.setScalar(k); L.b.scale.setScalar(k);
     L.cyl.quaternion.setFromUnitVectors(up, tmp.normalize());
-    L.a.position.copy(a); L.b.position.copy(b);
+    L.a.position.copy(a); L.b.position.copy(b); L.a.scale.setScalar(k); L.b.scale.setScalar(k);
   }
-  const parts = {
+  const hr = 0.125;
+  const P = {
     torso: limb(M.top, 0.15, 0.175), pelvis: sphere(0.14, M.pants),
     lUpper: limb(M.top, 0.058, 0.05), lFore: limb(M.top, 0.05, 0.043), rUpper: limb(M.top, 0.058, 0.05), rFore: limb(M.top, 0.05, 0.043),
-    lThigh: limb(M.pants, 0.078, 0.064), lShin: limb(M.pants, 0.064, 0.052), rThigh: limb(M.pants, 0.078, 0.064), rShin: limb(M.pants, 0.064, 0.052),
-    lHand: sphere(0.046, M.skin), rHand: sphere(0.046, M.skin), lShoe: sphere(0.07, M.shoe), rShoe: sphere(0.07, M.shoe),
-    neck: limb(M.skin, 0.045, 0.045), head: sphere(0.125, M.skin),
-    eyeL: sphere(0.014, M.eye), eyeR: sphere(0.014, M.eye),
-    cap: add(new T.Mesh(new T.SphereGeometry(0.131, 24, 12, 0, Math.PI*2, 0, Math.PI*0.5), M.cap)),
-    brim: add(new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.016, 24), M.cap)),
-    band: add(new T.Mesh(new T.TorusGeometry(0.126, 0.02, 10, 32), M.band)),
-    // extra pieces for the other characters
-    jl: [0,1,2,3,4,5].map(() => sphere(0.05, M.joint)),               // shoulders, elbows, knees
-    box: add(new T.Mesh(new T.BoxGeometry(0.24, 0.22, 0.22), M.skin)),
-    visor: add(new T.Mesh(new T.BoxGeometry(0.19, 0.06, 0.02), M.visor)),
-    antenna: limb(M.pants, 0.008, 0.008), antTip: sphere(0.025, M.visor),
-    earL: sphere(0.055, M.skin), earR: sphere(0.055, M.skin), snout: sphere(0.06, M.snout), nose: sphere(0.022, M.eye),
-    bigEyeL: sphere(0.04, M.eye), bigEyeR: sphere(0.04, M.eye)
+    lThigh: limb(M.pants, 0.078, 0.064), lShin: limb(M.pants, 0.064, 0.054), rThigh: limb(M.pants, 0.078, 0.064), rShin: limb(M.pants, 0.064, 0.054),
+    lHand: sphere(0.046, M.skin), rHand: sphere(0.046, M.skin),
+    lShoe: sphere(0.07, M.shoe), rShoe: sphere(0.07, M.shoe), lSole: sphere(0.07, M.sole), rSole: sphere(0.07, M.sole),
+    neck: limb(M.skin, 0.045, 0.045), head: sphere(hr, M.skin),
+    eyeL: sphere(c.bigEyes ? 0.024 : 0.014, M.eye), eyeR: sphere(c.bigEyes ? 0.024 : 0.014, M.eye),
+    hair: add(new T.Mesh(new T.SphereGeometry(hr*1.06, SEG, Math.max(4, Math.round(SEG*0.5)), 0, Math.PI*2, 0, Math.PI*0.52), M.hair)),
+    cap: add(new T.Mesh(new T.SphereGeometry(hr*1.05, SEG, Math.max(4, Math.round(SEG*0.5)), 0, Math.PI*2, 0, Math.PI*0.5), M.hat)),
+    brim: add(new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.016, RSEG), M.hat)),
+    beanie: add(new T.Mesh(new T.SphereGeometry(hr*1.08, SEG, Math.max(4, Math.round(SEG*0.5)), 0, Math.PI*2, 0, Math.PI*0.55), M.hat)),
+    fold: add(new T.Mesh(new T.TorusGeometry(hr*1.06, 0.026, 8, RSEG*2), M.hat)),
+    band: add(new T.Mesh(new T.TorusGeometry(hr*1.01, 0.02, 10, 32), M.band)),
+    hood: sphere(0.13, M.top),
+    collar: add(new T.Mesh(new T.TorusGeometry(0.07, 0.022, 8, RSEG*2), M.trim)),
+    cuffL: sphere(0.05, M.trim), cuffR: sphere(0.05, M.trim), shL: sphere(0.06, M.trim), shR: sphere(0.06, M.trim),
+    phones: add(new T.Mesh(new T.TorusGeometry(0.1, 0.014, 8, RSEG*2, Math.PI*1.3), M.phones)),
+    cupL: sphere(0.04, M.phones), cupR: sphere(0.04, M.phones)
   };
-  parts.snout.scale.set(1.2, 0.85, 0.9); parts.bigEyeL.scale.set(0.9, 1.35, 0.5); parts.bigEyeR.scale.set(0.9, 1.35, 0.5);
-  let lookId = null, k = 1;
-  function applyLook(){
-    const c = CHARACTERS[CHAR_ID]; lookId = CHAR_ID + '|' + PAL.top[1] + '|' + !!PAL.headband; k = c.k || 1;
-    const top = c.top || PAL.top[1];
-    const setM = (m, hex, emissive) => { m.color.copy(col(hex)); m.metalness = c.metal || 0.02; m.roughness = c.rough || 0.62;
-      m.emissive.copy(emissive ? col(emissive) : new T.Color(0)); m.emissiveIntensity = emissive ? 1 : 0; };
-    if (c.neon){
-      for (const [m, hex] of [[M.top, top], [M.pants, c.pants], [M.skin, c.skin], [M.shoe, c.shoe]]) setM(m, '#0d1016', hex);
-      M.skin.emissiveIntensity = 0.55; setM(M.eye, '#0d1016', '#0d1016');
-    } else {
-      setM(M.top, top); setM(M.pants, c.pants); setM(M.skin, c.skin); setM(M.shoe, c.shoe); setM(M.eye, '#1b1f26');
-    }
-    setM(M.joint, c.jointColor || c.glow || '#46d3e8', c.glow || null);
-    setM(M.visor, c.glow || '#46d3e8', c.glow || '#46d3e8');
-    setM(M.snout, '#d8b08a'); M.cap.color.copy(col('#f4f1ea'));
-    if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
-    const h = c.head;
-    const show = (names, on) => names.forEach(n => { const v = parts[n]; if (Array.isArray(v)) v.forEach(x => x.visible = on); else if (v.cyl) { v.cyl.visible = v.a.visible = v.b.visible = on; } else v.visible = on; });
-    show(['cap','brim'], h === 'cap' && !PAL.headband); show(['band'], (h === 'cap' || h === 'neon') && !!PAL.headband);
-    show(['head'], h !== 'robot'); show(['eyeL','eyeR'], ['cap','bear','neon'].includes(h));
-    show(['box','visor','antenna','antTip'], h === 'robot'); show(['jl'], !!c.joints);
-    show(['earL','earR','snout','nose'], h === 'bear'); show(['bigEyeL','bigEyeR'], h === 'alien');
-    if (h === 'alien'){ show(['antenna','antTip'], true); }
-    parts.head.scale.set(...(h === 'egg' ? [0.85, 1.18, 0.9] : h === 'bear' ? [1.2, 1.15, 1.15] : h === 'alien' ? [1.35, 1.3, 1.2] : [1,1,1]));
-    scene.background = c.neon ? col('#07080c') : null;
-    key.intensity = c.neon ? 0.35 : 1.05; rim.intensity = c.neon ? 0.2 : 0.6;
-  }
-  parts.lShoe.scale.set(0.85, 0.6, 1.55); parts.rShoe.scale.set(0.85, 0.6, 1.55);
-  parts.brim.scale.set(1, 1, 1.35);
+  P.lShoe.scale.set(0.85*shoeK, 0.7*shoeK, 1.55*shoeK); P.rShoe.scale.set(0.85*shoeK, 0.7*shoeK, 1.55*shoeK);
+  P.lSole.scale.set(0.92*shoeK, 0.28*shoeK, 1.62*shoeK); P.rSole.scale.set(0.92*shoeK, 0.28*shoeK, 1.62*shoeK);
+  P.brim.scale.set(1, 1, 1.35); P.hood.scale.set(1.5, 1.1, 0.9); P.cuffL.scale.set(1, 0.55, 1); P.cuffR.scale.set(1, 0.55, 1);
+  P.cupL.scale.set(0.6, 1, 1); P.cupR.scale.set(0.6, 1, 1);
+  P.head.scale.setScalar(headK); P.hair.scale.setScalar(headK);
+  const vis = (names, on) => names.forEach(n => P[n].visible = !!on);
+  vis(['cap','brim'], false); vis(['beanie','fold','hair','hood','collar','cuffL','cuffR','shL','shR','phones','cupL','cupR','band'], false);
 
   const V = (x, y, z=0) => new T.Vector3(x, y, z);
-  let w0 = 0, h0 = 0, ringT = 0;
+  let w0 = 0, h0 = 0, ringT = 0, lookKey = '';
   function draw(a, o={}){
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     if (w !== w0 || h !== h0){ renderer.setSize(w, h, false); w0 = w; h0 = h; }
-    if (lookId !== CHAR_ID + '|' + PAL.top[1] + '|' + !!PAL.headband) applyLook();
-    const look = CHARACTERS[CHAR_ID];
+    const lk = PAL.top[1] + '|' + !!PAL.headband;
+    if (lk !== lookKey){
+      lookKey = lk;
+      M.top.color.copy(col(c.top || PAL.top[1]));
+      if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
+      const hb = !!PAL.headband;                                   // Zumba: headband instead of a hat
+      vis(['cap','brim'], !hb && (c.hat === 'cap' || c.hat === 'capBack'));
+      vis(['beanie','fold'], !hb && c.hat === 'beanie');
+      vis(['band'], hb);
+      vis(['hair'], !!c.hair && (hb || !c.hat));
+      vis(['hood'], !!c.hood); vis(['collar','cuffL','cuffR'], !!c.trim); vis(['shL','shR'], c.trim && !c.phones);
+      vis(['phones','cupL','cupR'], !!c.phones);
+    }
     const phase = o.phase || 0, beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);
-    const J = coachJoints(a), lift = 0.07;
-    // twist toward an arm that crosses the body, plus a small groove sway
+    const J = coachJoints(a), lift = 0.07 + 0.02*(shoeK-1);
     const cross = (J.rWr[0] < J.shC[0] - 0.05 ? 1 : 0) - (J.lWr[0] > J.shC[0] + 0.05 ? 1 : 0);
     const tw = 0.32*cross + 0.06*Math.sin(phase*Math.PI*2) + (a.sx||0)*1.2;
     const yaw = (a.sx||0)*2.2 + (a.lean||0)*0.006;
     const spine = J.shC[0];
     const sh = (p, sign) => V(spine + (p[0]-spine)*Math.cos(tw), p[1] + lift, sign*Math.abs(p[0]-spine)*Math.sin(tw));
-    const front = (p, base) => {        // hands and elbows that pass in front of the body come forward
+    const front = (p, base) => {
       const inside = Math.abs(p[0] - J.shC[0]) < 0.26 && p[1] < J.head[1] + 0.2 && p[1] > J.hipC[1] - 0.08;
       return base + (inside ? 0.2 : 0.04);
     };
     const rSh = sh(J.rSh, 1), lSh = sh(J.lSh, -1);
     const rEl = V(J.rEl[0], J.rEl[1]+lift, rSh.z*0.6 + front(J.rEl, 0)*0.5), lEl = V(J.lEl[0], J.lEl[1]+lift, lSh.z*0.6 + front(J.lEl, 0)*0.5);
     const rWr = V(J.rWr[0], J.rWr[1]+lift, rSh.z*0.3 + front(J.rWr, 0)), lWr = V(J.lWr[0], J.lWr[1]+lift, lSh.z*0.3 + front(J.lWr, 0));
-    const knee = (hip, kn, an) => { const d = Math.hypot(an[0]-hip[0], an[1]-hip[1]); return Math.min(0.28, Math.max(0, (BODY.th+BODY.sn - d))*2.4); };
+    const knee = (hip, an) => { const d = Math.hypot(an[0]-hip[0], an[1]-hip[1]); return Math.min(0.28, Math.max(0, (BODY.th+BODY.sn - d))*2.4); };
     const rHip = V(J.rHip[0], J.rHip[1]+lift, -Math.sin(tw)*0.04), lHip = V(J.lHip[0], J.lHip[1]+lift, Math.sin(tw)*0.04);
-    const rKn = V(J.rKn[0], J.rKn[1]+lift, knee(J.rHip, J.rKn, J.rAn)), lKn = V(J.lKn[0], J.lKn[1]+lift, knee(J.lHip, J.lKn, J.lAn));
+    const rKn = V(J.rKn[0], J.rKn[1]+lift, knee(J.rHip, J.rAn)), lKn = V(J.lKn[0], J.lKn[1]+lift, knee(J.lHip, J.lAn));
     const rAn = V(J.rAn[0], J.rAn[1]+lift, 0), lAn = V(J.lAn[0], J.lAn[1]+lift, 0);
     const shC = V(J.shC[0], J.shC[1]+lift, 0), hipC = V(J.hipC[0], J.hipC[1]+lift, 0);
-    const head = V(J.head[0], J.head[1]+lift - 0.012*beat, 0.035*beat);
-    // whole body turns a little toward the side it steps to
+    const hUp = (headK-1)*hr*0.9;
+    const head = V(J.head[0], J.head[1]+lift+hUp - 0.012*beat, 0.035*beat);
     const pivot = hipC.x, cy = Math.cos(yaw), sy = Math.sin(yaw);
-    const all = [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head];
-    for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
-    place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
-    parts.torso.cyl.rotateY(tw*0.5);
-    parts.torso.a.scale.set(1.3*k, 0.7*k, 0.8*k); parts.torso.b.scale.set(1.35*k, 0.75*k, 0.82*k);
-    parts.pelvis.scale.set(1.3*k, 0.8*k, 0.85*k); parts.rHand.scale.setScalar(k); parts.lHand.scale.setScalar(k);
-    parts.pelvis.position.copy(hipC);
-    place(parts.rUpper, rSh, rEl); place(parts.rFore, rEl, rWr); place(parts.lUpper, lSh, lEl); place(parts.lFore, lEl, lWr);
-    place(parts.rThigh, rHip, rKn); place(parts.rShin, rKn, rAn); place(parts.lThigh, lHip, lKn); place(parts.lShin, lKn, lAn);
-    parts.rHand.position.copy(rWr); parts.lHand.position.copy(lWr);
-    parts.rShoe.position.set(rAn.x, rAn.y - 0.035, rAn.z + 0.05); parts.lShoe.position.set(lAn.x, lAn.y - 0.035, lAn.z + 0.05);
-    parts.rShoe.rotation.y = parts.lShoe.rotation.y = yaw;
-    place(parts.neck, shC, V(head.x, head.y - 0.1, head.z*0.5));
-    parts.head.position.copy(head);
-    const hy = yaw + tw*0.4;
-    const onHead = (dx, dy, dz) => V(head.x + dx*Math.cos(hy) + dz*Math.sin(hy), head.y + dy, head.z - dx*Math.sin(hy) + dz*Math.cos(hy));
-    parts.eyeL.position.copy(onHead(-0.042, 0.015, 0.113)); parts.eyeR.position.copy(onHead(0.042, 0.015, 0.113));
-    parts.cap.position.copy(onHead(0, 0.012, 0)); parts.cap.rotation.set(-0.12, hy, 0);
-    parts.brim.position.copy(onHead(0, 0.03, 0.14)); parts.brim.rotation.set(0.12, hy, 0);
-    parts.band.position.copy(onHead(0, 0.045, 0)); parts.band.rotation.set(Math.PI/2 - 0.1, 0, hy);
-    if (look.head === 'robot'){
-      parts.box.position.copy(onHead(0, 0.01, 0)); parts.box.rotation.set(0, hy, 0);
-      parts.visor.position.copy(onHead(0, 0.03, 0.115)); parts.visor.rotation.set(0, hy, 0);
-      place(parts.antenna, onHead(0, 0.11, 0), onHead(0, 0.21, 0)); parts.antTip.position.copy(onHead(0, 0.22, 0));
+    for (const v of [rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head]){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
+    place(P.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), bodyK, 1.32, 0.78);
+    P.torso.cyl.rotateY(tw*0.5);
+    P.torso.a.scale.set(1.3*bodyK, 0.7*bodyK, 0.8*bodyK); P.torso.b.scale.set(1.35*bodyK, 0.75*bodyK, 0.82*bodyK);
+    P.pelvis.position.copy(hipC); P.pelvis.scale.set(1.3*legK, 0.8*legK, 0.85*legK);
+    place(P.rUpper, rSh, rEl, armK); place(P.rFore, rEl, rWr, armK); place(P.lUpper, lSh, lEl, armK); place(P.lFore, lEl, lWr, armK);
+    place(P.rThigh, rHip, rKn, legK); place(P.rShin, rKn, rAn, legK); place(P.lThigh, lHip, lKn, legK); place(P.lShin, lKn, lAn, legK);
+    P.rHand.position.copy(rWr); P.lHand.position.copy(lWr);
+    for (const [shoe, sole, an] of [[P.rShoe, P.rSole, rAn], [P.lShoe, P.lSole, lAn]]){
+      shoe.position.set(an.x, an.y - 0.03, an.z + 0.05*shoeK); shoe.rotation.y = yaw;
+      sole.position.set(an.x, an.y - 0.03 - 0.035*shoeK, an.z + 0.05*shoeK); sole.rotation.y = yaw;
     }
-    if (look.head === 'alien'){
-      parts.bigEyeL.position.copy(onHead(-0.065, 0.02, 0.135)); parts.bigEyeR.position.copy(onHead(0.065, 0.02, 0.135));
-      parts.bigEyeL.rotation.set(0, hy, -0.35); parts.bigEyeR.rotation.set(0, hy, 0.35);
-      place(parts.antenna, onHead(0.02, 0.15, 0), onHead(0.07, 0.29, 0)); parts.antTip.position.copy(onHead(0.07, 0.3, 0));
-    }
-    if (look.head === 'bear'){
-      parts.earL.position.copy(onHead(-0.11, 0.12, -0.01)); parts.earR.position.copy(onHead(0.11, 0.12, -0.01));
-      parts.snout.position.copy(onHead(0, -0.035, 0.13)); parts.nose.position.copy(onHead(0, -0.015, 0.185));
-      parts.eyeL.position.copy(onHead(-0.05, 0.04, 0.135)); parts.eyeR.position.copy(onHead(0.05, 0.04, 0.135));
-    }
-    if (look.joints){
-      [rSh, lSh, rEl, lEl, rKn, lKn].forEach((v, i) => { parts.jl[i].position.copy(v); parts.jl[i].scale.setScalar(k*(i<2 ? 1.25 : 1.05)); });
-    }
-    // success ring
+    place(P.neck, shC, V(head.x, head.y - 0.1*headK, head.z*0.5));
+    P.head.position.copy(head);
+    const hy = yaw + tw*0.4, hk = headK;
+    const onHead = (dx, dy, dz) => V(head.x + (dx*Math.cos(hy) + dz*Math.sin(hy))*hk, head.y + dy*hk, head.z + (-dx*Math.sin(hy) + dz*Math.cos(hy))*hk);
+    const ex = c.bigEyes ? 0.048 : 0.042;
+    P.eyeL.position.copy(onHead(-ex, 0.012, 0.113)); P.eyeR.position.copy(onHead(ex, 0.012, 0.113));
+    P.hair.position.copy(onHead(0, 0.005, -0.006)); P.hair.rotation.set(-0.25, hy, 0);
+    P.cap.position.copy(onHead(0, 0.012, 0)); P.cap.rotation.set(-0.12, hy, 0); P.cap.scale.setScalar(hk);
+    const back = c.hat === 'capBack' ? -1 : 1;
+    P.brim.position.copy(onHead(0, 0.03, 0.14*back)); P.brim.rotation.set(0.12*back, hy, 0); P.brim.scale.set(hk, hk, 1.35*hk);
+    P.beanie.position.copy(onHead(0, 0.02, -0.004)); P.beanie.rotation.set(-0.15, hy, 0); P.beanie.scale.set(hk, hk*1.15, hk);
+    P.fold.position.copy(onHead(0, 0.03, 0)); P.fold.rotation.set(Math.PI/2 - 0.15, 0, hy); P.fold.scale.setScalar(hk);
+    P.band.position.copy(onHead(0, 0.045, 0)); P.band.rotation.set(Math.PI/2 - 0.1, 0, hy); P.band.scale.setScalar(hk);
+    P.hood.position.set(shC.x - Math.sin(hy)*0.1, shC.y + 0.03, shC.z - Math.cos(hy)*0.1); P.hood.rotation.set(0.3, hy, 0);
+    P.collar.position.set(shC.x, shC.y + 0.02, shC.z); P.collar.rotation.set(Math.PI/2, 0, 0);
+    P.cuffL.position.copy(lWr).lerp(lEl, 0.12); P.cuffR.position.copy(rWr).lerp(rEl, 0.12);
+    P.cuffL.quaternion.copy(P.lFore.cyl.quaternion); P.cuffR.quaternion.copy(P.rFore.cyl.quaternion);
+    P.shL.position.copy(lSh); P.shR.position.copy(rSh);
+    P.phones.position.set(shC.x, shC.y + 0.05, shC.z + 0.02); P.phones.rotation.set(Math.PI/2 + 0.2, 0, Math.PI*0.85 + hy);
+    P.cupL.position.set(shC.x - 0.1, shC.y + 0.05, shC.z + 0.03); P.cupR.position.set(shC.x + 0.1, shC.y + 0.05, shC.z + 0.03);
     if (o.glow) ringT = 1; ringMat.opacity = ringT*0.9; ringT = Math.max(0, ringT - 0.04);
-    // camera: fit the dancer above the labels, drifting slowly around
     const aspect = w/h, padFrac = (o.bottomPad||0)/h, topFrac = (o.topPad||0)/h;
-    const needH = 2.3/(1 - padFrac - topFrac), dist = 5.6;
+    const needH = (2.3 + hUp)/(1 - padFrac - topFrac), dist = 5.6;
     let vfov = 2*Math.atan(needH/2/dist);
     const needW = 1.75; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
     const visH = 2*dist*Math.tan(vfov/2);
-    const cyT = 1.22 - visH*(padFrac - topFrac)/2;
-    const orbit = 0.22*Math.sin((o.time || 0)*0.00025);     // a gentle sway from side to side, never behind
+    const cyT = 1.22 + hUp/2 - visH*(padFrac - topFrac)/2;
+    const orbit = 0.22*Math.sin((o.time || 0)*0.00025);
     camera.fov = vfov*180/Math.PI; camera.aspect = aspect; camera.updateProjectionMatrix();
     camera.position.set(Math.sin(orbit)*dist, cyT + 0.35, Math.cos(orbit)*dist);
     camera.lookAt(0, cyT, 0);
     renderer.render(scene, camera);
   }
-  return {draw};
+  return {draw, builtFor, dispose(){ renderer.dispose(); }};
 }
 let coach3 = null, demo3 = null;
 function init3D(){
