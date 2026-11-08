@@ -614,11 +614,10 @@ function describePose(a){
       const inward = side === 'r' ? -x : x, outward = -inward;
       if (y > 0.55) return 'למעלה';
       if (y > 0.2 && outward > 0.35) return 'באלכסון למעלה';
-      if (inward > 0.45 && z > 0.15 && y > -0.5) return 'על החזה';
-      if (inward > 0.3 && y > -0.55) return 'חוצה את הגוף';
-      if (z > 0.55 && y > -0.55) return 'קדימה';
+      if (inward > 0.6 && y > -0.55) return 'חוצה את הגוף';
+      if (z > 0.45 && y > -0.5) return inward > 0.15 ? 'לפני החזה' : 'קדימה';
       if (outward > 0.6 && y > -0.45) return 'לצד';
-      if (y > -0.45) return 'בגובה החזה';
+      if (y > -0.45) return 'מרפק כפוף ליד הגוף';
       if (z > 0.35) return 'קדימה למטה';
       return 'למטה';
     };
