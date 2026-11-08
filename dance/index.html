@@ -605,13 +605,41 @@ function clipAngles(c, t){
   const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames;
   return lerpAngles(c.poses[i0], c.poses[i1], f - Math.floor(f));
 }
+// a short description of a captured pose, from the 2D limb angles (screen coordinates, y up; 'r' is screen right)
+function describePose(a){
+  const out = [];
+  if (a.h){
+    // 3D hand positions relative to the shoulder, in arm lengths: x toward screen right, y up, z toward the camera
+    const where = (x, y, z, side) => {
+      const inward = side === 'r' ? -x : x, outward = -inward;
+      if (y > 0.55) return 'למעלה';
+      if (y > 0.2 && outward > 0.35) return 'באלכסון למעלה';
+      if (inward > 0.45 && z > 0.15 && y > -0.5) return 'על החזה';
+      if (inward > 0.3 && y > -0.55) return 'חוצה את הגוף';
+      if (z > 0.55 && y > -0.55) return 'קדימה';
+      if (outward > 0.6 && y > -0.45) return 'לצד';
+      if (y > -0.45) return 'בגובה החזה';
+      if (z > 0.35) return 'קדימה למטה';
+      return 'למטה';
+    };
+    const r = where(a.h[0], a.h[1], a.h[2], 'r'), l = where(a.h[3], a.h[4], a.h[5], 'l');
+    if (r === l) out.push(r === 'למטה' ? 'ידיים רפויות' : `שתי הידיים ${r}`); else out.push(`יד ימין ${r}, יד שמאל ${l}`);
+    const kr = a.kl[0], kl = a.kl[1];
+    if (kr > 0.45 && kr - kl > 0.2) out.push('ברך ימין מורמת'); else if (kl > 0.45 && kl - kr > 0.2) out.push('ברך שמאל מורמת');
+    else if ((a.hy || 0) < -0.2) out.push('סקוואט עמוק'); else if ((a.hy || 0) < -0.09) out.push('ברכיים כפופות');
+    if (Math.abs(a.lean || 0) > 14) out.push(a.lean > 0 ? 'הגוף נוטה ימינה' : 'הגוף נוטה שמאלה');
+    else if (Math.abs(a.sx || 0) > 0.09) out.push(a.sx > 0 ? 'משקל על רגל ימין' : 'משקל על רגל שמאל');
+    return out.slice(0, 3).join(' · ');
+  }
+  return 'לעקוב אחרי הרקדנית';
+}
 const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
 function buildMocapSteps(ph){
   const c = clips[ph.clip]; if (!c || ph.steps.length) return;
   const spb = 60 / c.bpm;
   for (let b = 0; b < c.beats; b++){
     const a = Object.assign({}, c.poses[Math.round(b * spb * c.fps) % c.frames]);
-    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:'לעקוב אחרי הרקדנית. זה ריקוד אמיתי, לא תנוחות', a, clipBeat:b}, d:1});
+    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describePose(a), a, clipBeat:b}, d:1});
   }
 }
 async function ensureClips(){
@@ -885,14 +913,14 @@ function makeCoach3D(canvas, opts={}){
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputEncoding = T.sRGBEncoding;
-  renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+  renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   const col = hex => new T.Color(hex).convertSRGBToLinear();
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(28, 1, 0.1, 60);
   // stage lighting: a warm key from the front-left, a cool fill from the right, a strong rim from behind
   // so the dancer separates from the dark floor, and a soft pool of light under the feet
   scene.add(new T.HemisphereLight(col('#dfe8ff'), col('#1b1f26'), 0.55));
-  const key = new T.DirectionalLight(col('#fff0dc'), 1.35);
+  const key = new T.DirectionalLight(col('#fff0dc'), 1.2);
   key.position.set(-2.2, 4.2, 3.2); key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   Object.assign(key.shadow.camera, {left:-2, right:2, top:3.2, bottom:-1, near:0.5, far:14});
@@ -993,12 +1021,14 @@ function makeCoach3D(canvas, opts={}){
     bone.updateMatrixWorld(true);
   }
   const cqa = new T.Quaternion(), cqb = new T.Quaternion(), hv = new T.Vector3();
+  const FINGER_RE = /Index|Middle|Ring|Pinky|Thumb/;
   let lastCp = null, fade = null;
   // apply one clip frame; with w < 1 it is blended over whatever the bones hold already
   function applyClip(c, t, w){
     const A = avatar, B = A.bones;
     const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
     for (const n in c.bones){
+      if (FINGER_RE.test(n)) continue;                       // captured finger data does not map cleanly onto this hand
       const b = B[ALIAS[n] || n]; if (!b) continue;
       const q = c.bones[n];
       cqa.set(q[i0*4], q[i0*4+1], q[i0*4+2], q[i0*4+3]); cqb.set(q[i1*4], q[i1*4+1], q[i1*4+2], q[i1*4+3]); cqa.slerp(cqb, u);
@@ -1020,6 +1050,7 @@ function makeCoach3D(canvas, opts={}){
       else { applyClip(fade.clip, fade.t + (nowT - fade.start) / 1000, 1); applyClip(c, cp.t, ease(k)); }
     }
     if (!fade) applyClip(c, cp.t, 1);
+    if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * 0.4 * k);   // relaxed hands
     root.rotation.y = 0; root.position.set(0, 0, 0); root.updateMatrixWorld(true);
     const minToe = Math.min(...A.toes.map(A.wy), B.LeftHand ? A.wy(B.LeftHand) + 0.02 : 9, B.RightHand ? A.wy(B.RightHand) + 0.02 : 9);
     if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // feet (or hands, in a freeze) on the floor, real jumps may leave it
@@ -2005,7 +2036,8 @@ function loop(now){
   if (ph?.kind === 'learn'){
     const lp = ph.list[ph.step]; target = lp?.a;
     if (lp && lp.clipBeat !== undefined && clips[ph.move.clip]){     // show the captured motion itself, swinging slowly around this count
-      const c = clips[ph.move.clip], spb = 60 / c.bpm, t = lp.clipBeat * spb + spb * 0.7 * Math.sin((now - ph.stepStart) / 650);
+      const c = clips[ph.move.clip], spb = 60 / c.bpm, seg = 1.5 * spb;
+      const t = (lp.clipBeat - 0.5) * spb + (((now - ph.stepStart) / 1000) * 0.5) % seg;   // half speed, looped: the way into the count and the count itself
       coachA = clipAngles(c, t); clipO = {clip: c, t};
     }
     res = updateLearn(now, dt);
