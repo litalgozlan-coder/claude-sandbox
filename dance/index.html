@@ -640,6 +640,17 @@ function drawCoach(ctx, w, h, angles, opts={}){
    twists, arms pass in front of the body, knees bend forward, the head
    nods on the beat and the camera drifts slowly around the dancer.
    ========================================================= */
+// Characters the player can pick. top: null = the dance style's colour.
+const CHARACTERS = {
+  dancer: {name:'רקדן',     head:'cap',   top:null,      pants:'#33416a', skin:'#d9a07a', shoe:'#f2f0ea', k:1},
+  robot:  {name:'רובוט',    head:'robot', top:'#c3cbd6', pants:'#8c96a5', skin:'#dde3ea', shoe:'#5c6573', k:1.05, metal:0.75, rough:0.28, glow:'#46d3e8', joints:true},
+  bear:   {name:'דובי',     head:'bear',  top:null,      pants:'#8b5a3c', skin:'#8b5a3c', shoe:'#5a3a26', k:1.3, rough:0.9},
+  wood:   {name:'בובת עץ',  head:'egg',   top:'#d9a86c', pants:'#d9a86c', skin:'#d9a86c', shoe:'#c4925a', k:0.82, rough:0.55, joints:true, jointColor:'#9c6b38'},
+  neon:   {name:'ניאון',    head:'neon',  top:null,      pants:'#46d3e8', skin:'#ffffff', shoe:'#ffffff', k:0.9, neon:true},
+  alien:  {name:'חייזר',    head:'alien', top:null,      pants:'#2f3a52', skin:'#7bd96b', shoe:'#e8e6e0', k:0.95}
+};
+let CHAR_ID = (() => { try { return localStorage.getItem('bitrishon.char') || 'dancer'; } catch { return 'dancer'; } })();
+if (!CHARACTERS[CHAR_ID]) CHAR_ID = 'dancer';
 function makeCoach3D(canvas, opts={}){
   const T = window.THREE;
   if (!T) return null;
@@ -665,14 +676,16 @@ function makeCoach3D(canvas, opts={}){
   const ring = new T.Mesh(new T.RingGeometry(1.05, 1.14, 72), ringMat); ring.rotation.x = -Math.PI/2; ring.position.y = 0.004; scene.add(ring);
 
   const mat = c => new T.MeshStandardMaterial({color: col(c), roughness: 0.62, metalness: 0.02});
-  const M = {top: mat('#ff7a3d'), pants: mat('#33416a'), skin: mat('#d9a07a'), shoe: mat('#f2f0ea'), cap: mat('#f4f1ea'), band: mat('#ffc83d'), eye: mat('#1b1f26')};
+  const M = {top: mat('#ff7a3d'), pants: mat('#33416a'), skin: mat('#d9a07a'), shoe: mat('#f2f0ea'), cap: mat('#f4f1ea'), band: mat('#ffc83d'), eye: mat('#1b1f26'),
+             joint: mat('#46d3e8'), visor: mat('#46d3e8'), snout: mat('#d8b08a'), white: mat('#ffffff')};
   const up = new T.Vector3(0,1,0), tmp = new T.Vector3();
   const add = m => { m.castShadow = true; scene.add(m); return m; };
   const sphere = (r, m) => add(new T.Mesh(new T.SphereGeometry(r, 24, 16), m));
   function limb(m, r1, r2){ return {cyl: add(new T.Mesh(new T.CylinderGeometry(r2, r1, 1, 20, 1, true), m)), a: sphere(r1, m), b: sphere(r2, m)}; }
   function place(L, a, b, sx=1, sz=1){
     tmp.subVectors(b, a); const len = Math.max(1e-4, tmp.length());
-    L.cyl.position.copy(a).addScaledVector(tmp, 0.5); L.cyl.scale.set(sx, len, sz);
+    L.cyl.position.copy(a).addScaledVector(tmp, 0.5); L.cyl.scale.set(sx*k, len, sz*k);
+    L.a.scale.setScalar(k); L.b.scale.setScalar(k);
     L.cyl.quaternion.setFromUnitVectors(up, tmp.normalize());
     L.a.position.copy(a); L.b.position.copy(b);
   }
@@ -685,9 +698,43 @@ function makeCoach3D(canvas, opts={}){
     eyeL: sphere(0.014, M.eye), eyeR: sphere(0.014, M.eye),
     cap: add(new T.Mesh(new T.SphereGeometry(0.131, 24, 12, 0, Math.PI*2, 0, Math.PI*0.5), M.cap)),
     brim: add(new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.016, 24), M.cap)),
-    band: add(new T.Mesh(new T.TorusGeometry(0.126, 0.02, 10, 32), M.band))
+    band: add(new T.Mesh(new T.TorusGeometry(0.126, 0.02, 10, 32), M.band)),
+    // extra pieces for the other characters
+    jl: [0,1,2,3,4,5].map(() => sphere(0.05, M.joint)),               // shoulders, elbows, knees
+    box: add(new T.Mesh(new T.BoxGeometry(0.24, 0.22, 0.22), M.skin)),
+    visor: add(new T.Mesh(new T.BoxGeometry(0.19, 0.06, 0.02), M.visor)),
+    antenna: limb(M.pants, 0.008, 0.008), antTip: sphere(0.025, M.visor),
+    earL: sphere(0.055, M.skin), earR: sphere(0.055, M.skin), snout: sphere(0.06, M.snout), nose: sphere(0.022, M.eye),
+    bigEyeL: sphere(0.04, M.eye), bigEyeR: sphere(0.04, M.eye)
   };
-  parts.pelvis.scale.set(1.3, 0.8, 0.85);
+  parts.snout.scale.set(1.2, 0.85, 0.9); parts.bigEyeL.scale.set(0.9, 1.35, 0.5); parts.bigEyeR.scale.set(0.9, 1.35, 0.5);
+  let lookId = null, k = 1;
+  function applyLook(){
+    const c = CHARACTERS[CHAR_ID]; lookId = CHAR_ID + '|' + PAL.top[1] + '|' + !!PAL.headband; k = c.k || 1;
+    const top = c.top || PAL.top[1];
+    const setM = (m, hex, emissive) => { m.color.copy(col(hex)); m.metalness = c.metal || 0.02; m.roughness = c.rough || 0.62;
+      m.emissive.copy(emissive ? col(emissive) : new T.Color(0)); m.emissiveIntensity = emissive ? 1 : 0; };
+    if (c.neon){
+      for (const [m, hex] of [[M.top, top], [M.pants, c.pants], [M.skin, c.skin], [M.shoe, c.shoe]]) setM(m, '#0d1016', hex);
+      M.skin.emissiveIntensity = 0.55; setM(M.eye, '#0d1016', '#0d1016');
+    } else {
+      setM(M.top, top); setM(M.pants, c.pants); setM(M.skin, c.skin); setM(M.shoe, c.shoe); setM(M.eye, '#1b1f26');
+    }
+    setM(M.joint, c.jointColor || c.glow || '#46d3e8', c.glow || null);
+    setM(M.visor, c.glow || '#46d3e8', c.glow || '#46d3e8');
+    setM(M.snout, '#d8b08a'); M.cap.color.copy(col('#f4f1ea'));
+    if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
+    const h = c.head;
+    const show = (names, on) => names.forEach(n => { const v = parts[n]; if (Array.isArray(v)) v.forEach(x => x.visible = on); else if (v.cyl) { v.cyl.visible = v.a.visible = v.b.visible = on; } else v.visible = on; });
+    show(['cap','brim'], h === 'cap' && !PAL.headband); show(['band'], (h === 'cap' || h === 'neon') && !!PAL.headband);
+    show(['head'], h !== 'robot'); show(['eyeL','eyeR'], ['cap','bear','neon'].includes(h));
+    show(['box','visor','antenna','antTip'], h === 'robot'); show(['jl'], !!c.joints);
+    show(['earL','earR','snout','nose'], h === 'bear'); show(['bigEyeL','bigEyeR'], h === 'alien');
+    if (h === 'alien'){ show(['antenna','antTip'], true); }
+    parts.head.scale.set(...(h === 'egg' ? [0.85, 1.18, 0.9] : h === 'bear' ? [1.2, 1.15, 1.15] : h === 'alien' ? [1.35, 1.3, 1.2] : [1,1,1]));
+    scene.background = c.neon ? col('#07080c') : null;
+    key.intensity = c.neon ? 0.35 : 1.05; rim.intensity = c.neon ? 0.2 : 0.6;
+  }
   parts.lShoe.scale.set(0.85, 0.6, 1.55); parts.rShoe.scale.set(0.85, 0.6, 1.55);
   parts.brim.scale.set(1, 1, 1.35);
 
@@ -697,9 +744,8 @@ function makeCoach3D(canvas, opts={}){
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     if (w !== w0 || h !== h0){ renderer.setSize(w, h, false); w0 = w; h0 = h; }
-    M.top.color.copy(col(PAL.top[1]));
-    parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband;
-    if (PAL.headband) M.band.color.copy(col(PAL.headband[1]));
+    if (lookId !== CHAR_ID + '|' + PAL.top[1] + '|' + !!PAL.headband) applyLook();
+    const look = CHARACTERS[CHAR_ID];
     const phase = o.phase || 0, beat = Math.pow(0.5 + 0.5*Math.cos(phase*Math.PI*2), 2);
     const J = coachJoints(a), lift = 0.07;
     // twist toward an arm that crosses the body, plus a small groove sway
@@ -727,7 +773,8 @@ function makeCoach3D(canvas, opts={}){
     for (const v of all){ const x = v.x - pivot, z = v.z; v.x = pivot + x*cy + z*sy; v.z = -x*sy + z*cy; }
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
-    parts.torso.a.scale.set(1.3, 0.7, 0.8); parts.torso.b.scale.set(1.35, 0.75, 0.82);
+    parts.torso.a.scale.set(1.3*k, 0.7*k, 0.8*k); parts.torso.b.scale.set(1.35*k, 0.75*k, 0.82*k);
+    parts.pelvis.scale.set(1.3*k, 0.8*k, 0.85*k); parts.rHand.scale.setScalar(k); parts.lHand.scale.setScalar(k);
     parts.pelvis.position.copy(hipC);
     place(parts.rUpper, rSh, rEl); place(parts.rFore, rEl, rWr); place(parts.lUpper, lSh, lEl); place(parts.lFore, lEl, lWr);
     place(parts.rThigh, rHip, rKn); place(parts.rShin, rKn, rAn); place(parts.lThigh, lHip, lKn); place(parts.lShin, lKn, lAn);
@@ -742,6 +789,24 @@ function makeCoach3D(canvas, opts={}){
     parts.cap.position.copy(onHead(0, 0.012, 0)); parts.cap.rotation.set(-0.12, hy, 0);
     parts.brim.position.copy(onHead(0, 0.03, 0.14)); parts.brim.rotation.set(0.12, hy, 0);
     parts.band.position.copy(onHead(0, 0.045, 0)); parts.band.rotation.set(Math.PI/2 - 0.1, 0, hy);
+    if (look.head === 'robot'){
+      parts.box.position.copy(onHead(0, 0.01, 0)); parts.box.rotation.set(0, hy, 0);
+      parts.visor.position.copy(onHead(0, 0.03, 0.115)); parts.visor.rotation.set(0, hy, 0);
+      place(parts.antenna, onHead(0, 0.11, 0), onHead(0, 0.21, 0)); parts.antTip.position.copy(onHead(0, 0.22, 0));
+    }
+    if (look.head === 'alien'){
+      parts.bigEyeL.position.copy(onHead(-0.065, 0.02, 0.135)); parts.bigEyeR.position.copy(onHead(0.065, 0.02, 0.135));
+      parts.bigEyeL.rotation.set(0, hy, -0.35); parts.bigEyeR.rotation.set(0, hy, 0.35);
+      place(parts.antenna, onHead(0.02, 0.15, 0), onHead(0.07, 0.29, 0)); parts.antTip.position.copy(onHead(0.07, 0.3, 0));
+    }
+    if (look.head === 'bear'){
+      parts.earL.position.copy(onHead(-0.11, 0.12, -0.01)); parts.earR.position.copy(onHead(0.11, 0.12, -0.01));
+      parts.snout.position.copy(onHead(0, -0.035, 0.13)); parts.nose.position.copy(onHead(0, -0.015, 0.185));
+      parts.eyeL.position.copy(onHead(-0.05, 0.04, 0.135)); parts.eyeR.position.copy(onHead(0.05, 0.04, 0.135));
+    }
+    if (look.joints){
+      [rSh, lSh, rEl, lEl, rKn, lKn].forEach((v, i) => { parts.jl[i].position.copy(v); parts.jl[i].scale.setScalar(k*(i<2 ? 1.25 : 1.05)); });
+    }
     // success ring
     if (o.glow) ringT = 1; ringMat.opacity = ringT*0.9; ringT = Math.max(0, ringT - 0.04);
     // camera: fit the dancer above the labels, drifting slowly around
