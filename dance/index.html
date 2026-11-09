@@ -91,6 +91,9 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .seg label{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;color:var(--muted)}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label:has(input:checked){background:var(--coach);color:#1a0d05}
+.mode-seg{margin-bottom:10px}
+.mode-seg label{font-size:17px;padding:11px 8px}
+.mode-seg label:has(input:checked){background:#1ed760;color:#06210f}
 .style-seg{background:var(--panel);padding:5px}
 .style-seg label{font-family:var(--display);font-size:30px;font-weight:700;padding:6px 8px}
 .avatar-seg label{font-size:26px}
@@ -217,6 +220,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <label for="av-coach"><input type="radio" name="avatar" id="av-coach" value="coach">המאמן</label>
     </div>
 
+    <div class="seg mode-seg" role="radiogroup" aria-label="מצב">
+      <label for="mode-learn"><input type="radio" name="mode" id="mode-learn" value="learn">📖 לימוד</label>
+      <label for="mode-dance"><input type="radio" name="mode" id="mode-dance" value="dance">🎵 ריקוד</label>
+    </div>
     <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
       <label for="style-hiphop"><input type="radio" name="style" id="style-hiphop" value="hiphop">היפ־הופ</label>
       <label for="style-zumba"><input type="radio" name="style" id="style-zumba" value="zumba">זומבה</label>
@@ -790,9 +797,11 @@ function starsHtml(n, total=3){ let h=''; for(let i=0;i<total;i++) h+=starSvg(i<
 function renderHome(){
   buildDemo();
   for (const id in STYLES) { const r = $('style-' + id); if (r) r.checked = id === STYLE_ID; }
+  $('mode-learn').checked = MODE === 'learn'; $('mode-dance').checked = MODE === 'dance';
   const st = loadStars();
   const list = $('lessonList');
   list.innerHTML = '';
+  if (MODE === 'dance') return renderDanceHome(list, st);
   const lvRow = document.createElement('div'); lvRow.className = 'levels';
   STYLES[STYLE_ID].levels.forEach((lv, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl' + (i === levelIdx() ? ' on' : '') + (levelUnlocked(i) ? '' : ' locked');
@@ -841,6 +850,44 @@ function renderHome(){
     <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
   mx.addEventListener('click', () => begin({type:'mix'}));
   list.appendChild(mx);
+}
+// dance mode home: every level as a whole dance, a shuffle of everything, and a marathon of the whole style
+function renderDanceHome(list, st){
+  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = 'בוחרים ריקוד, המוזיקה מתחילה, ורוקדים. בלי שלב לימוד.';
+  list.appendChild(lbl);
+  const lvRow = document.createElement('div'); lvRow.className = 'levels';
+  STYLES[STYLE_ID].levels.forEach((lv, i) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl' + (i === levelIdx() ? ' on' : '');
+    b.innerHTML = `<small>שלב ${i+1}</small><b></b>`; b.querySelector('b').textContent = lv.name;
+    b.addEventListener('click', () => setLevel(i));
+    lvRow.appendChild(b);
+  });
+  list.appendChild(lvRow);
+  const f = document.createElement('button');
+  f.className = 'lesson full';
+  f.innerHTML = `<span class="num">▶</span>
+    <span><span class="title"><span class="name">לרקוד את שלב ${levelIdx()+1}: ${cur().routine}</span><span class="en">${STYLES[STYLE_ID].levels[levelIdx()].en}</span></span>
+    <div class="desc">${cur().phrases.map(p => p.name).join(' · ')}. פעמיים ברצף, עם המוזיקה מההתחלה.</div></span>
+    <span class="stars" aria-label="${st[starKey('full')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('full')]||0)}</span>`;
+  f.addEventListener('click', () => begin({type:'full'}));
+  list.appendChild(f);
+  const mx = document.createElement('button');
+  mx.className = 'lesson mix';
+  const nAll = STYLES[STYLE_ID].levels.reduce((n, lv) => n + lv.phrases.length, 0);
+  mx.innerHTML = `<span class="num">⚡</span>
+    <span><span class="title"><span class="name">מיקס מכל השלבים</span><span class="en">SHUFFLE ALL</span></span>
+    <div class="desc">6 קטעים שמוגרלים מתוך כל ${nAll} הריקודים של הסגנון, פעמיים ברצף.</div></span>
+    <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
+  mx.addEventListener('click', () => begin({type:'mix', all:true}));
+  list.appendChild(mx);
+  const ma = document.createElement('button');
+  ma.className = 'lesson flow';
+  ma.innerHTML = `<span class="num">∞</span>
+    <span><span class="title"><span class="name">מרתון</span><span class="en">MARATHON</span></span>
+    <div class="desc">כל ${nAll} הריקודים של הסגנון בזה אחר זה, מהקל לקשה. בערך ${Math.round(nAll * 0.7)} דקות.</div></span>
+    <span class="stars" aria-label="${st[starKey('marathon')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('marathon')]||0)}</span>`;
+  ma.addEventListener('click', () => begin({type:'marathon'}));
+  list.appendChild(ma);
 }
 function popHome(txt){ const n = $('homeNote'); n.textContent = txt; n.hidden = false; clearTimeout(n._t); n._t = setTimeout(() => { n.hidden = true; }, 3500); }
 
@@ -1815,7 +1862,11 @@ function updateSetupStatus(){
 $('goBtn').addEventListener('click', () => { ensureAudio(); startPlay(); });
 $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
-function movesForPlan(plan){ if (plan.type === 'mix' && !state.mix) state.mix = makeMix(); return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i); }
+function movesForPlan(plan){
+  if (plan.type === 'mix' && !state.mix) state.mix = makeMix(plan.all);
+  if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases);
+  return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i);
+}
 
 function startPlay(){
   show('play');
@@ -2115,6 +2166,8 @@ function startRhythm(idxs, bpm, opts={}){
   } else if (idxs.length === 1){
     if (!captured) add(one, 1, 2, 'שלב 2 · לאט');
     let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, captured ? 'שלב 2 · בקצב' : 'שלב 3 · בקצב'); reps++; }
+  } else if (state.plan.type === 'marathon'){
+    idxs.forEach((i, n) => add(cur().phrases[i], 1, 1, `מרתון · ${n+1} מתוך ${idxs.length}`));
   } else {
     for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · כל הריקוד` : `${cur().routine} · סיבוב ${r+1}`);
   }
@@ -2250,6 +2303,7 @@ function finishRhythm(){
   let stars = 0;
   if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
   const id = state.plan.type==='lesson' ? cur().phrases[state.plan.index].id : starKey(state.plan.type);
+  if (state.plan.type === 'marathon' || state.plan.type === 'mix') state.mix = null;
   if (!state.noCam && stars>0) saveStar(id, stars);
   // finishing a level's class or full routine opens the next level
   let unlockedMsg = '';
@@ -2267,7 +2321,7 @@ function finishRhythm(){
   const nextIdx = state.plan.type==='lesson' && state.plan.index < cur().phrases.length-1 ? state.plan.index+1 : null;
   $('resNext').hidden = !(state.plan.type==='lesson' || state.plan.type==='mix');
   $('resNext').textContent = state.plan.type==='mix' ? 'מיקס חדש' : nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
-  $('resNext').onclick = () => { if (state.plan.type==='mix'){ state.mix = null; begin({type:'mix'}); } else begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx}); };
+  $('resNext').onclick = () => { if (state.plan.type==='mix'){ state.mix = null; begin({type:'mix', all: state.plan.all}); } else begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx}); };
   show('result');
 }
 $('resAgain').addEventListener('click', () => begin(state.plan));
@@ -2339,6 +2393,7 @@ function renderMusic(){
 }
 function setBpm(v){ musicPrefs.bpm = Math.round(clamp(v,60,140)); saveMusic(); renderMusic(); }
 for (const id of ['mAuto','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
+for (const [id, m] of [['mode-learn', 'learn'], ['mode-dance', 'dance']]) $(id).addEventListener('change', () => setMode(m));
 $('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
 const taps = [];
 $('tapBtn').addEventListener('pointerdown', e => {
@@ -2360,17 +2415,24 @@ const HH_PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "http
 /* ---------- Spotify player inside the game (official Spotify embed) ---------- */
 const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}, {"name": "זומבה לטיני לריקוד", "url": "https://open.spotify.com/playlist/0MRnd9V4APBZmRsXdsm8Gt"}, {"name": "Party Reggaeton Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EIhwtndf3a11J"}, {"name": "Reggaeton Party Hits", "url": "https://open.spotify.com/playlist/4kolXzch223TA8svQMxsrK"}, {"name": "Salsa Merengue Dance Hits", "url": "https://open.spotify.com/playlist/6E4eLmAdbPUT0TPzYnGVOD"}, {"name": "Bachata Latin Pop Dance", "url": "https://open.spotify.com/playlist/3QrOjkBLqvi6Mx8pSLsqqF"}, {"name": "מזרחית קצבית לזומבה", "url": "https://open.spotify.com/playlist/2EEFzwUb1dDLAWubI6i8sG"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
 
+// dance mode plays from a wider pool: the style's playlists plus party mixes
+const HH_DANCE_PLAYLISTS = [{"name": "Hip-Hop Classics Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DXbkfWVLd8wE3"}, {"name": "Old School Hip-Hop House Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DX30w0JtSIv4j"}, {"name": "Afrobeats Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EQqFPe2ux3rbj"}, {"name": "Dance Party Dancehall Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EId1ZwSziGp5d"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
+const ZB_DANCE_PLAYLISTS = [{"name": "Zumba® Beats", "url": "https://open.spotify.com/playlist/37i9dQZF1DX7cmFV9rWM0u"}, {"name": "Zumba Dance Workout 2026", "url": "https://open.spotify.com/playlist/5DKd4inxaYKy18YSzNInny"}, {"name": "Latin Pop Dance 2020s", "url": "https://open.spotify.com/playlist/54GQm4fVD8yJlKs2aBbqxs"}, {"name": "Dance Party Afrobeats Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EIeyc45ggQdbS"}, {"name": "Dancehall Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EQqoytXQhz8dz"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
+
 /* ---------- dance styles ---------- */
 const STYLES = {
-  hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
+  hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, dancePlaylists:HH_DANCE_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
     {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'סטפ, ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: שני לוקינגים, טאטינג, האוס, אפרוק ופריז.'}]},
-  zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
+  zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
+// learn mode teaches each part first; dance mode just dances whole levels and mixes, with a wider music pool
+let MODE = (() => { try { return localStorage.getItem('bitrishon.mode') === 'dance' ? 'dance' : 'learn'; } catch { return 'learn'; } })();
+function setMode(m){ MODE = m; try { localStorage.setItem('bitrishon.mode', m); } catch {} renderHome(); }
 if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
 // which level is selected per style, and how far the player has got (highest level finished)
 const LEVEL_SEL = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.level') || '{}'); } catch { return {}; } })();
@@ -2381,11 +2443,11 @@ function setLevel(i){ if (!levelUnlocked(i)) return; LEVEL_SEL[STYLE_ID] = i; tr
 function markDone(i){ if ((DONE[STYLE_ID] ?? -1) < i){ DONE[STYLE_ID] = i; try { localStorage.setItem('bitrishon.done', JSON.stringify(DONE)); } catch {} return true; } return false; }
 function cur(){
   const st = STYLES[STYLE_ID], lv = st.levels[levelIdx()];
-  const mix = state.plan && state.plan.type === 'mix' && state.mix;
-  return Object.assign({}, st, {routine: mix ? 'מיקס' : lv.name, phrases: mix ? state.mix : lv.phrases, flowDesc: lv.desc, level: levelIdx()});
+  const mix = state.plan && (state.plan.type === 'mix' || state.plan.type === 'marathon') && state.mix;
+  return Object.assign({}, st, {routine: mix ? (state.plan.type === 'marathon' ? 'מרתון' : 'מיקס') : lv.name, phrases: mix ? state.mix : lv.phrases, flowDesc: lv.desc, level: levelIdx()});
 }
-function makeMix(){
-  const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (levelUnlocked(i)) pool.push(...lv.phrases); });
+function makeMix(all){
+  const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (all || levelUnlocked(i)) pool.push(...lv.phrases); });
   const picked = []; const bag = pool.slice();
   while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); picked.push(bag.splice(k, 1)[0]); }
   return picked;
@@ -2401,7 +2463,7 @@ const starKey = k => { const L = levelIdx() ? `-L${levelIdx()+1}` : ''; return (
 let lastPick = -1;
 const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, buffering:false, state:'', preview:false, uri:null, checkTimer:null, kickedAt:0};
 function pickPlaylist(){
-  const PLAYLISTS = cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID;
+  const PLAYLISTS = MODE === 'dance' ? cur().playlists.concat(cur().dancePlaylists || []) : cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID + (MODE === 'dance' ? '.dance' : '');
   let recent = []; try { recent = JSON.parse(localStorage.getItem(key)) || []; } catch {}
   const pool = PLAYLISTS.map((_, i) => i).filter(i => !recent.includes(i));
   const i = (pool.length ? pool : PLAYLISTS.map((_, k) => k))[Math.floor(Math.random() * (pool.length || PLAYLISTS.length))];
