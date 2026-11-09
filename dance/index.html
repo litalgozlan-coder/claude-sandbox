@@ -2413,11 +2413,11 @@ $('tapBtn').addEventListener('pointerdown', e => {
 $('tapBtn').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $('tapBtn').dispatchEvent(new Event('pointerdown')); } });
 const HH_PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}, {"name": "היפ הופ לריקוד ואימון", "url": "https://open.spotify.com/playlist/37vs7wnBFujbHIxd2qxhLa"}, {"name": "90s Hip Hop Dance Classics", "url": "https://open.spotify.com/playlist/5YRDg9lvsEpr9AfHR2YAnV"}, {"name": "R&B Hip Hop Groove Party", "url": "https://open.spotify.com/playlist/5gWw63Etaw4EU6isqeJAZS"}, {"name": "היפ הופ ישראלי קצבי", "url": "https://open.spotify.com/playlist/0XtBQkFYISM7fbBBN7Aig1"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
 /* ---------- Spotify player inside the game (official Spotify embed) ---------- */
-const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}, {"name": "זומבה לטיני לריקוד", "url": "https://open.spotify.com/playlist/0MRnd9V4APBZmRsXdsm8Gt"}, {"name": "Party Reggaeton Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EIhwtndf3a11J"}, {"name": "Reggaeton Party Hits", "url": "https://open.spotify.com/playlist/4kolXzch223TA8svQMxsrK"}, {"name": "Salsa Merengue Dance Hits", "url": "https://open.spotify.com/playlist/6E4eLmAdbPUT0TPzYnGVOD"}, {"name": "Bachata Latin Pop Dance", "url": "https://open.spotify.com/playlist/3QrOjkBLqvi6Mx8pSLsqqF"}, {"name": "מזרחית קצבית לזומבה", "url": "https://open.spotify.com/playlist/2EEFzwUb1dDLAWubI6i8sG"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
+const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}, {"name": "זומבה לטיני לריקוד", "url": "https://open.spotify.com/playlist/0MRnd9V4APBZmRsXdsm8Gt"}, {"name": "Reggaeton Party Hits", "url": "https://open.spotify.com/playlist/4kolXzch223TA8svQMxsrK"}, {"name": "Salsa Merengue Dance Hits", "url": "https://open.spotify.com/playlist/6E4eLmAdbPUT0TPzYnGVOD"}, {"name": "Bachata Latin Pop Dance", "url": "https://open.spotify.com/playlist/3QrOjkBLqvi6Mx8pSLsqqF"}, {"name": "מזרחית קצבית לזומבה", "url": "https://open.spotify.com/playlist/2EEFzwUb1dDLAWubI6i8sG"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
 
 // dance mode plays from a wider pool: the style's playlists plus party mixes
-const HH_DANCE_PLAYLISTS = [{"name": "Hip-Hop Classics Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DXbkfWVLd8wE3"}, {"name": "Old School Hip-Hop House Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DX30w0JtSIv4j"}, {"name": "Afrobeats Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EQqFPe2ux3rbj"}, {"name": "Dance Party Dancehall Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EId1ZwSziGp5d"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
-const ZB_DANCE_PLAYLISTS = [{"name": "Zumba® Beats", "url": "https://open.spotify.com/playlist/37i9dQZF1DX7cmFV9rWM0u"}, {"name": "Zumba Dance Workout 2026", "url": "https://open.spotify.com/playlist/5DKd4inxaYKy18YSzNInny"}, {"name": "Latin Pop Dance 2020s", "url": "https://open.spotify.com/playlist/54GQm4fVD8yJlKs2aBbqxs"}, {"name": "Dance Party Afrobeats Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EIeyc45ggQdbS"}, {"name": "Dancehall Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EQqoytXQhz8dz"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
+const HH_DANCE_PLAYLISTS = [{"name": "Hip-Hop Classics Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DXbkfWVLd8wE3"}, {"name": "Old School Hip-Hop House Party", "url": "https://open.spotify.com/playlist/37i9dQZF1DX30w0JtSIv4j"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
+const ZB_DANCE_PLAYLISTS = [{"name": "Zumba® Beats", "url": "https://open.spotify.com/playlist/37i9dQZF1DX7cmFV9rWM0u"}, {"name": "Zumba Dance Workout 2026", "url": "https://open.spotify.com/playlist/5DKd4inxaYKy18YSzNInny"}, {"name": "Latin Pop Dance 2020s", "url": "https://open.spotify.com/playlist/54GQm4fVD8yJlKs2aBbqxs"}, {"name": "מסיבה ישראלית לריקוד", "url": "https://open.spotify.com/playlist/4ltFdu01p6u5wlV5B7xLgs"}, {"name": "2000s Dance Party Throwback", "url": "https://open.spotify.com/playlist/10pN524YzyLXaZLkmorRhx"}, {"name": "Funk Disco Dance Party", "url": "https://open.spotify.com/playlist/1C7qztut3veTHgX3Su70kM"}];
 
 /* ---------- dance styles ---------- */
 const STYLES = {
@@ -2461,21 +2461,25 @@ function setStyle(id){
 const starKey = k => { const L = levelIdx() ? `-L${levelIdx()+1}` : ''; return (STYLE_ID === 'hiphop' ? k : `${STYLE_ID}-${k}`) + L; };
 
 let lastPick = -1;
-const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, buffering:false, state:'', preview:false, uri:null, checkTimer:null, kickedAt:0};
+const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, buffering:false, state:'', preview:false, uri:null, checkTimer:null, kickedAt:0, started:false, pos:null, heardAt:0, retries:0, bad:new Set()};
 function pickPlaylist(){
   const PLAYLISTS = MODE === 'dance' ? cur().playlists.concat(cur().dancePlaylists || []) : cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID + (MODE === 'dance' ? '.dance' : '');
   let recent = []; try { recent = JSON.parse(localStorage.getItem(key)) || []; } catch {}
-  const pool = PLAYLISTS.map((_, i) => i).filter(i => !recent.includes(i));
-  const i = (pool.length ? pool : PLAYLISTS.map((_, k) => k))[Math.floor(Math.random() * (pool.length || PLAYLISTS.length))];
+  const ok = PLAYLISTS.map((_, i) => i).filter(i => !spot.bad.has(toUri(PLAYLISTS[i].url)));
+  const all = ok.length ? ok : PLAYLISTS.map((_, k) => k), pool = all.filter(i => !recent.includes(i));
+  const from = pool.length ? pool : all, i = from[Math.floor(Math.random() * from.length)];
   recent = [i, ...recent.filter(k => k !== i)].slice(0, Math.min(3, PLAYLISTS.length - 1));
   try { localStorage.setItem(key, JSON.stringify(recent)); } catch {}
   lastPick = i; spot.plName = PLAYLISTS[i].name; return PLAYLISTS[i];
 }
 // another playlist, on request: pick one, play it, and let the ear find the new tempo
+function spotLoad(uri){
+  spot.uri = uri; spot.kickedAt = performance.now(); spot.started = false; spot.pos = null; spot.playing = false; spot.buffering = false; spot.state = 'loading';
+  try { spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } catch {}
+}
 function spotNext(){
   if (!spot.ctrl) return;
-  const pl = pickPlaylist(); spot.uri = toUri(pl.url); spot.kickedAt = performance.now();
-  try { spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } catch {}
+  const pl = pickPlaylist(); spotLoad(toUri(pl.url)); spot.retries = 0;
   if (spot.fallback) stopFallbackSong();
   ear.locked = false; ear.pending = 0; ear.misses = 0; ear.holdUntil = 0; setEarChip('מקשיבים…'); popText('♪ ' + pl.name, '#1ed760');
 }
@@ -2495,20 +2499,23 @@ function spotApi(){
 function spotNote(txt){ const n = $('spotNote'); n.hidden = !txt; n.textContent = txt || ''; }
 function onSpotUpdate(e){
   const d = e?.data || {};
-  spot.playing = !d.isPaused && !d.isBuffering; spot.buffering = !!d.isBuffering; spot.state = d.isPaused ? 'paused' : 'playing';
-  if (spot.playing){ spotNote(''); $('spotGo').hidden = true; clearTimeout(spot.checkTimer); if (spot.fallback) stopFallbackSong(); }
+  // the player can say "playing" while nothing comes out (blocked autoplay, a playlist that will not load):
+  // it counts as playing only once the position has really moved since we pressed play
+  if (typeof d.position === 'number'){ if (!d.isPaused && spot.pos !== null && d.position > spot.pos){ spot.started = true; spot.movedAt = performance.now(); } spot.pos = d.position; }
+  spot.playing = spot.started && !d.isPaused && !d.isBuffering; spot.buffering = !!d.isBuffering; spot.state = d.isPaused ? 'paused' : spot.started ? 'playing' : 'loading';
+  if (spot.playing){ spot.heardAt = performance.now(); spot.retries = 0; spotNote(''); $('spotGo').hidden = true; if (spot.fallback) stopFallbackSong(); }
   else if (ui.screen === 'play' && music.own && !spot.fallback && performance.now() - (spot.kickedAt || 0) > 2500) $('spotGo').hidden = false;
   spot.preview = d.duration > 0 && d.duration < 31000;
   // a song (or its 30 second preview) ended: let the game pick again so the music keeps going
   if (d.isPaused && d.duration > 0 && d.position >= d.duration - 600 && ui.screen === 'play' && music.on){
-    const pl = pickPlaylist(); spot.uri = toUri(pl.url); spot.ctrl.loadUri(spot.uri); spot.ctrl.play();
+    spotLoad(toUri(pickPlaylist().url));
     if (spot.preview) spotNote('בלי חיבור לספוטיפיי שומעים 30 שניות מכל שיר.');
   }
 }
 async function ensureController(uri){
   const api = await spotApi();
   if (spot.ctrl) return spot.ctrl;
-  return new Promise(res => {
+  if (!spot.making) spot.making = new Promise(res => {
     api.createController($('spotEmbed'), {uri, width:'100%', height:80}, c => {
       spot.ctrl = c;
       c.addListener('ready', () => { spot.ready = true; });
@@ -2516,26 +2523,43 @@ async function ensureController(uri){
       res(c);
     });
   });
+  return spot.making;
 }
 // called synchronously from the lesson tap: pick a playlist and press play while the gesture is still fresh
 function spotKick(){
-  spot.kickedAt = performance.now(); spot.state = 'loading';
-  if (spot.ctrl){ const pl = pickPlaylist(); spot.uri = toUri(pl.url); try { spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } catch {} }
-  else ensureController(toUri(pickPlaylist().url)).catch(() => {});
+  spot.kickedAt = performance.now(); spot.state = 'loading'; spot.started = false; spot.pos = null; spot.playing = false; spot.buffering = false; spot.retries = 0;
+  if (spot.ctrl) spotLoad(toUri(pickPlaylist().url));
+  else { const u = toUri(pickPlaylist().url); ensureController(u).then(() => { if (!spot.uri) spotLoad(u); }).catch(() => {}); }
 }
 async function spotPlay(){
   $('songChip').hidden = false;
+  // the watch starts first, so even a player that never finishes loading cannot leave the lesson silent
+  spot.heardAt = performance.now();
+  clearInterval(spot.checkTimer); spot.checkTimer = setInterval(spotWatch, 1000);
   try {
-    const c = await ensureController(spot.uri || toUri(pickPlaylist().url));
+    await ensureController(spot.uri || toUri(pickPlaylist().url));
     // if the tap already pressed play a moment ago, do not restart the song
-    if (!(spot.kickedAt && performance.now() - spot.kickedAt < 15000 && spot.uri)){ spot.uri = toUri(pickPlaylist().url); c.loadUri(spot.uri); c.play(); }
-    clearTimeout(spot.checkTimer);
-    // give the phone time to buffer; fall back only if nothing is even buffering
-    spot.checkTimer = setTimeout(() => { if (!spot.playing && !spot.buffering && ui.screen === 'play') startFallbackSong(); }, 9000);
+    if (!(spot.kickedAt && performance.now() - spot.kickedAt < 15000 && spot.uri)) spotLoad(toUri(pickPlaylist().url));
     return true;
   } catch {
     startFallbackSong();
     return false;
+  }
+}
+// The lesson must never be silent. Once a second: if Spotify has not been heard for a while, the game's own song
+// comes in, and a playlist that never started is set aside and another one is tried.
+const SPOT_QUIET_MS = 7000;
+function spotWatch(){
+  if (ui.screen !== 'play' || !music.on){ clearInterval(spot.checkTimer); return; }
+  const now = performance.now();
+  if (spot.playing && now - (spot.movedAt || 0) > 4000){ spot.playing = false; spot.state = 'loading'; spot.heardAt = spot.movedAt || 0; }   // says playing, but the position stopped
+  if (spot.playing){ spot.heardAt = now; return; }
+  if (music.own && !spot.fallback && now - spot.kickedAt > 2500) $('spotGo').hidden = false;
+  if (now - Math.max(spot.heardAt, spot.kickedAt) < SPOT_QUIET_MS) return;
+  if (!spot.fallback) startFallbackSong();
+  if (!spot.started && spot.ctrl && spot.retries < 1){
+    spot.retries++; if (spot.uri) spot.bad.add(spot.uri);
+    spotLoad(toUri(pickPlaylist().url));
   }
 }
 function spotStateText(){ return spot.playing ? 'מתנגן' : spot.buffering ? 'טוען…' : spot.state === 'paused' ? 'מושהה' : spot.ctrl ? 'מוכן' : 'נטען…'; }
@@ -2552,7 +2576,7 @@ function stopFallbackSong(){
   music.song = null; music.own = true; spot.fallback = false;
   ear.locked = false; setEarChip('מקשיבים…');        // relock on the Spotify song
 }
-function spotPause(){ clearTimeout(spot.checkTimer); spot.fallback = false; try { spot.ctrl?.pause(); } catch {} }
+function spotPause(){ clearInterval(spot.checkTimer); spot.fallback = false; spot.playing = false; spot.started = false; try { spot.ctrl?.pause(); } catch {} }
 // load the player ahead of time, so it can start the moment a lesson begins
 if (musicPrefs.mode === 'own') ensureController(toUri(cur().playlists[0].url)).catch(() => {});
 for (const id of ['mOwn']) $(id).addEventListener('change', () => ensureController(toUri(cur().playlists[0].url)).catch(() => {}));
@@ -2586,7 +2610,7 @@ function tempoMult(f){
 $('tempoHalf').addEventListener('click', () => tempoMult(0.5));
 $('spotNext').addEventListener('click', spotNext);
 $('tempoDouble').addEventListener('click', () => tempoMult(2));
-$('spotGo').addEventListener('click', () => { spot.kickedAt = performance.now(); $('spotGo').hidden = true; try { if (spot.ctrl){ if (!spot.uri) spot.uri = toUri(pickPlaylist().url); spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } } catch {} if (spot.fallback) stopFallbackSong(); spotNote('מפעילים…'); });
+$('spotGo').addEventListener('click', () => { spot.kickedAt = performance.now(); $('spotGo').hidden = true; if (spot.ctrl){ spot.retries = 0; spotLoad(spot.uri || toUri(pickPlaylist().url)); } if (spot.fallback) stopFallbackSong(); spotNote('מפעילים…'); });
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
