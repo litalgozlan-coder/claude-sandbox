@@ -1450,6 +1450,13 @@ function makeCoach3D(canvas, opts={}){
     camera.fov = vfov*180/Math.PI; camera.aspect = aspect; camera.updateProjectionMatrix();
     camera.position.set(Math.sin(orbit)*dist, cyT + 0.35, Math.cos(orbit)*dist);
     camera.lookAt(0, cyT, 0);
+    // debug: window.__faceCam = {yaw} frames the face close up, for checking it in automated tests
+    if (window.__faceCam && avatar && avatar.bones.Head){
+      if (window.__faceCam.rest){ avatar.rest.forEach((q, b) => b.quaternion.copy(q)); avatar.root.updateMatrixWorld(true); }
+      const hp = avatar.bones.Head.getWorldPosition(new T.Vector3()).add(new T.Vector3(0, 0.1, 0)), fy = window.__faceCam.yaw || 0;
+      camera.fov = 22; camera.aspect = aspect; camera.updateProjectionMatrix();
+      camera.position.set(hp.x + Math.sin(fy)*0.9, hp.y + 0.02, hp.z + Math.cos(fy)*0.9); camera.lookAt(hp);
+    }
     renderer.render(scene, camera);
     perfTick(o.time || performance.now());
   }
