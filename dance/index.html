@@ -623,8 +623,27 @@ const MOCAP = {
   clap: {file:'mocap/clap.json', bpm:0, beats:0, extra:true}
 };
 const clips = {};
+// every dance also exists as its mirror image (left and right swapped), so routines can work both sides
+for (const id of Object.keys(MOCAP)) if (!MOCAP[id].extra) MOCAP[id + '_m'] = Object.assign({}, MOCAP[id], {mirrorOf: id});
+const normDeg = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return a === -180 ? 180 : a; };
+function mirrorPose(a){
+  const m = Object.assign({}, a);
+  m.rUpper = normDeg(180 - a.lUpper); m.lUpper = normDeg(180 - a.rUpper);
+  m.rFore = normDeg(180 - a.lFore);   m.lFore = normDeg(180 - a.rFore);
+  m.rThigh = normDeg(180 - a.lThigh); m.lThigh = normDeg(180 - a.rThigh);
+  m.rShin = normDeg(180 - a.lShin);   m.lShin = normDeg(180 - a.rShin);
+  if (a.lean !== undefined) m.lean = -a.lean;
+  if (a.sx !== undefined) m.sx = -a.sx;
+  if (a.h) m.h = [-a.h[3], a.h[4], a.h[5], -a.h[0], a.h[1], a.h[2]];
+  if (a.kl) m.kl = [a.kl[1], a.kl[0]];
+  return m;
+}
+// the 3D coach mirrors the bones at play time (it needs the avatar's own body plane); the 2D poses used for
+// scoring and cues are mirrored here
+function mirrorClip(base, id){ return Object.assign({}, base, {id, mirror: true, poses: base.poses.map(mirrorPose)}); }
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
+  if (MOCAP[id]?.mirrorOf) return loadClip(MOCAP[id].mirrorOf).then(b => (clips[id] = mirrorClip(b, id)));
   return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; inPlace(j); clips[id] = j; return j; });
 }
 // the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
@@ -732,7 +751,7 @@ function buildMocapSteps(ph){
   }
 }
 async function ensureClips(){
-  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]) ids.add(ph.clip); }));
+  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]){ ids.add(ph.clip); if (MOCAP[ph.clip + '_m']) ids.add(ph.clip + '_m'); } }));
   for (const id in MOCAP) if (MOCAP[id].extra) ids.add(id);
   const vids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && VIDEOS[ph.video]) vids.add(ph.video); }));
   await Promise.all([...vids].map(id => loadVideoPose(id).catch(() => null)));
@@ -743,7 +762,7 @@ async function ensureClips(){
   const missing = [...ids].filter(id => !clips[id]);
   if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
-  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); }));
+  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); const m = mirrorOf(ph); if (m !== ph && clips[m.clip]) buildMocapSteps(m); }));
   buildDemo();
 }
 // phrases: every dance in the game is a captured clip of a real dancer
@@ -771,6 +790,9 @@ const MC = {
   rumba: mocapPhrase('rumba', 'רומבה', 'RUMBA', 'צעדי רומבה איטיים ורכים עם מותניים. 5 ספירות שחוזרות.'),
   samba: mocapPhrase('samba', 'סמבה', 'SAMBA', 'הקפצה של הסמבה הברזילאית: שלושה צעדים על כל שתי ספירות. 36 ספירות.')
 };
+// the same dances, mirrored: used in mixes and marathons so each routine works both sides
+const MCM = {}; for (const k in MC){ const o = MC[k]; MCM[k] = Object.assign(mocapPhrase(k + '_m', o.name + ' · צד שני', o.en + ' · MIRROR', o.desc + ' בתמונת מראה: מה שהיה ימין עכשיו שמאל.'), {mirror: true}); }
+const mirrorOf = ph => (ph.clip && MCM[ph.clip]) || ph;
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.hiphop3, MC.wave, MC.robot];
 const HHL3 = [MC.locking, MC.locking2, MC.tut, MC.house, MC.uprock, MC.freeze];
@@ -1130,6 +1152,11 @@ function makeCoach3D(canvas, opts={}){
       if (!bones.Hips || !bones.LeftArm || !bones.LeftUpLeg || !bones.LeftFoot) return res(false);
       root.updateMatrixWorld(true);
       const rest = new Map(); Object.values(bones).forEach(b => rest.set(b, b.quaternion.clone()));
+      const rootInvQ = root.getWorldQuaternion(new T.Quaternion()).invert();
+      const restG = new Map(); Object.values(bones).forEach(b => restG.set(b, rootInvQ.clone().multiply(b.getWorldQuaternion(new T.Quaternion()))));
+      // the body's middle plane, in the model's own space: through the hips, facing from the right shoulder to the left
+      const lp = root.worldToLocal(bones.LeftArm.getWorldPosition(new T.Vector3())), rp = root.worldToLocal(bones.RightArm.getWorldPosition(new T.Vector3()));
+      const mirrorN = lp.sub(rp).setY(0).normalize(), mirrorC = root.worldToLocal(bones.Hips.getWorldPosition(new T.Vector3()));
       const footRest = {L: bones.LeftFoot.getWorldQuaternion(new T.Quaternion()), R: bones.RightFoot.getWorldQuaternion(new T.Quaternion())};
       const wy = b => b.getWorldPosition(new T.Vector3()).y;
       const toes = [bones.LeftToeBase || bones.LeftFoot, bones.RightToeBase || bones.RightFoot];
@@ -1148,7 +1175,7 @@ function makeCoach3D(canvas, opts={}){
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
       let hairNode = null; root.traverse(o => { if (o.name === 'HairMesh') hairNode = o; });
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url,
+      avatar = {root, bones, rest, restG, mirrorN, mirrorC, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url,
                 hair: hairNode ? {node: hairNode, rest: hairNode.quaternion.clone(), pos: new T.Vector3(), vel: new T.Vector3(), ang: new T.Vector2(), angV: new T.Vector2(), lastT: 0} : null};
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
@@ -1191,7 +1218,60 @@ function makeCoach3D(canvas, opts={}){
   const FINGER_RE = /Index|Middle|Ring|Pinky|Thumb/;
   let lastCp = null, fade = null;
   // apply one clip frame; with w < 1 it is blended over whatever the bones hold already
-  function applyClip(c, t, w){
+  // mirrored clip: play the original, then reflect every bone's turn (relative to the rest pose) across the body's
+  // middle plane onto the bone of the other side, rebuilding the local rotations from the hips outward
+  const mSave = new Map(), mTarget = [], mq1 = new T.Quaternion(), mq2 = new T.Quaternion(), mq3 = new T.Quaternion();
+  const swapSide = n => /^Left/.test(n) ? 'Right' + n.slice(4) : /^Right/.test(n) ? 'Left' + n.slice(5) : /L$/.test(n) ? n.slice(0, -1) + 'R' : /R$/.test(n) ? n.slice(0, -1) + 'L' : n;   // 'UpperArmL' or Mixamo's 'LeftArm'
+  const depth = o => { let d = 0; while (o.parent){ d++; o = o.parent; } return d; };
+  const LIMBS = [['LeftArm','LeftForeArm'],['LeftForeArm','LeftHand'],['LeftUpLeg','LeftLeg'],['LeftLeg','LeftFoot'],
+                 ['RightArm','RightForeArm'],['RightForeArm','RightHand'],['RightUpLeg','RightLeg'],['RightLeg','RightFoot']];
+  const otherSide = n => n.startsWith('Left') ? 'Right' + n.slice(4) : n.startsWith('Right') ? 'Left' + n.slice(5) : n;
+  const mv = new T.Vector3(), mv2 = new T.Vector3();
+  // where a limb points, in the model's own space (bone to child joint, or the bone's own axis when the child is loose)
+  function limbDir(A, b, child){
+    if (child && isDesc(child, b)) return A.root.worldToLocal(child.getWorldPosition(mv)).clone().sub(A.root.worldToLocal(b.getWorldPosition(mv2)));
+    const p = A.root.worldToLocal(b.getWorldPosition(mv)).clone(), y = b.localToWorld(new T.Vector3(0, 1, 0));
+    return A.root.worldToLocal(y).sub(p);
+  }
+  function applyClipMirror(c, t, w){
+    const A = avatar, B = A.bones, N = A.mirrorN, C = A.mirrorC;
+    const reflectV = v => v.sub(N.clone().multiplyScalar(2 * v.dot(N)));          // a direction, reflected across the plane
+    mSave.clear();
+    if (w < 1) for (const n in c.bones){ const b = B[ALIAS[n] || n]; if (b) mSave.set(b, b.quaternion.clone()); }
+    const hipsSave = B.Hips.position.clone();
+    applyClip(c, t, 1, true);
+    A.root.updateMatrixWorld(true);
+    const rootQ = A.root.getWorldQuaternion(mq1).clone(), rootInv = rootQ.clone().invert();
+    // 1) every bone's turn away from its rest orientation, reflected onto the bone of the other side
+    mTarget.length = 0;
+    for (const n in c.bones){
+      if (FINGER_RE.test(n)) continue;
+      const src = B[ALIAS[n] || n], dstName = swapSide(n), dst = B[ALIAS[dstName] || dstName];
+      if (!src || !dst || !A.restG.has(src) || !A.restG.has(dst)) continue;
+      const d = rootInv.clone().multiply(src.getWorldQuaternion(mq2)).multiply(A.restG.get(src).clone().invert());
+      const v = new T.Vector3(d.x, d.y, d.z), r = N.clone().multiplyScalar(2 * v.dot(N)).sub(v);   // proper rotation of the mirror image
+      d.set(r.x, r.y, r.z, d.w);
+      mTarget.push([dst, d.multiply(A.restG.get(dst)), depth(dst)]);
+    }
+    // 2) where each limb points and where the hips are, mirrored, to correct for a rest pose that is not quite symmetric
+    const limbWant = LIMBS.map(([bn, cn]) => { const b = B[bn], ch = B[cn]; return b ? [B[otherSide(bn)], B[otherSide(cn)], reflectV(limbDir(A, b, ch))] : null; }).filter(x => x && x[0]);
+    const hp = A.root.worldToLocal(B.Hips.getWorldPosition(new T.Vector3()));
+    hp.sub(N.clone().multiplyScalar(2 * hp.clone().sub(C).dot(N)));
+    for (const [dst] of mTarget) dst.quaternion.copy(A.rest.get(dst));
+    mTarget.sort((a, b) => a[2] - b[2]);
+    for (const [dst, gWant] of mTarget){
+      dst.parent.updateMatrixWorld(true);
+      const pInv = rootInv.clone().multiply(dst.parent.getWorldQuaternion(mq3)).invert();
+      dst.quaternion.copy(pInv.multiply(gWant));
+      dst.updateMatrixWorld(true);
+    }
+    B.Hips.position.copy(B.Hips.parent.worldToLocal(A.root.localToWorld(hp)));
+    A.root.updateMatrixWorld(true);
+    for (const [b, ch, dir] of limbWant) aim(b, ch, dir.applyQuaternion(rootQ));
+    if (w < 1){ for (const [b, q] of mSave){ const now = b.quaternion.clone(); b.quaternion.copy(q).slerp(now, w); } B.Hips.position.lerp(hipsSave, 1 - w); }
+  }
+  function applyClip(c, t, w, raw){
+    if (c.mirror && !raw) return applyClipMirror(c, t, w);
     const A = avatar, B = A.bones;
     const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
     for (const n in c.bones){
@@ -1280,6 +1360,14 @@ function makeCoach3D(canvas, opts={}){
     hq.setFromEuler(new T.Euler(H.ang.x, 0, H.ang.y));
     H.node.quaternion.copy(hpq.clone().invert().multiply(hq).multiply(hpq).multiply(H.rest));
   }
+  // debug probe: pose one clip frame and report where hands, feet and head end up, in the dancer's own space
+  (window.__poseProbe = window.__poseProbe || {})[canvas.id] = (c, t) => {
+    if (!avatar) return null; const A = avatar;
+    A.rest.forEach((q, b) => b.quaternion.copy(q)); applyClip(c, t, 1); A.root.updateMatrixWorld(true);
+    const out = {}; for (const n of ['LeftHand','RightHand','LeftFoot','RightFoot','Head','LeftForeArm','RightForeArm','LeftLeg','RightLeg','LeftUpLeg','RightUpLeg','Hips']){ const b = A.bones[n]; if (b) out[n] = A.root.worldToLocal(b.getWorldPosition(new T.Vector3())).toArray().map(v => +v.toFixed(3)); }
+    out._n = A.mirrorN.toArray(); out._c = A.mirrorC.toArray();
+    return out;
+  };
   (window.__hairAng = window.__hairAng || {})[canvas.id] = () => avatar && avatar.hair ? [avatar.hair.ang.x, avatar.hair.ang.y, avatar.hair.vel.x, avatar.hair.lastT] : null;   // debug probe per coach instance
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
@@ -1530,7 +1618,37 @@ const ZB_SONGS = [
 const mtof = m => 440*Math.pow(2,(m-69)/12);
 const PENTA = {minor:[0,3,5,7,10,12,15], major:[0,2,4,7,9,12,14]};
 let lastSong = -1;
+/* Generated songs: every play can be a new song. Each style has a tempo range and the genres it draws from;
+   key, chords, melody and arrangement are rolled fresh, so the same genre never repeats exactly. */
+const GEN = {
+  hiphop: {genres:['boom','lofi','bounce','funk','house','pop','afro'], names:['רחוב חם','לילה בעיר','גרוב של שישי','אורות ניאון','גג מעל העיר','קצב שבור','בס עמוק','רוח ערב','צעד ראשון','סוף היום','עיר ער','גל חום','מעלית לגג','שקיעה כתומה','סטייל חופשי','זרם','פולס','אחרי חצות','מקצב לב','קו ישר']},
+  zumba:  {genres:['merengue','cumbia','dembow','mizrahi','afro','pop','disco','house'], names:['קיץ בוער','חגיגה','שמש בחוץ','לילה לטיני','טרופי','כולם לרחבה','אש וים','מסיבת חוף','דבקה של שמחה','נשמה חמה','גשם קיצי','ריקוד בכיכר','ים של אור','חום יולי','פסטה של צבעים','קצב של כפיים','סיבוב','לב פועם','ערב חג','שמחה ברחוב']}
+};
+const GENRE = {   // tempo range, swing, minor-key chance, display name
+  boom:{lo:88,hi:98,swing:0.12,minor:0.8,he:'בום־באפ'}, lofi:{lo:86,hi:96,swing:0.14,minor:0.9,he:'לו־פיי'}, bounce:{lo:98,hi:108,swing:0.06,minor:0.6,he:'באונס'},
+  funk:{lo:100,hi:112,swing:0.04,minor:0.5,he:'פאנק'}, house:{lo:116,hi:126,swing:0,minor:0.6,he:'האוס'}, pop:{lo:100,hi:122,swing:0,minor:0.4,he:'פופ'},
+  afro:{lo:100,hi:112,swing:0.05,minor:0.5,he:'אפרו'}, merengue:{lo:116,hi:128,swing:0,minor:0.3,he:'מרנגה'}, cumbia:{lo:96,hi:112,swing:0,minor:0.6,he:'קומביה'},
+  dembow:{lo:92,hi:102,swing:0,minor:0.8,he:'רגאטון'}, mizrahi:{lo:100,hi:118,swing:0,minor:1,he:'מזרחית'}, disco:{lo:112,hi:124,swing:0,minor:0.4,he:'דיסקו'}
+};
+const PROGS = {   // scale-degree chords: [semitones above key, quality]
+  minor:[[[0,'m'],[8,'M'],[3,'M'],[10,'M']], [[0,'m'],[5,'m'],[8,'M'],[7,'M']], [[0,'m'],[10,'M'],[8,'M'],[10,'M']], [[0,'m'],[3,'M'],[10,'M'],[5,'m']], [[0,'m'],[8,'M'],[5,'m'],[7,'m']]],
+  major:[[[0,'M'],[7,'M'],[9,'m'],[5,'M']], [[0,'M'],[5,'M'],[7,'M'],[5,'M']], [[0,'M'],[9,'m'],[5,'M'],[7,'M']], [[0,'M'],[4,'m'],[5,'M'],[7,'M']]],
+  hijaz:[[[0,'M'],[1,'M'],[0,'M'],[10,'m']], [[0,'M'],[5,'m'],[1,'M'],[0,'M']]]
+};
+const rnd = (a, b) => a + Math.random()*(b - a), pickOf = arr => arr[Math.floor(Math.random()*arr.length)];
+function makeMotif(){ const m = []; for (let i = 0; i < 8; i++) m.push(Math.random() < (i%2 ? 0.45 : 0.25) ? null : Math.floor(Math.random()*6)); if (m[0] === null) m[0] = 0; return m; }
+let recentNames = [];
+function generateSong(styleId){
+  const cfg = GEN[styleId] || GEN.hiphop, genre = pickOf(cfg.genres), g = GENRE[genre];
+  const scale = genre === 'mizrahi' ? 'hijaz' : (Math.random() < g.minor ? 'minor' : 'major');
+  const key = 48 + Math.floor(Math.random()*12), prog = pickOf(PROGS[scale]).map(([d, q]) => [key + d, q]);
+  let name; const pool = cfg.names.filter(n => !recentNames.includes(n)); name = pickOf(pool.length ? pool : cfg.names);
+  recentNames = [name].concat(recentNames).slice(0, 8);
+  return {name, genre:g.he, gen:true, bpm:Math.round(rnd(g.lo, g.hi)), style:genre, swing:g.swing, prog, key, minor:scale !== 'major', scale, motif:makeMotif(), motifB:makeMotif(), fill:Math.floor(Math.random()*3)};
+}
 function pickSong(){
+  // mostly fresh generated songs, sometimes one of the hand-made ones
+  if (Math.random() < 0.75) return generateSong(STYLE_ID);
   const SONGS = cur().songs;
   let i; do { i = Math.floor(Math.random()*SONGS.length); } while (SONGS.length>1 && i===lastSong);
   lastSong = i; return SONGS[i];
@@ -1616,7 +1734,66 @@ function playLatinStep(sg, n, t){
     if (deg !== null){ const sc = sg.minor ? PENTA.minor : PENTA.major; lead(t, sg.key + 12 + sc[deg % sc.length], bd*0.4); }
   }
 }
+function clap(t, v=0.32){ for (const d of [0, 0.011, 0.023]) noise(t + d, 1200, v, 0.06, 'bandpass'); }
+function openHat(t, v){ noise(t, 8000, v, 0.16); }
+function shaker(t, v){ noise(t, 9500, v, 0.03); }
+function doum(t){ conga(t, 95, 0.55); }
+function tek(t, v=0.2){ noise(t, 3200, v, 0.04, 'bandpass'); conga(t, 420, v*0.6); }
+function arp(t, root, q, i, dur){ const ch = [0, q==='m'?3:4, 7, 12]; lead(t, root + 12 + ch[i % 4], dur); }
+const SCALES = {minor:[0,3,5,7,10,12,15], major:[0,2,4,7,9,12,14], hijaz:[0,1,4,5,7,8,10,12]};
+// song form over 32 bars: intro, verse, chorus, break, chorus with the second melody
+function section(bar){ const b = bar % 32; return b < 4 ? 'intro' : b < 12 ? 'verse' : b < 20 ? 'chorus' : b < 24 ? 'break' : 'chorus2'; }
+function playGenStep(sg, n, t){
+  const p = n%8, bar = Math.floor(n/8), bd = music.bd, sec = section(bar), st = sg.style;
+  const [root, q] = sg.prog[bar % sg.prog.length];
+  const full = sec !== 'intro' && sec !== 'break', chorus = sec === 'chorus' || sec === 'chorus2';
+  const lastBar = bar % 8 === 7;
+  // drums: the beat stays audible in every section so there is always something to step on
+  if (st === 'house' || st === 'disco' || st === 'pop'){
+    if (p%2===0 && sec !== 'break') kick(t);
+    if (sec === 'break' && (p===0 || p===4)) kick(t);
+    if (p===2 || p===6) (st === 'disco' ? snare : clap)(t, st === 'house' ? 0.42 : undefined);
+    if (p%2===1) openHat(t, st === 'pop' ? 0.05 : 0.1); else hat(t, 0.05);
+    if (st === 'house' && full) shaker(t + bd*0.25, 0.04);
+    if (st === 'disco' && full) bass(t, mtof(root - 24 + (p%2 ? 12 : 0)), bd*0.4);
+    else if (st === 'house' && p%2===1) bass(t, mtof(root - 24 + (sec === 'intro' ? 12 : 0)), bd*0.45);
+    else if (st === 'pop' && (p===0 || p===3 || p===4 || p===6) && sec !== 'intro') bass(t, mtof(root - 24), bd*0.7);
+    if (p===0) chordPad(t, root, q, bd*3.9);
+    if (st === 'house' && full && (p===1 || p===4)) stab(t, root, q, bd*0.3);
+    if (st === 'pop' && chorus) arp(t, root, q, n, bd*0.35);
+  } else if (st === 'funk'){
+    if ([0,3,5].includes(p) && sec !== 'break') kick(t);
+    if (p===2 || p===6) snare(t);
+    if (full && (p===5 || p===7)) noise(t + bd*0.25, 1400, 0.12, 0.06);   // ghost notes
+    hat(t, 0.07); hat(t + bd*0.25, 0.035);
+    if (sec !== 'intro' && [0,1,3,4,6].includes(p)) bass(t, mtof(root - 24 + (p===1 || p===6 ? 12 : p===4 ? 7 : 0)), bd*0.3);
+    if (full && (p===2 || p===5)) stab(t + bd*0.25, root, q, bd*0.15);
+    if (p===0 && !full) chordPad(t, root, q, bd*3.9);
+  } else if (st === 'afro'){
+    if ((p===0 || p===3 || p===6) && sec !== 'break') kick(t);
+    if (p===2 || p===6) clap(t, 0.22);
+    shaker(t, p%2 ? 0.05 : 0.08); shaker(t + bd*0.25, 0.035);
+    if (p===3 || p===7) conga(t, 300, 0.14); if (p===5) conga(t, 210, 0.17);
+    if (sec !== 'intro' && (p===0 || p===5)) bass(t, mtof(root - 24 + (p===5 ? 7 : 0)), bd*0.5);
+    if (p===0) chordPad(t, root, q, bd*3.9);
+    if (full && (p===1 || p===4)) stab(t, root, q, bd*0.18);
+  } else {   // mizrahi: darbuka doum-tek with a hijaz melody
+    if (p===0 || p===3) doum(t);
+    if (p===2 || p===5 || p===6) tek(t, 0.22); if (p===7) tek(t, 0.14);
+    if ((p===0 || p===4) && sec !== 'intro') kick(t);
+    guira(t, p%2 ? 0.05 : 0.08);
+    if (p===0) chordPad(t, root, q, bd*3.9);
+    if (sec !== 'intro' && (p===0 || p===3 || p===4)) bass(t, mtof(root - 24), bd*0.6);
+    if (full && (p===2 || p===6)) stab(t, root, q, bd*0.25);
+  }
+  if (lastBar && p===7 && sec !== 'intro'){ snare(t); if (sg.fill > 0) snare(t + bd*0.25); }   // fill into the next phrase
+  if (chorus){
+    const mot = sec === 'chorus2' ? sg.motifB : sg.motif, deg = mot[p];
+    if (deg !== null){ const sc = SCALES[sg.scale] || SCALES.minor; lead(t, sg.key + 12 + sc[deg % sc.length], bd*0.42); }
+  }
+}
 function playSongStep(sg, n, t){
+  if (['house','disco','pop','funk','afro','mizrahi'].includes(sg.style)) return playGenStep(sg, n, t);
   if (['merengue','cumbia','dembow'].includes(sg.style)) return playLatinStep(sg, n, t);
   const p = n%8, bar = Math.floor(n/8), bd = music.bd;
   const [root, q] = sg.prog[bar % sg.prog.length];
@@ -1864,7 +2041,7 @@ $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
 function movesForPlan(plan){
   if (plan.type === 'mix' && !state.mix) state.mix = makeMix(plan.all);
-  if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases);
+  if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases).map(ph => Math.random() < 0.5 ? mirrorOf(ph) : ph);
   return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i);
 }
 
@@ -1881,7 +2058,7 @@ function startPlay(){
   state.bpm = bpm;
   startMusic(bpm, own, song);
   $('songChip').hidden = own; $('nowBar').hidden = own;
-  if (song) { setNow(`${song.name} · קצב ${song.bpm}`); popText(`♪ ${song.name}`, '#46d3e8'); }
+  if (song) { setNow(`${song.name}${song.genre ? ' · ' + song.genre : ''} · קצב ${song.bpm}`); popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
   const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'flow'){ state.flow = {i:0, idxs, sum:0, n:0, hits:0}; startLearn(first); } else if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, music.on ? 60/music.bd : bpm); };
   $('spotWrap').hidden = !own; $('tapSync').hidden = !own; $('tempoRow').hidden = !own; $('spotGo').hidden = true; $('spotNext').hidden = !own; ear.taps = []; ear.holdUntil = 0;
@@ -2449,7 +2626,7 @@ function cur(){
 function makeMix(all){
   const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (all || levelUnlocked(i)) pool.push(...lv.phrases); });
   const picked = []; const bag = pool.slice();
-  while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); picked.push(bag.splice(k, 1)[0]); }
+  while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); const ph = bag.splice(k, 1)[0]; picked.push(Math.random() < 0.5 ? mirrorOf(ph) : ph); }
   return picked;
 }
 function setStyle(id){
@@ -2614,6 +2791,8 @@ $('spotGo').addEventListener('click', () => { spot.kickedAt = performance.now();
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
+// test hook: lets automated browser tests reach the game's state (the script is a module, so nothing is global)
+window.__br = {generateSong, GENRE, playSongStep, ensureAudio, music, state, clips, begin, cur, get actx(){ return actx; }};
 </script>
 </body>
 </html>
