@@ -658,13 +658,47 @@ function buildVideoSteps(ph){
   }
 }
 const VIDEO_PHRASES = [];
+// describe what happens during a count (motion over the beat), not only the frozen frame at its start
+function describeCount(c, beat){
+  const spb = 60 / c.bpm, f0 = Math.round((beat - 0.5) * spb * c.fps), f1 = Math.round((beat + 0.5) * spb * c.fps);
+  const at = f => c.poses[((f % c.frames) + c.frames) % c.frames];
+  const a0 = at(f0), a1 = at(f1), mid = at(Math.round(beat * spb * c.fps));
+  if (!a0.h || !a1.h) return describePose(mid);
+  const out = [];
+  const hand = (i, side) => {
+    const dx = a1.h[i] - a0.h[i], dy = a1.h[i+1] - a0.h[i+1], dz = a1.h[i+2] - a0.h[i+2];
+    const outward = side === 'r' ? dx : -dx;
+    const mag = Math.hypot(dx, dy, dz);
+    if (mag < 0.3){
+      const y = mid.h[i+1], z = mid.h[i+2], inw = side === 'r' ? -mid.h[i] : mid.h[i];
+      if (y > 0.55) return 'למעלה'; if (y > -0.45 && inw > 0.45) return 'מול החזה'; if (y > -0.45 && z > 0.45) return 'קדימה'; if (y > -0.45 && -inw > 0.5) return 'לצד'; if (y > -0.45) return 'בגובה החזה'; return 'למטה';
+    }
+    if (Math.abs(dy) >= Math.abs(dz) && Math.abs(dy) >= Math.abs(outward)) return dy > 0 ? 'עולה' : 'יורדת';
+    if (Math.abs(dz) >= Math.abs(outward)) return dz > 0 ? 'נשלחת קדימה' : 'חוזרת לגוף';
+    return outward > 0 ? 'נפתחת לצד' : 'חוצה את הגוף';
+  };
+  const r = hand(0, 'r'), l = hand(3, 'l');
+  const still = ['למעלה', 'מול החזה', 'קדימה', 'לצד', 'בגובה החזה', 'למטה'];
+  if (r === l){ out.push(r === 'למטה' ? 'ידיים רפויות' : still.includes(r) ? `שתי הידיים ${r}` : `שתי הידיים ${r === 'עולה' ? 'עולות' : r === 'יורדת' ? 'יורדות' : r === 'נשלחת קדימה' ? 'נשלחות קדימה' : r === 'חוזרת לגוף' ? 'חוזרות לגוף' : r === 'נפתחת לצד' ? 'נפתחות לצדדים' : 'חוצות את הגוף'}`); }
+  else out.push(`יד ימין ${r}, יד שמאל ${l}`);
+  // legs over the window
+  let kr = 0, kl = 0, hy = 0;
+  for (let f = f0; f <= f1; f++){ const a = at(f); kr = Math.max(kr, a.kl[0]); kl = Math.max(kl, a.kl[1]); hy = Math.min(hy, a.hy || 0); }
+  const sxd = (a1.sx || 0) - (a0.sx || 0);
+  if (kr > 0.4 && kl > 0.4) out.push('ברכיים עולות לסירוגין');
+  else if (kr > 0.4) out.push('ברך ימין עולה'); else if (kl > 0.4) out.push('ברך שמאל עולה');
+  else if (hy < -0.2) out.push('סקוואט עמוק'); else if (hy < -0.1) out.push('ברכיים כפופות');
+  else if (Math.abs(sxd) > 0.07) out.push(sxd > 0 ? 'צעד ימינה' : 'צעד שמאלה');
+  if (Math.abs(mid.lean || 0) > 14) out.push(mid.lean > 0 ? 'הגוף נוטה ימינה' : 'הגוף נוטה שמאלה');
+  return out.slice(0, 3).join(' · ');
+}
 const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, clip:id, steps:[]});
 function buildMocapSteps(ph){
   const c = clips[ph.clip]; if (!c || ph.steps.length) return;
   const spb = 60 / c.bpm;
   for (let b = 0; b < c.beats; b++){
     const a = Object.assign({}, c.poses[Math.round(b * spb * c.fps) % c.frames]);
-    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describePose(a), a, clipBeat:b}, d:1});
+    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describeCount(c, b), a, clipBeat:b}, d:1});
   }
 }
 async function ensureClips(){
