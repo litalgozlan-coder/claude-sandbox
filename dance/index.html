@@ -2164,8 +2164,11 @@ function loop(now){
       state.vplay = {id: ph.move.video, t: Math.max(0, (lp.videoBeat - 0.5) * spb + (((now - ph.stepStart) / 1000) * 0.5) % seg), rate: 0.5};
     } else state.vplay = null;
     if (lp && lp.clipBeat !== undefined && clips[ph.move.clip]){     // show the captured motion itself, swinging slowly around this count
-      const c = clips[ph.move.clip], spb = 60 / c.bpm, seg = 1.5 * spb;
-      const t = (lp.clipBeat - 0.5) * spb + (((now - ph.stepStart) / 1000) * 0.5) % seg;   // half speed, looped: the way into the count and the count itself
+      // slow loop of the two counts leading into this one and the count itself (3 beats at 0.6 speed), so the
+      // move is seen in context rather than as a twitch; the ring lights up at the exact moment of the count
+      const c = clips[ph.move.clip], spb = 60 / c.bpm, from = Math.max(0, lp.clipBeat - 2), seg = (lp.clipBeat - from + 1) * spb;
+      const u = (((now - ph.stepStart) / 1000) * 0.6) % seg, t = from * spb + u;
+      if (t >= lp.clipBeat * spb && t < lp.clipBeat * spb + 0.25) glow = glow || '#ffd23f';
       coachA = clipAngles(c, t); clipO = {clip: c, t};
     }
     res = updateLearn(now, dt);
