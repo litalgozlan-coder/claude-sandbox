@@ -165,6 +165,8 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 #hint{font-weight:800;font-size:20px;text-align:center;min-height:1.45em;text-shadow:0 1px 3px #000}
 #tapSync{align-self:center;border:0;border-radius:999px;padding:10px 18px;font-weight:800;font-size:16px;background:rgba(30,215,96,.92);color:#06210f;touch-action:manipulation}
 #tapSync.hit{background:var(--gold)}
+#beatDot{display:inline-block;width:14px;height:14px;border-radius:50%;background:#1ed760;margin-inline-end:8px;vertical-align:middle;box-shadow:0 0 0 0 rgba(30,215,96,.6);transform:scale(.6);transition:transform .08s}
+#beatDot.on{transform:scale(1.25);box-shadow:0 0 14px 4px rgba(30,215,96,.45)}
 #spotGo{display:block;margin:6px auto 0;border:0;border-radius:999px;padding:9px 16px;font-weight:800;font-size:15px;background:#1ed760;color:#06210f}
 .tempoRow{display:flex;gap:8px;justify-content:center;margin-top:6px}
 .tempoRow button{border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:999px;padding:7px 12px;font-weight:700;font-size:14px;touch-action:manipulation}
@@ -316,7 +318,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <span id="legWarn" hidden>להתרחק קצת, הרגליים לא בתמונה</span>
     </div>
     <div id="topStack">
-      <div id="nowBar" hidden><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span><small>עכשיו מתנגן</small><span id="nowText"></span></span></div>
+      <div id="nowBar" hidden><span id="beatDot" aria-hidden="true"></span><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span><small>עכשיו מתנגן</small><span id="nowText"></span></span></div>
       <div id="spotWrap" hidden><div id="spotEmbed"></div><div id="spotNote" hidden></div><button id="spotGo" type="button" hidden>▶ להפעיל את ספוטיפיי</button></div>
     </div>
     <div id="pop"></div>
@@ -1860,8 +1862,8 @@ function currentCoach(now){ const t = clamp((now-state.coachT0)/280,0,1); return
    Ear: listens to the song through the microphone, finds its tempo and beat,
    and keeps the music clock (music.t0 / music.bd) locked to it.
    ========================================================= */
-const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], timer:null, sync:null, locked:false, misses:0, denied:false, rawBpm:0, mult:1, holdUntil:0, taps:[]};
-const MIC_LATENCY = 0.1;   // seconds between a sound and the moment the microphone path delivers it
+const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], vl:[], timer:null, sync:null, locked:false, misses:0, denied:false, rawBpm:0, mult:1, holdUntil:0, taps:[], pending:0, flips:0};
+const MIC_LATENCY = 0.035;   // our capture pipeline: analyser frame plus sampling interval; the speaker-to-mic path is a few ms
 // steps per minute that feel like dancing: slow songs get two steps per beat, very fast ones one step per two beats
 function danceRate(raw){ let mult = 1; if (raw < 80) mult = 2; else if (raw > 160) mult = 0.5; return {bpm: raw*mult, mult}; }
 function rateText(){ const r = Math.round(ear.rawBpm*ear.mult); return `קצב ${r}` + (ear.mult === 2 ? ' (×2)' : ear.mult === 0.5 ? ' (½)' : ''); }
@@ -1875,7 +1877,7 @@ async function startEar(){
   ear.an = actx.createAnalyser(); ear.an.fftSize = 1024; ear.an.smoothingTimeConstant = 0;
   src.connect(ear.an);
   ear.a = new Uint8Array(ear.an.frequencyBinCount); ear.b = new Uint8Array(ear.an.frequencyBinCount);
-  ear.t = []; ear.v = []; ear.locked = false; ear.misses = 0;
+  ear.t = []; ear.v = []; ear.vl = []; ear.locked = false; ear.misses = 0;
   clearInterval(ear.timer); ear.timer = setInterval(earSample, 10);
   clearInterval(ear.sync); ear.sync = setInterval(earSync, 1000);
   return true;
@@ -1889,38 +1891,42 @@ function earSample(){
   const cur = ear.a, prev = ear.b;
   ear.an.getByteFrequencyData(cur);
   const n = Math.min(cur.length, 140);            // up to ~6 kHz
-  let f = 0;
-  for (let i=1;i<n;i++){ const d = cur[i]-prev[i]; if (d>0) f += i<6 ? d*2 : d; }   // spectral flux, kick weighted
+  let f = 0, fm = 0;
+  for (let i=1;i<n;i++){ const d = cur[i]-prev[i]; if (d>0){ f += i<6 ? d*2 : d; if (i<7) fm += d; } }   // spectral flux, kick weighted; plus the kick-and-bass band alone
   ear.a = prev; ear.b = cur;
-  ear.t.push(actx.currentTime); ear.v.push(f);
-  if (ear.t.length > 2400){ ear.t.splice(0, 400); ear.v.splice(0, 400); }
+  ear.t.push(actx.currentTime); ear.v.push(f); ear.vl.push(fm);
+  if (ear.t.length > 2400){ ear.t.splice(0, 400); ear.v.splice(0, 400); ear.vl.splice(0, 400); }
 }
 function earWindow(sec){
   const T = ear.t, V = ear.v;
   if (T.length < 100) return null;
   const tEnd = T[T.length-1], tStart = tEnd - sec;
   if (T[0] > tStart + 0.3) return null;
-  const dt = 0.01, N = Math.floor(sec/dt), raw = new Float32Array(N);
+  const dt = 0.01, N = Math.floor(sec/dt), raw = new Float32Array(N), rawL = new Float32Array(N), VL = ear.vl;
   let j = 0;
-  for (let i=0;i<N;i++){ const tt = tStart + i*dt; while (j < T.length-1 && T[j+1] <= tt) j++; raw[i] = V[j]; }
-  const pre = new Float64Array(N+1); for (let i=0;i<N;i++) pre[i+1] = pre[i] + raw[i];
-  const w = 15, o = new Float32Array(N); let energy = 0;
-  for (let i=0;i<N;i++){ const a = Math.max(0,i-w), b = Math.min(N,i+w+1); const m = (pre[b]-pre[a])/(b-a); o[i] = Math.max(0, raw[i]-m); energy += o[i]; }
-  if (energy/N < 2) return null;                   // silence: nothing to hear
-  return {o, tStart, dt, N};
+  for (let i=0;i<N;i++){ const tt = tStart + i*dt; while (j < T.length-1 && T[j+1] <= tt) j++; raw[i] = V[j]; rawL[i] = VL[j] || 0; }
+  const detrend = (src) => { const pre = new Float64Array(N+1); for (let i=0;i<N;i++) pre[i+1] = pre[i] + src[i];
+    const w = 15, out = new Float32Array(N); let e = 0;
+    for (let i=0;i<N;i++){ const a = Math.max(0,i-w), b = Math.min(N,i+w+1); const m = (pre[b]-pre[a])/(b-a); out[i] = Math.max(0, src[i]-m); e += out[i]; }
+    return {out, e}; };
+  const full = detrend(raw), low = detrend(rawL);
+  if (full.e/N < 2) return null;                   // silence: nothing to hear
+  return {o: full.out, ol: low.out, tStart, dt, N};
 }
 const foldBpm = b => { while (b > 135) b /= 2; while (b < 67) b *= 2; return b; };
 function estimateTempo(win){
   const {o, dt, N} = win;
   const minLag = Math.floor(60/180/dt), maxLag = Math.ceil(60/60/dt);
   const r = new Float32Array(2*maxLag+2);
-  for (let l=minLag-1; l<=2*maxLag+1 && l<N; l++){ let sum=0; for (let i=0;i+l<N;i++) sum += o[i]*o[i+l]; r[l] = sum/(N-l); }
+  for (let l=Math.floor(minLag/2)-1; l<=2*maxLag+1 && l<N; l++){ if (l < 1) continue; let sum=0; for (let i=0;i+l<N;i++) sum += o[i]*o[i+l]; r[l] = sum/(N-l); }
   let best = -1, bl = minLag, mean = 0, cnt = 0;
   for (let l=minLag; l<=maxLag; l++){
     mean += r[l]; cnt++;
     const bpm = 60/(l*dt);
-    const prior = Math.exp(-0.5*Math.pow(Math.log2(bpm/95)/0.55, 2));
-    const v = (r[l] + 0.5*r[2*l]) * prior;
+    const prior = Math.exp(-0.5*Math.pow(Math.log2(bpm/100)/0.6, 2));
+    // the beat agrees with its double (bars) and its half (eighths); a 3-3-2 clave period only agrees with its double
+    const half = r[Math.round(l/2)] || 0;
+    const v = (r[l] + 0.5*r[2*l] + 0.5*half) * prior;
     if (v > best){ best = v; bl = l; }
   }
   mean /= cnt;
@@ -1936,8 +1942,18 @@ function beatTimeIn(win, bpm){
     for (let k=phi; k<N-1; k+=period){ const i = Math.round(k); sc += o[i] + 0.5*((o[i-1]||0) + (o[i+1]||0)); }
     if (sc > best){ best = sc; bphi = phi; }
   }
+  // refine the phase between samples from the neighbours of the best offset
+  const sc = phi => { let v = 0; for (let k=((phi % period) + period) % period; k<N-1; k+=period){ const i = Math.round(k); v += o[i] + 0.5*((o[i-1]||0) + (o[i+1]||0)); } return v; };
+  const a = sc(bphi-1), c = sc(bphi+1), den = a - 2*best + c, frac = den !== 0 ? clamp(0.5*(a-c)/den, -0.5, 0.5) : 0;
+  // beat or offbeat? the downbeat of a bar carries the kick and the bass root: of the two half-beat candidates,
+  // take the one whose best 4-beat comb over the low band is stronger
+  if (win.ol){
+    const barScore = phi0 => { let bestBar = 0; for (let b=0;b<4;b++){ let v = 0; for (let k=((phi0 % period) + period) % period + b*period; k<N-1; k+=4*period){ const i = Math.round(k); if (i >= 0) v += win.ol[i] + 0.5*((win.ol[i-1]||0) + (win.ol[i+1]||0)); } bestBar = Math.max(bestBar, v); } return bestBar; };
+    const alt = bphi + period/2, sA = barScore(bphi), sB = barScore(alt);
+    if (sB > sA * 1.1) bphi = alt;
+  }
   const kLast = Math.floor((N-1-bphi)/period);
-  return tStart + (bphi + kLast*period)*dt;
+  return tStart + (bphi + frac + kLast*period)*dt;
 }
 function setMusicGrid(bpm, beatTime){
   const bd = 60/bpm;
@@ -1949,8 +1965,12 @@ function earSync(){
   const win = earWindow(6);
   if (!win) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
   const est = estimateTempo(win);
+  const pwin = ear.locked ? (earWindow(8) || win) : win;
   if (est.conf < 1.25) { if (!ear.locked) setEarChip('מקשיבים…'); return; }
   if (!ear.locked){
+    // lock only when two estimates in a row agree, so a single odd window does not set the tempo
+    if (!(ear.pending && Math.abs(ear.pending - est.bpm) < 3)){ ear.pending = est.bpm; setEarChip('מקשיבים…'); return; }
+    ear.pending = 0;
     ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.locked = true;
     setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
     setEarChip(rateText()); popText(rateText() + '!', '#1ed760');
@@ -1963,11 +1983,14 @@ function earSync(){
     ear.misses = 0;
     ear.rawBpm = ear.rawBpm + 0.3*(e - ear.rawBpm);
     const bpm = ear.rawBpm*ear.mult;
-    const bt = beatTimeIn(win, ear.rawBpm) - MIC_LATENCY;
+    const bt = beatTimeIn(pwin, ear.rawBpm) - MIC_LATENCY;
     const k = Math.round((bt - music.t0)/music.bd);
     const err = bt - (music.t0 + k*music.bd);
     const hold = performance.now() < ear.holdUntil;        // after the player tapped the beat, trust the taps' phase
-    setMusicGrid(bpm, music.t0 + k*music.bd + (hold ? 0 : err*0.6));
+    // a jump of about half a beat is the beat/offbeat question again: only follow it when it persists
+    if (Math.abs(err) > 0.3*music.bd){ if (++ear.flips < 3){ setMusicGrid(bpm, music.t0 + k*music.bd); setEarChip(rateText()); return; } }
+    ear.flips = 0;
+    setMusicGrid(bpm, music.t0 + k*music.bd + (hold ? 0 : err*0.45));
     setEarChip(rateText());
   } else if (performance.now() < ear.holdUntil){ ear.misses = 0;   // the player's taps win while they are fresh
   } else if (++ear.misses >= 2){                             // a new song with another tempo
@@ -2288,6 +2311,7 @@ function loop(now){
     const r = updateRhythm(now); res = r.res; coachA = r.coachA; target = r.target;
   }
   const ph3 = beatPhase(), bc = beatCount();
+  if (music.on) $('beatDot').classList.toggle('on', ph3 < 0.18);
   if (state.vplay){ vcoachShow(state.vplay.id); vcoachDrive(state.vplay.t, state.vplay.rate); vcoachFrame(); }
   else {
     vcoachHide();
