@@ -167,6 +167,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 #tapSync.hit{background:var(--gold)}
 #beatDot{display:inline-block;width:14px;height:14px;border-radius:50%;background:#1ed760;margin-inline-end:8px;vertical-align:middle;box-shadow:0 0 0 0 rgba(30,215,96,.6);transform:scale(.6);transition:transform .08s}
 #beatDot.on{transform:scale(1.25);box-shadow:0 0 14px 4px rgba(30,215,96,.45)}
+#spotNext{display:block;margin:6px auto 0;border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:999px;padding:7px 14px;font-weight:700;font-size:14px}
 #spotGo{display:block;margin:6px auto 0;border:0;border-radius:999px;padding:9px 16px;font-weight:800;font-size:15px;background:#1ed760;color:#06210f}
 .tempoRow{display:flex;gap:8px;justify-content:center;margin-top:6px}
 .tempoRow button{border:1px solid var(--line);background:var(--panel-2);color:var(--fg);border-radius:999px;padding:7px 12px;font-weight:700;font-size:14px;touch-action:manipulation}
@@ -319,7 +320,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     </div>
     <div id="topStack">
       <div id="nowBar" hidden><span id="beatDot" aria-hidden="true"></span><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span><small>עכשיו מתנגן</small><span id="nowText"></span></span></div>
-      <div id="spotWrap" hidden><div id="spotEmbed"></div><div id="spotNote" hidden></div><button id="spotGo" type="button" hidden>▶ להפעיל את ספוטיפיי</button></div>
+      <div id="spotWrap" hidden><div id="spotEmbed"></div><div id="spotNote" hidden></div><button id="spotGo" type="button" hidden>▶ להפעיל את ספוטיפיי</button><button id="spotNext" type="button" hidden>⏭ פלייליסט אחר</button></div>
     </div>
     <div id="pop"></div>
     <div class="cam-bottom">
@@ -1832,7 +1833,7 @@ function startPlay(){
   if (song) { setNow(`${song.name} · קצב ${song.bpm}`); popText(`♪ ${song.name}`, '#46d3e8'); }
   state.phase = {kind:'wait'};
   const go = () => { if (ui.screen !== 'play') return; if (state.plan.type === 'flow'){ state.flow = {i:0, idxs, sum:0, n:0, hits:0}; startLearn(first); } else if (state.plan.type === 'lesson') startLearn(first); else startRhythm(idxs, music.on ? 60/music.bd : bpm); };
-  $('spotWrap').hidden = !own; $('tapSync').hidden = !own; $('tempoRow').hidden = !own; $('spotGo').hidden = true; ear.taps = []; ear.holdUntil = 0;
+  $('spotWrap').hidden = !own; $('tapSync').hidden = !own; $('tempoRow').hidden = !own; $('spotGo').hidden = true; $('spotNext').hidden = !own; ear.taps = []; ear.holdUntil = 0;
   if (own){
     setEarChip('מקשיבים…');
     spotPlay();
@@ -2023,7 +2024,7 @@ function tapBeat(){
   clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'לא על הביט? הקישי כאן בקצב'; }, 2500);
 }
 function setNow(txt){ $('songChip').hidden = false; $('songChip').textContent = '♪ ' + txt; $('nowBar').hidden = false; $('nowText').textContent = txt; }
-function setEarChip(txt){ setNow(`ספוטיפיי ${spotStateText()} · ${txt}`); }
+function setEarChip(txt){ setNow(`${spot.plName || 'ספוטיפיי'}${spot.playing ? '' : ' · ' + spotStateText()} · ${txt}`); }
 function waitForLock(maxMs){
   return new Promise(res => {
     const t0 = performance.now();
@@ -2355,9 +2356,9 @@ $('tapBtn').addEventListener('pointerdown', e => {
   clearTimeout(b._reset); b._reset = setTimeout(() => { b.textContent = 'להקיש בקצב'; }, 2200);
 });
 $('tapBtn').addEventListener('keydown', e => { if (e.key===' '||e.key==='Enter'){ e.preventDefault(); $('tapBtn').dispatchEvent(new Event('pointerdown')); } });
-const HH_PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}];
+const HH_PLAYLISTS = [{"name": "היפ הופ נקי לריקוד", "url": "https://open.spotify.com/playlist/3leHOk1fBLMNd0zqfeSiKG?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3ec1b212-05f4-47ce-92b9-4e48d471a9a6"}, {"name": "Upbeat Instrumental Hip Hop Dance", "url": "https://open.spotify.com/playlist/0Aypk9wQIXVKx1Y6MOxIE9?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=93f82935-9e25-4dbc-8b13-5cb51dde359b"}, {"name": "היפ הופ אינסטרומנטלי קצבי לריקוד", "url": "https://open.spotify.com/playlist/4hiOsKgWCaWpGH0Azx26uu?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=3f9aac05-9dfb-46df-9035-84b1c193f83d"}, {"name": "היפ הופ לריקוד ואימון", "url": "https://open.spotify.com/playlist/37vs7wnBFujbHIxd2qxhLa"}, {"name": "90s Hip Hop Dance Classics", "url": "https://open.spotify.com/playlist/5YRDg9lvsEpr9AfHR2YAnV"}, {"name": "R&B Hip Hop Groove Party", "url": "https://open.spotify.com/playlist/5gWw63Etaw4EU6isqeJAZS"}, {"name": "היפ הופ ישראלי קצבי", "url": "https://open.spotify.com/playlist/0XtBQkFYISM7fbBBN7Aig1"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
 /* ---------- Spotify player inside the game (official Spotify embed) ---------- */
-const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}];
+const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url": "https://open.spotify.com/playlist/2ulwSsBKoWb6EQAeIHkrxm?utm_source=anthropic&utm_medium=claude&go=1&nap_web=1&request_id=878fa5a9-bb40-4eaa-b158-1549fa89f9d0"}, {"name": "זומבה לטיני לריקוד", "url": "https://open.spotify.com/playlist/0MRnd9V4APBZmRsXdsm8Gt"}, {"name": "Party Reggaeton Mix", "url": "https://open.spotify.com/playlist/37i9dQZF1EIhwtndf3a11J"}, {"name": "Reggaeton Party Hits", "url": "https://open.spotify.com/playlist/4kolXzch223TA8svQMxsrK"}, {"name": "Salsa Merengue Dance Hits", "url": "https://open.spotify.com/playlist/6E4eLmAdbPUT0TPzYnGVOD"}, {"name": "Bachata Latin Pop Dance", "url": "https://open.spotify.com/playlist/3QrOjkBLqvi6Mx8pSLsqqF"}, {"name": "מזרחית קצבית לזומבה", "url": "https://open.spotify.com/playlist/2EEFzwUb1dDLAWubI6i8sG"}, {"name": "פופ קצבי לריקוד", "url": "https://open.spotify.com/playlist/2ZYTQheNzaqDRfutrJCzIE"}];
 
 /* ---------- dance styles ---------- */
 const STYLES = {
@@ -2400,9 +2401,21 @@ const starKey = k => { const L = levelIdx() ? `-L${levelIdx()+1}` : ''; return (
 let lastPick = -1;
 const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, buffering:false, state:'', preview:false, uri:null, checkTimer:null, kickedAt:0};
 function pickPlaylist(){
-  const PLAYLISTS = cur().playlists;
-  let i; do { i = Math.floor(Math.random()*PLAYLISTS.length); } while (PLAYLISTS.length>1 && i===lastPick);
-  lastPick = i; return PLAYLISTS[i];
+  const PLAYLISTS = cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID;
+  let recent = []; try { recent = JSON.parse(localStorage.getItem(key)) || []; } catch {}
+  const pool = PLAYLISTS.map((_, i) => i).filter(i => !recent.includes(i));
+  const i = (pool.length ? pool : PLAYLISTS.map((_, k) => k))[Math.floor(Math.random() * (pool.length || PLAYLISTS.length))];
+  recent = [i, ...recent.filter(k => k !== i)].slice(0, Math.min(3, PLAYLISTS.length - 1));
+  try { localStorage.setItem(key, JSON.stringify(recent)); } catch {}
+  lastPick = i; spot.plName = PLAYLISTS[i].name; return PLAYLISTS[i];
+}
+// another playlist, on request: pick one, play it, and let the ear find the new tempo
+function spotNext(){
+  if (!spot.ctrl) return;
+  const pl = pickPlaylist(); spot.uri = toUri(pl.url); spot.kickedAt = performance.now();
+  try { spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } catch {}
+  if (spot.fallback) stopFallbackSong();
+  ear.locked = false; ear.pending = 0; ear.misses = 0; ear.holdUntil = 0; setEarChip('מקשיבים…'); popText('♪ ' + pl.name, '#1ed760');
 }
 const toUri = url => 'spotify:playlist:' + url.split('/playlist/')[1].split('?')[0];
 function spotApi(){
@@ -2509,6 +2522,7 @@ function tempoMult(f){
   popText(rateText(), '#1ed760');
 }
 $('tempoHalf').addEventListener('click', () => tempoMult(0.5));
+$('spotNext').addEventListener('click', spotNext);
 $('tempoDouble').addEventListener('click', () => tempoMult(2));
 $('spotGo').addEventListener('click', () => { spot.kickedAt = performance.now(); $('spotGo').hidden = true; try { if (spot.ctrl){ if (!spot.uri) spot.uri = toUri(pickPlaylist().url); spot.ctrl.loadUri(spot.uri); spot.ctrl.play(); } } catch {} if (spot.fallback) stopFallbackSong(); spotNote('מפעילים…'); });
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
