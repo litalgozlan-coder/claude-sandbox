@@ -210,6 +210,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 
     <div class="seg style-seg avatar-seg" role="radiogroup" aria-label="דמות" id="avatarSeg" hidden>
       <label for="av-me"><input type="radio" name="avatar" id="av-me" value="me">האווטאר שלי</label>
+      <label for="av-alfred"><input type="radio" name="avatar" id="av-alfred" value="alfred">אלפרד</label>
       <label for="av-coach"><input type="radio" name="avatar" id="av-coach" value="coach">המאמן</label>
     </div>
 
@@ -612,7 +613,7 @@ const MOCAP = {
 const clips = {};
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
-  return fetch(MOCAP[id].file).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; inPlace(j); clips[id] = j; return j; });
+  return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; inPlace(j); clips[id] = j; return j; });
 }
 // the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
 // metre back, a charleston drifts two metres sideways, and both snap home at the loop), keep the fast steps and bounce
@@ -1070,8 +1071,8 @@ function makeCoach3D(canvas, opts={}){
       const root = g.scene;
       root.traverse(o => { if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
         const m = o.material; if (m){ m.side = T.DoubleSide; m.metalness = 0; const n = m.name || '';
-          m.roughness = n === 'HeadTexture' ? 0.58 : n === 'Skin' ? 0.7 : 0.88; } } });
-      const bones = {}; root.traverse(o => { if (o.isBone){ const n = o.name.replace(/^mixamorig:?/, '').replace('.', ''); bones[ALIAS[n] || n] = o; } });
+          if (!m.map) m.roughness = n === 'HeadTexture' ? 0.58 : n === 'Skin' ? 0.7 : 0.88; else m.roughness = Math.max(m.roughness, 0.6); } } });
+      const bones = {}; root.traverse(o => { if (o.isBone){ let n = o.name.replace('.', ''); if (/^mixamorig/.test(n)) n = n.replace(/^mixamorig:?/, '').replace(/_\d+$/, ''); bones[ALIAS[n] || n] = o; } });
       if (!bones.Hips || !bones.LeftArm || !bones.LeftUpLeg || !bones.LeftFoot) return res(false);
       root.updateMatrixWorld(true);
       const rest = new Map(); Object.values(bones).forEach(b => rest.set(b, b.quaternion.clone()));
@@ -1086,11 +1087,14 @@ function makeCoach3D(canvas, opts={}){
         if (f && l && !isDesc(f, l)){ const lp = f.parent.worldToLocal(l.getWorldPosition(new T.Vector3())); loose[foot] = {leg: l, len: lp.distanceTo(f.position)}; }
       }
       root.scale.setScalar(1.95 / height); root.updateMatrixWorld(true);
+      // some downloads sit metres off the origin inside their own hierarchy: remember where the hips are, so the
+      // pose functions can put the dancer on the stage centre
+      const hw = bones.Hips.getWorldPosition(new T.Vector3()); const center = new T.Vector3(hw.x, 0, hw.z);
       const fingers = [];
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
       let hairNode = null; root.traverse(o => { if (o.name === 'HairMesh') hairNode = o; });
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [],
+      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url,
                 hair: hairNode ? {node: hairNode, rest: hairNode.quaternion.clone(), pos: new T.Vector3(), vel: new T.Vector3(), ang: new T.Vector2(), angV: new T.Vector2(), lastT: 0} : null};
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
@@ -1111,6 +1115,7 @@ function makeCoach3D(canvas, opts={}){
   }
   function setAvatar(on, url){
     avatarOn = !!on;
+    if (avatar && url && avatar.url !== url){ scene.remove(avatar.root); avatar = null; avatarLoading = null; }   // another coach: load afresh
     if (avatar) avatar.root.visible = avatarOn;
     setAllParts(!avatarOn || !avatar);
     if (!avatar && url) return loadAvatar(url).then(ok => { if (!ok){ avatarOn = false; setAllParts(true); } else if (avatar){ avatar.root.visible = avatarOn; setAllParts(!avatarOn); } return ok; });
@@ -1168,7 +1173,7 @@ function makeCoach3D(canvas, opts={}){
       const p0 = f.parent.worldToLocal(start.clone()), p1 = f.parent.worldToLocal(start.clone().add(dirW));
       f.position.copy(p0.add(p1.sub(p0).normalize().multiplyScalar(L.len))); f.updateMatrixWorld(true);
     }
-    root.rotation.y = 0; root.position.set(0, 0, 0); root.updateMatrixWorld(true);
+    root.rotation.y = 0; root.position.set(-A.center.x, 0, -A.center.z); root.updateMatrixWorld(true);
     const minToe = Math.min(...A.toes.map(A.wy), B.LeftHand ? A.wy(B.LeftHand) + 0.02 : 9, B.RightHand ? A.wy(B.RightHand) + 0.02 : 9);
     if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // feet (or hands, in a freeze) on the floor, real jumps may leave it
     root.updateMatrixWorld(true);
@@ -1176,7 +1181,7 @@ function makeCoach3D(canvas, opts={}){
   function poseAvatar(j){
     const A = avatar, B = A.bones, root = A.root;
     A.rest.forEach((q, b) => b.quaternion.copy(q));
-    root.rotation.y = j.yaw; root.position.set(j.hipC.x, 0, j.hipC.z * 0.5); root.updateMatrixWorld(true);
+    root.rotation.y = j.yaw; root.position.set(j.hipC.x - A.center.x, 0, j.hipC.z * 0.5 - A.center.z); root.updateMatrixWorld(true);
     const d = (p, q) => q.clone().sub(p);
     if (B.Hips){ B.Hips.rotateY(-j.tw * 0.4); B.Hips.updateMatrixWorld(true); }          // hips turn against the shoulders
     if (B.Spine && B.Neck){ aim(B.Spine, B.Neck, d(j.hipC, j.shC)); B.Spine.rotateY(j.tw * 0.9); B.Spine.updateMatrixWorld(true); }
@@ -1309,13 +1314,29 @@ function makeCoach3D(canvas, opts={}){
 }
 let coach3 = null, demo3 = null, res3 = null;
 const AVATAR_FIST_SIGN = -1;  // measured on the rig: negative X curls the fingers into the palm
-const AVATAR_URL = 'avatar/me.glb';   // set to null when there is no personal avatar file
-let AVATAR_ON = (() => { try { return localStorage.getItem('bitrishon.avatar') !== 'coach'; } catch { return true; } })();
+// the coaches: the personal avatar, and a professional dancer character; each has its own set of retargeted clips
+const AVATARS = {
+  me: {url:'avatar/me.glb', mocap:'mocap/', name:'האווטאר שלי'},
+  alfred: {url:'avatar/alfred.glb', mocap:'mocap/alfred/', name:'אלפרד'}
+};
+let AVATAR_ID = (() => { try { const v = localStorage.getItem('bitrishon.avatar'); return v && (AVATARS[v] || v === 'coach') ? v : 'me'; } catch { return 'me'; } })();
+const AVATAR_URL = AVATARS.me.url;
+let AVATAR_ON = AVATAR_ID !== 'coach';
+const avatarMocapDir = () => (AVATARS[AVATAR_ID] || AVATARS.me).mocap;
 function applyAvatar(){
   const seg = $('avatarSeg');
-  $('av-me').checked = AVATAR_ON; $('av-coach').checked = !AVATAR_ON;
-  for (const c of [coach3, demo3, res3]) if (c) c.setAvatar(!!AVATAR_URL && AVATAR_ON, AVATAR_URL).then(ok => { if (c === (coach3 || demo3)) seg.hidden = !ok; });
-  if (!AVATAR_URL || !(coach3 || demo3)) seg.hidden = true;
+  $('av-me').checked = AVATAR_ID === 'me'; $('av-alfred').checked = AVATAR_ID === 'alfred'; $('av-coach').checked = !AVATAR_ON;
+  const url = AVATAR_ON ? AVATARS[AVATAR_ID].url : null;
+  for (const c of [coach3, demo3, res3]) if (c) c.setAvatar(AVATAR_ON, url).then(ok => { if (c === (coach3 || demo3)) seg.hidden = !ok && AVATAR_ON; });
+  if (!(coach3 || demo3)) seg.hidden = true;
+}
+// the clips are retargeted per rig: switching the coach drops the loaded clips and rebuilds the steps
+function switchAvatar(id){
+  AVATAR_ID = id; AVATAR_ON = id !== 'coach';
+  try { localStorage.setItem('bitrishon.avatar', id); } catch {}
+  for (const k in clips) delete clips[k];
+  for (const st of Object.values(STYLES)) st.levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip) ph.steps = []; }));
+  applyAvatar(); buildDemo();
 }
 function init3D(){
   coach3 = makeCoach3D($('coach3d'), {hands: true});
@@ -2442,7 +2463,7 @@ $('soundBtn').addEventListener('click', () => {
   setTimeout(chime, 2600);
 });
 for (const id in STYLES) $('style-' + id).addEventListener('change', () => setStyle(id));
-for (const [id, on] of [['av-me', true], ['av-coach', false]]) $(id).addEventListener('change', () => { AVATAR_ON = on; try { localStorage.setItem('bitrishon.avatar', on ? 'me' : 'coach'); } catch {} applyAvatar(); });
+for (const [id, who] of [['av-me', 'me'], ['av-alfred', 'alfred'], ['av-coach', 'coach']]) $(id).addEventListener('change', () => switchAvatar(who));
 try { init3D(); } catch { coach3 = demo3 = res3 = null; }
 $('result3d').parentElement.hidden = !res3;
 for (const id in MOCAP) if (MOCAP[id].extra) loadClip(id).catch(() => null);     // warm-up and cheer clips for the home and result screens
