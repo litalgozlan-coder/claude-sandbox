@@ -1110,7 +1110,8 @@ function makeCoach3D(canvas, opts={}){
       }
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
       res(true);
-    }, undefined, () => res(false)));
+    }, ev => { if (canvas.id !== 'coach3d' && ui.screen === 'home' && ev.total) popHome(`טוענים את הדמות… ${Math.round(ev.loaded / ev.total * 100)}%`); },
+       err => { console.warn('avatar load failed', err); if (ui.screen === 'home') popHome('לא הצלחנו לטעון את הדמות. אפשר לבדוק חיבור ולנסות שוב.'); res(false); }));
     return avatarLoading;
   }
   function setAvatar(on, url){
