@@ -234,7 +234,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 
     <div class="tips" id="musicBox">
       <p class="eyebrow">מוזיקה</p>
-      <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה">
+      <div class="seg" role="radiogroup" aria-label="בחירת מוזיקה" hidden>
         <label for="mAuto"><input type="radio" name="music" id="mAuto" value="auto">שירים של המשחק</label>
         <label for="mOwn"><input type="radio" name="music" id="mOwn" value="own" checked>ספוטיפיי, קצב אוטומטי</label>
       </div>
@@ -621,8 +621,27 @@ const MOCAP = {
   clap: {file:'mocap/clap.json', bpm:0, beats:0, extra:true}
 };
 const clips = {};
+// every dance also exists as its mirror image (left and right swapped), so routines can work both sides
+for (const id of Object.keys(MOCAP)) if (!MOCAP[id].extra) MOCAP[id + '_m'] = Object.assign({}, MOCAP[id], {mirrorOf: id});
+const normDeg = a => { a = ((a + 180) % 360 + 360) % 360 - 180; return a === -180 ? 180 : a; };
+function mirrorPose(a){
+  const m = Object.assign({}, a);
+  m.rUpper = normDeg(180 - a.lUpper); m.lUpper = normDeg(180 - a.rUpper);
+  m.rFore = normDeg(180 - a.lFore);   m.lFore = normDeg(180 - a.rFore);
+  m.rThigh = normDeg(180 - a.lThigh); m.lThigh = normDeg(180 - a.rThigh);
+  m.rShin = normDeg(180 - a.lShin);   m.lShin = normDeg(180 - a.rShin);
+  if (a.lean !== undefined) m.lean = -a.lean;
+  if (a.sx !== undefined) m.sx = -a.sx;
+  if (a.h) m.h = [-a.h[3], a.h[4], a.h[5], -a.h[0], a.h[1], a.h[2]];
+  if (a.kl) m.kl = [a.kl[1], a.kl[0]];
+  return m;
+}
+// the 3D coach mirrors the bones at play time (it needs the avatar's own body plane); the 2D poses used for
+// scoring and cues are mirrored here
+function mirrorClip(base, id){ return Object.assign({}, base, {id, mirror: true, poses: base.poses.map(mirrorPose)}); }
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
+  if (MOCAP[id]?.mirrorOf) return loadClip(MOCAP[id].mirrorOf).then(b => (clips[id] = mirrorClip(b, id)));
   return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; j.hipsRaw = j.hips; inPlace(j); clips[id] = j; return j; });
 }
 // the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
@@ -738,7 +757,7 @@ function buildMocapSteps(ph){
   }
 }
 async function ensureClips(){
-  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]) ids.add(ph.clip); }));
+  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]){ ids.add(ph.clip); if (MOCAP[ph.clip + '_m']) ids.add(ph.clip + '_m'); } }));
   for (const id in MOCAP) if (MOCAP[id].extra) ids.add(id);
   const vids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && VIDEOS[ph.video]) vids.add(ph.video); }));
   await Promise.all([...vids].map(id => loadVideoPose(id).catch(() => null)));
@@ -749,7 +768,7 @@ async function ensureClips(){
   const missing = [...ids].filter(id => !clips[id]);
   if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
-  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); }));
+  STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); const m = mirrorOf(ph); if (m !== ph && clips[m.clip]) buildMocapSteps(m); }));
   buildDemo();
 }
 // phrases: every dance in the game is a captured clip of a real dancer
@@ -775,6 +794,9 @@ const MC = {
   rumba: mocapPhrase('rumba', 'רומבה', 'RUMBA', 'צעדי רומבה איטיים ורכים עם מותניים. 5 ספירות שחוזרות.'),
   samba: mocapPhrase('samba', 'סמבה', 'SAMBA', 'הקפצה של הסמבה הברזילאית: שלושה צעדים על כל שתי ספירות. 36 ספירות.')
 };
+// the same dances, mirrored: used in mixes and marathons so each routine works both sides
+const MCM = {}; for (const k in MC){ const o = MC[k]; MCM[k] = Object.assign(mocapPhrase(k + '_m', o.name + ' · צד שני', o.en + ' · MIRROR', o.desc + ' בתמונת מראה: מה שהיה ימין עכשיו שמאל.'), {mirror: true}); }
+const mirrorOf = ph => (ph.clip && MCM[ph.clip]) || ph;
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.wave, MC.robot];
 const HHL3 = [MC.locking, MC.tut, MC.house, MC.uprock, MC.freeze];
@@ -1150,6 +1172,129 @@ function makeCoach3D(canvas, opts={}){
   function isDesc(c, b){ for (let x = c.parent; x; x = x.parent) if (x === b) return true; return false; }
   const ALIAS = {Abdomen:'Spine', UpperArmL:'LeftArm', LowerArmL:'LeftForeArm', WristL:'LeftHand', UpperArmR:'RightArm', LowerArmR:'RightForeArm', WristR:'RightHand',
                  UpperLegL:'LeftUpLeg', LowerLegL:'LeftLeg', FootL:'LeftFoot', UpperLegR:'RightUpLeg', LowerLegR:'RightLeg', FootR:'RightFoot'};
+  /* Live face for the personal avatar. Its head texture carries a small painted face (an oval of skin with
+     eyes, brows, nose and mouth). We repaint that oval at 3x resolution on a canvas: wider skin so no hair colour
+     shows on the cheeks and chin, soft shading for depth, and crisp eyes with iris, pupil and catch-lights that
+     blink and glance around. All positions are in the original texture's pixels. */
+  function makeLiveFace(mat){
+    const img = mat.map && mat.map.image; if (!img || !img.width) return null;
+    const W = img.width, H = img.height, S = 3;
+    const cv = document.createElement('canvas'); cv.width = W*S; cv.height = H*S; const g = cv.getContext('2d');
+    g.drawImage(img, 0, 0, W*S, H*S);
+    // the original oval's centre colour is the skin tone
+    const probe = document.createElement('canvas'); probe.width = W; probe.height = H; const pg = probe.getContext('2d'); pg.drawImage(img, 0, 0);
+    const F = {cx: W*0.3715, cy: H*0.443, rx: W*0.119, ry: H*0.236};   // the painted oval in the stock texture
+    const sk = pg.getImageData(Math.round(F.cx), Math.round(F.cy + F.ry*0.55), 1, 1).data;
+    const skin = (dl = 0) => `rgb(${Math.round(sk[0]*(1+dl))},${Math.round(sk[1]*(1+dl*1.12))},${Math.round(sk[2]*(1+dl*1.25))})`;
+    const tex = new T.CanvasTexture(cv); tex.flipY = false; tex.encoding = T.sRGBEncoding;
+    tex.anisotropy = 4; tex.wrapS = mat.map.wrapS; tex.wrapT = mat.map.wrapT;
+    mat.map = tex; mat.needsUpdate = true;
+    // the face region we repaint lives on its own small canvas; after the first full upload only this patch is
+    // sent to the GPU, so a blink costs a small copy rather than re-sending the whole head texture
+    const R = {x: Math.floor((F.cx - F.rx*1.45)*S), y: Math.floor((F.cy - F.ry*1.2)*S), w: Math.ceil(F.rx*2.9*S), h: Math.ceil(F.ry*2.55*S)};
+    const fc = document.createElement('canvas'); fc.width = R.w; fc.height = R.h; const fg = fc.getContext('2d');
+    const base = g.getImageData(R.x, R.y, R.w, R.h);                    // the untouched patch, to repaint from
+    const patch = new T.CanvasTexture(fc); patch.flipY = false; patch.encoding = T.sRGBEncoding;
+    const at = new T.Vector2(R.x, R.y);
+    const st = {open: 1, gx: 0, gy: 0, tgx: 0, tgy: 0, nextBlink: 1500, blinkT: -1, nextLook: 800, smile: 0, dirty: true};
+    const E = {y: F.cy - F.ry*0.17, dx: F.rx*0.47, w: F.rx*0.25, h: F.ry*0.075};   // eye centre height, spacing, half-width, half-height
+    function paint(){
+      const g = fg; g.putImageData(base, 0, 0); g.save(); g.translate(-R.x, -R.y); g.scale(S, S);
+      const {cx, cy, rx, ry} = F;
+      // skin: a wider oval (covers the cheeks and jaw), feathered into the hair at its rim
+      // same hairline as before, but wider at the cheeks and longer at the chin; an elliptical feather at the rim
+      const eY = cy + ry*0.1, eRx = rx*1.07, eRy = ry*1.1;
+      g.save(); g.translate(cx, eY); g.scale(eRx, eRy);
+      const grd = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+      grd.addColorStop(0, skin(0)); grd.addColorStop(0.78, skin(-0.02)); grd.addColorStop(0.9, skin(-0.07)); grd.addColorStop(1, skin(-0.08).replace('rgb', 'rgba').replace(')', ',0)'));
+      g.fillStyle = grd; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI*2); g.fill(); g.restore();
+      // depth: soft shadow along the jaw and under the chin, light on forehead and cheekbones
+      const soft = (x, y, r, col, a) => { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, col.replace(')', `,${a})`).replace('rgb', 'rgba')); q.addColorStop(1, col.replace(')', ',0)').replace('rgb', 'rgba')); g.fillStyle = q; g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill(); };
+      soft(cx, cy + ry*0.98, rx*0.8, skin(-0.14), 0.3);
+      soft(cx - rx*0.85, cy + ry*0.35, rx*0.4, skin(-0.1), 0.3); soft(cx + rx*0.85, cy + ry*0.35, rx*0.4, skin(-0.1), 0.3);
+      soft(cx - rx*0.55, cy + ry*0.12, rx*0.28, 'rgb(236,130,120)', 0.22 + st.smile*0.08); soft(cx + rx*0.55, cy + ry*0.12, rx*0.28, 'rgb(236,130,120)', 0.22 + st.smile*0.08);
+      // brows: tapered, slightly arched
+      const browY = E.y - ry*0.25;
+      for (const sgn of [-1, 1]){
+        const x0 = cx + sgn*rx*0.16, x1 = cx + sgn*rx*0.78, peak = cx + sgn*rx*0.55;
+        g.fillStyle = '#3a2416'; g.beginPath();
+        g.moveTo(x0, browY + 1); g.quadraticCurveTo(peak, browY - 8 - st.smile, x1, browY + 3);
+        g.quadraticCurveTo(peak, browY - 2 - st.smile, x0 + sgn*2, browY + 7.5);
+        g.quadraticCurveTo(x0 - sgn*2.5, browY + 5, x0, browY + 1); g.closePath(); g.fill();
+      }
+      // eyes
+      for (const sgn of [-1, 1]){
+        const ex = cx + sgn*E.dx, ey = E.y, w = E.w, h = E.h*st.open;
+        // upper-lid crease and a little shadow over the eye
+        g.strokeStyle = 'rgba(120,70,55,0.35)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(ex - w*0.85, ey - E.h*0.7); g.quadraticCurveTo(ex, ey - E.h*2.0, ex + w*0.85, ey - E.h*0.7); g.stroke();
+        if (st.open > 0.12){
+          const almond = () => { g.beginPath(); g.moveTo(ex - w, ey); g.bezierCurveTo(ex - w*0.5, ey - h*1.25, ex + w*0.5, ey - h*1.25, ex + w, ey - h*0.15*sgn*0); g.bezierCurveTo(ex + w*0.5, ey + h*0.95, ex - w*0.5, ey + h*0.95, ex - w, ey); g.closePath(); };
+          g.save(); almond(); g.clip();
+          const scl = g.createLinearGradient(0, ey - h, 0, ey + h); scl.addColorStop(0, '#e9dcd4'); scl.addColorStop(0.45, '#fbf7f3'); scl.addColorStop(1, '#efe5df');
+          g.fillStyle = scl; g.fillRect(ex - w, ey - E.h*1.5, w*2, E.h*3);
+          const ir = E.h*1.12, ix = ex + st.gx*w*0.38, iy = ey + st.gy*E.h*0.35 - E.h*0.05;
+          const irg = g.createRadialGradient(ix, iy, ir*0.2, ix, iy, ir); irg.addColorStop(0, '#9a6136'); irg.addColorStop(0.65, '#6b3c1c'); irg.addColorStop(1, '#2b170b');
+          g.fillStyle = irg; g.beginPath(); g.arc(ix, iy, ir, 0, Math.PI*2); g.fill();
+          g.fillStyle = '#120a06'; g.beginPath(); g.arc(ix, iy, ir*0.42, 0, Math.PI*2); g.fill();
+          g.fillStyle = 'rgba(255,255,255,0.95)'; g.beginPath(); g.arc(ix - ir*0.35, iy - ir*0.38, ir*0.22, 0, Math.PI*2); g.fill();
+          g.fillStyle = 'rgba(255,255,255,0.6)'; g.beginPath(); g.arc(ix + ir*0.3, iy + ir*0.3, ir*0.1, 0, Math.PI*2); g.fill();
+          // shadow the upper lid casts on the eye
+          const ls = g.createLinearGradient(0, ey - h*1.1, 0, ey - h*0.2); ls.addColorStop(0, 'rgba(60,30,20,0.45)'); ls.addColorStop(1, 'rgba(60,30,20,0)');
+          g.fillStyle = ls; g.fillRect(ex - w, ey - E.h*1.5, w*2, E.h*1.5);
+          g.restore();
+          // lid lines: a firm upper line with a small flick of lashes at the outer corner, a soft lower line
+          g.strokeStyle = '#24140c'; g.lineWidth = 2.4; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(ex - w*1.02, ey + 0.2); g.bezierCurveTo(ex - w*0.5, ey - h*1.27, ex + w*0.5, ey - h*1.27, ex + w*1.02, ey + 0.2); g.stroke();
+          const ox = ex + sgn*w; g.lineWidth = 1.6;
+          for (const [dx, dy] of [[3, -4], [4.5, -1.5]]){ g.beginPath(); g.moveTo(ox - sgn*1.2, ey - h*0.35); g.lineTo(ox + sgn*dx, ey - h*0.35 + dy); g.stroke(); }
+          g.strokeStyle = 'rgba(90,50,35,0.45)'; g.lineWidth = 0.7;
+          g.beginPath(); g.moveTo(ex - w*0.85, ey + h*0.35); g.bezierCurveTo(ex - w*0.4, ey + h*0.98, ex + w*0.4, ey + h*0.98, ex + w*0.9, ey + h*0.25); g.stroke();
+        } else {
+          // closed: a curved lash line
+          g.strokeStyle = '#24140c'; g.lineWidth = 2.6; g.lineCap = 'round';
+          g.beginPath(); g.moveTo(ex - w, ey - E.h*0.1); g.quadraticCurveTo(ex, ey + E.h*0.9, ex + w, ey - E.h*0.1); g.stroke();
+          g.lineWidth = 1.4; const ox = ex + sgn*w; g.beginPath(); g.moveTo(ox, ey - E.h*0.1); g.lineTo(ox + sgn*3.5, ey - E.h*0.5); g.stroke();
+        }
+      }
+      // nose: light on the tip, soft shadow beneath, two small nostrils
+      const ny = cy + ry*0.17;
+      soft(cx, ny - 2, rx*0.13, skin(0.08), 0.55);
+      soft(cx + 1, ny + 3, rx*0.15, skin(-0.24), 0.55);
+      g.strokeStyle = 'rgba(150,85,65,0.22)'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(cx - rx*0.04, ny - ry*0.09); g.quadraticCurveTo(cx - rx*0.09, ny - 3, cx - rx*0.06, ny + 1); g.stroke();
+      g.fillStyle = 'rgba(120,60,45,0.55)'; for (const sgn of [-1, 1]){ g.beginPath(); g.ellipse(cx + sgn*rx*0.07, ny + 2, 1.5, 0.9, sgn*0.3, 0, Math.PI*2); g.fill(); }
+      // mouth: a soft closed smile, the corners lifted, a fuller lower lip with a highlight
+      const my = cy + ry*0.37, mw = rx*0.38, lift = 3.6 + st.smile*2;
+      const smileLine = () => { g.moveTo(cx - mw, my - lift); g.bezierCurveTo(cx - mw*0.55, my + 1.5, cx + mw*0.55, my + 1.5, cx + mw, my - lift); };
+      g.fillStyle = '#b84d59'; g.beginPath();                                      // upper lip
+      g.moveTo(cx - mw, my - lift); g.bezierCurveTo(cx - mw*0.6, my - 4.5, cx - mw*0.18, my - 5.5, cx, my - 4.2);
+      g.bezierCurveTo(cx + mw*0.18, my - 5.5, cx + mw*0.6, my - 4.5, cx + mw, my - lift);
+      g.bezierCurveTo(cx + mw*0.55, my + 1.5, cx - mw*0.55, my + 1.5, cx - mw, my - lift); g.fill();
+      const lg = g.createLinearGradient(0, my, 0, my + 10); lg.addColorStop(0, '#c85e69'); lg.addColorStop(1, '#a9444f');
+      g.fillStyle = lg; g.beginPath(); smileLine();                                 // lower lip
+      g.bezierCurveTo(cx + mw*0.55, my + 12.5, cx - mw*0.55, my + 12.5, cx - mw, my - lift); g.fill();
+      g.strokeStyle = 'rgba(85,22,32,0.85)'; g.lineWidth = 1.4; g.lineCap = 'round'; g.beginPath(); smileLine(); g.stroke();
+      for (const sgn of [-1, 1]){ g.strokeStyle = 'rgba(120,55,50,0.35)'; g.lineWidth = 1; g.beginPath(); g.arc(cx + sgn*(mw + 1.5), my - lift + 2.5, 3, sgn < 0 ? Math.PI*0.6 : -Math.PI*0.4, sgn < 0 ? Math.PI*1.1 : Math.PI*0.1); g.stroke(); }
+      soft(cx + 1, my + 5, mw*0.3, 'rgb(255,220,220)', 0.4);
+      soft(cx, my + 15, mw*0.55, skin(-0.15), 0.3);
+      g.restore();
+      const full = () => { cv.getContext('2d').drawImage(fc, R.x, R.y); tex.needsUpdate = true; };
+      if (!renderer.properties.get(tex).__webglTexture) full();          // not on the GPU yet: one full upload
+      else { try { renderer.copyTextureToTexture(at, patch, tex); } catch (e) { full(); } }
+      st.dirty = false;
+    }
+    paint();
+    // blinking every 2-5 s (sometimes twice), small glances that come back to the viewer
+    function update(nowMs){
+      if (st.frozen) return;
+      if (st.blinkT < 0 && nowMs > st.nextBlink){ st.blinkT = nowMs; st.nextBlink = nowMs + 2000 + Math.random()*3200; if (Math.random() < 0.15) st.nextBlink = nowMs + 330; }
+      let open = 1; if (st.blinkT >= 0){ const k = (nowMs - st.blinkT)/150; if (k >= 1) st.blinkT = -1; else open = Math.abs(1 - 2*k) ** 1.4; }
+      if (nowMs > st.nextLook){ const away = Math.random() < 0.35; st.tgx = away ? (Math.random()*2 - 1)*0.9 : (Math.random()*2 - 1)*0.15; st.tgy = away ? (Math.random()*2 - 1)*0.6 : 0; st.nextLook = nowMs + (away ? 400 + Math.random()*700 : 900 + Math.random()*2200); }
+      const gx = st.tgx, gy = st.tgy;                                     // saccades are instant jumps
+      const q = v => Math.round(v*20)/20, oq = Math.round(open*8)/8;
+      if (oq !== st.open || q(gx) !== q(st.gx) || q(gy) !== q(st.gy)){ st.open = oq; st.gx = gx; st.gy = gy; paint(); }
+    }
+    return {update, paint, st};
+  }
   function loadAvatar(url){
     if (!T.GLTFLoader) return Promise.resolve(false);
     if (avatarLoading) return avatarLoading;
@@ -1167,6 +1312,11 @@ function makeCoach3D(canvas, opts={}){
       if (bones.Head) for (const n of [headNode, hairNode]) if (n && !n.isSkinnedMesh && n.parent !== bones.Head) bones.Head.attach(n);
       toBindPose(root);
       const rest = new Map(); Object.values(bones).forEach(b => rest.set(b, b.quaternion.clone()));
+      const rootInvQ = root.getWorldQuaternion(new T.Quaternion()).invert();
+      const restG = new Map(); Object.values(bones).forEach(b => restG.set(b, rootInvQ.clone().multiply(b.getWorldQuaternion(new T.Quaternion()))));
+      // the body's middle plane, in the model's own space: through the hips, facing from the right shoulder to the left
+      const lp = root.worldToLocal(bones.LeftArm.getWorldPosition(new T.Vector3())), rp = root.worldToLocal(bones.RightArm.getWorldPosition(new T.Vector3()));
+      const mirrorN = lp.sub(rp).setY(0).normalize(), mirrorC = root.worldToLocal(bones.Hips.getWorldPosition(new T.Vector3()));
       const footRest = {L: bones.LeftFoot.getWorldQuaternion(new T.Quaternion()), R: bones.RightFoot.getWorldQuaternion(new T.Quaternion())};
       const wy = b => b.getWorldPosition(new T.Vector3()).y;
       const toes = [bones.LeftToeBase || bones.LeftFoot, bones.RightToeBase || bones.RightFoot];
@@ -1197,7 +1347,9 @@ function makeCoach3D(canvas, opts={}){
       // 10 cm bounce added as "0.1" simply vanished), so convert the travel into that parent's space
       const mover = pelvis ? pelvis.bone : bones.Hips;
       const toLocal = new T.Matrix3().setFromMatrix4(new T.Matrix4().copy(mover.parent.matrixWorld).invert().multiply(root.matrixWorld));
-      avatar = {root, bones, rest, footRest, toes, wy, loose, pelvis, toLocal, su: hipsY0 - floorY0, locks: new Map(), fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url, headNode,
+      let face = null; root.traverse(o => { if (!face && o.isMesh && o.material && o.material.name === 'HeadTexture' && o.material.map) face = makeLiveFace(o.material); });
+      if (face) (window.__face = window.__face || {})[canvas.id] = face;   // debug handle for automated tests
+      avatar = {root, bones, rest, restG, mirrorN, mirrorC, face, footRest, toes, wy, loose, pelvis, toLocal, su: hipsY0 - floorY0, locks: new Map(), fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url, headNode,
                 hair: hairNode ? {node: hairNode, rest: hairNode.quaternion.clone(), pos: new T.Vector3(), vel: new T.Vector3(), ang: new T.Vector2(), angV: new T.Vector2(), lastT: 0} : null};
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
@@ -1240,7 +1392,60 @@ function makeCoach3D(canvas, opts={}){
   const FINGER_RE = /Index|Middle|Ring|Pinky|Thumb/;
   let lastCp = null, fade = null;
   // apply one clip frame; with w < 1 it is blended over whatever the bones hold already
-  function applyClip(c, t, w, hipsPath){
+  // mirrored clip: play the original, then reflect every bone's turn (relative to the rest pose) across the body's
+  // middle plane onto the bone of the other side, rebuilding the local rotations from the hips outward
+  const mSave = new Map(), mTarget = [], mq1 = new T.Quaternion(), mq2 = new T.Quaternion(), mq3 = new T.Quaternion();
+  const swapSide = n => /^Left/.test(n) ? 'Right' + n.slice(4) : /^Right/.test(n) ? 'Left' + n.slice(5) : /L$/.test(n) ? n.slice(0, -1) + 'R' : /R$/.test(n) ? n.slice(0, -1) + 'L' : n;   // 'UpperArmL' or Mixamo's 'LeftArm'
+  const depth = o => { let d = 0; while (o.parent){ d++; o = o.parent; } return d; };
+  const LIMBS = [['LeftArm','LeftForeArm'],['LeftForeArm','LeftHand'],['LeftUpLeg','LeftLeg'],['LeftLeg','LeftFoot'],
+                 ['RightArm','RightForeArm'],['RightForeArm','RightHand'],['RightUpLeg','RightLeg'],['RightLeg','RightFoot']];
+  const otherSide = n => n.startsWith('Left') ? 'Right' + n.slice(4) : n.startsWith('Right') ? 'Left' + n.slice(5) : n;
+  const mv = new T.Vector3(), mv2 = new T.Vector3();
+  // where a limb points, in the model's own space (bone to child joint, or the bone's own axis when the child is loose)
+  function limbDir(A, b, child){
+    if (child && isDesc(child, b)) return A.root.worldToLocal(child.getWorldPosition(mv)).clone().sub(A.root.worldToLocal(b.getWorldPosition(mv2)));
+    const p = A.root.worldToLocal(b.getWorldPosition(mv)).clone(), y = b.localToWorld(new T.Vector3(0, 1, 0));
+    return A.root.worldToLocal(y).sub(p);
+  }
+  function applyClipMirror(c, t, w, hipsPath){
+    const A = avatar, B = A.bones, N = A.mirrorN, C = A.mirrorC;
+    const reflectV = v => v.sub(N.clone().multiplyScalar(2 * v.dot(N)));          // a direction, reflected across the plane
+    mSave.clear();
+    if (w < 1) for (const n in c.bones){ const b = B[ALIAS[n] || n]; if (b) mSave.set(b, b.quaternion.clone()); }
+    const hipsSave = B.Hips.position.clone();
+    applyClip(c, t, 1, hipsPath, true);
+    A.root.updateMatrixWorld(true);
+    const rootQ = A.root.getWorldQuaternion(mq1).clone(), rootInv = rootQ.clone().invert();
+    // 1) every bone's turn away from its rest orientation, reflected onto the bone of the other side
+    mTarget.length = 0;
+    for (const n in c.bones){
+      if (FINGER_RE.test(n)) continue;
+      const src = B[ALIAS[n] || n], dstName = swapSide(n), dst = B[ALIAS[dstName] || dstName];
+      if (!src || !dst || !A.restG.has(src) || !A.restG.has(dst)) continue;
+      const d = rootInv.clone().multiply(src.getWorldQuaternion(mq2)).multiply(A.restG.get(src).clone().invert());
+      const v = new T.Vector3(d.x, d.y, d.z), r = N.clone().multiplyScalar(2 * v.dot(N)).sub(v);   // proper rotation of the mirror image
+      d.set(r.x, r.y, r.z, d.w);
+      mTarget.push([dst, d.multiply(A.restG.get(dst)), depth(dst)]);
+    }
+    // 2) where each limb points and where the hips are, mirrored, to correct for a rest pose that is not quite symmetric
+    const limbWant = LIMBS.map(([bn, cn]) => { const b = B[bn], ch = B[cn]; return b ? [B[otherSide(bn)], B[otherSide(cn)], reflectV(limbDir(A, b, ch))] : null; }).filter(x => x && x[0]);
+    const hp = A.root.worldToLocal(B.Hips.getWorldPosition(new T.Vector3()));
+    hp.sub(N.clone().multiplyScalar(2 * hp.clone().sub(C).dot(N)));
+    for (const [dst] of mTarget) dst.quaternion.copy(A.rest.get(dst));
+    mTarget.sort((a, b) => a[2] - b[2]);
+    for (const [dst, gWant] of mTarget){
+      dst.parent.updateMatrixWorld(true);
+      const pInv = rootInv.clone().multiply(dst.parent.getWorldQuaternion(mq3)).invert();
+      dst.quaternion.copy(pInv.multiply(gWant));
+      dst.updateMatrixWorld(true);
+    }
+    B.Hips.position.copy(B.Hips.parent.worldToLocal(A.root.localToWorld(hp)));
+    A.root.updateMatrixWorld(true);
+    for (const [b, ch, dir] of limbWant) aim(b, ch, dir.applyQuaternion(rootQ));
+    if (w < 1){ for (const [b, q] of mSave){ const now = b.quaternion.clone(); b.quaternion.copy(q).slerp(now, w); } B.Hips.position.lerp(hipsSave, 1 - w); }
+  }
+  function applyClip(c, t, w, hipsPath, raw){
+    if (c.mirror && !raw) return applyClipMirror(c, t, w, hipsPath);
     const A = avatar, B = A.bones;
     const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
     for (const n in c.bones){
@@ -1256,6 +1461,9 @@ function makeCoach3D(canvas, opts={}){
     hv.set(h[i0*3]*(1-u) + h[i1*3]*u, h[i0*3+1]*(1-u) + h[i1*3+1]*u, h[i0*3+2]*(1-u) + h[i1*3+2]*u).applyMatrix3(A.toLocal).add(A.hipsRest);
     if (w >= 1) B.Hips.position.copy(hv); else B.Hips.position.lerp(hv, w);
   }
+  // back to the rest pose; the pelvis bone goes home too (a mirrored dance reads world positions, so a pelvis left
+  // where the last frame put it would be counted twice)
+  function toRest(){ const A = avatar; A.rest.forEach((q, b) => b.quaternion.copy(q)); if (A.pelvis){ A.pelvis.bone.position.copy(A.pelvis.pos); A.bones.Hips.position.copy(A.hipsRest); } }
   function pelvisFix(){
     const A = avatar, B = A.bones, P = A.pelvis; if (!P) return;
     cqa.copy(B.Hips.quaternion).multiply(P.hipsInv);                 // how far the clip turned the hips from rest
@@ -1285,7 +1493,7 @@ function makeCoach3D(canvas, opts={}){
   function buildLocks(c){
     const A = avatar, B = A.bones, n = c.frames, P = [new Float32Array(n * 3), new Float32Array(n * 3)], feet = [B.LeftFoot, B.RightFoot];
     for (let f = 0; f < n; f++){
-      A.rest.forEach((q, b) => b.quaternion.copy(q)); applyClip(c, f / c.fps, 1, c.hipsRaw || c.hips); pelvisFix(); placeLoose();
+      toRest(); applyClip(c, f / c.fps, 1, c.hipsRaw || c.hips); pelvisFix(); placeLoose();
       for (let k = 0; k < 2; k++){ feet[k].getWorldPosition(a1); A.root.worldToLocal(a1); P[k][f*3] = a1.x; P[k][f*3+1] = a1.y; P[k][f*3+2] = a1.z; }
     }
     const su = A.su, low = 0.06 * su, slow = 0.7 * su / c.fps, wide = 0.07 * su, R = 3, out = [new Float32Array(n * 2), new Float32Array(n * 2)];
@@ -1332,11 +1540,20 @@ function makeCoach3D(canvas, opts={}){
   }
   function poseAvatarClip(cp){
     const A = avatar, B = A.bones, root = A.root, c = cp.clip, nowT = performance.now();
-    if (FOOT_LOCK && c.bpm && !A.locks.has(c)) A.locks.set(c, buildLocks(c));
+    if (FOOT_LOCK && c.bpm && !A.locks.has(c)){
+      const base = c.mirror && clips[MOCAP[c.id] && MOCAP[c.id].mirrorOf];
+      if (base){
+        // a mirrored dance takes its locks from the original: the other foot's correction, reflected across the body's middle plane
+        if (!A.locks.has(base)) A.locks.set(base, buildLocks(base));
+        const src = A.locks.get(base), N = A.mirrorN, out = [new Float32Array(src[1].length), new Float32Array(src[0].length)];
+        for (let k = 0; k < 2; k++) for (let i = 0; i < out[k].length; i += 2){ const x = src[1 - k][i], z = src[1 - k][i + 1], d = 2 * (x * N.x + z * N.z); out[k][i] = x - d * N.x; out[k][i + 1] = z - d * N.z; }
+        A.locks.set(c, out);
+      } else A.locks.set(c, buildLocks(c));
+    }
     // a new clip, or a jump in time (loop point, next dance): blend out of the old motion over a third of a second
     if (lastCp && (lastCp.clip !== c || Math.abs(cp.t - lastCp.t) > 0.4)) fade = {clip: lastCp.clip, t: lastCp.t, start: nowT};
     lastCp = {clip: c, t: cp.t};
-    A.rest.forEach((q, b) => b.quaternion.copy(q));
+    toRest();
     let lockW = 1;
     if (fade){
       const k = (nowT - fade.start) / 340;
@@ -1355,8 +1572,7 @@ function makeCoach3D(canvas, opts={}){
   }
   function poseAvatar(j){
     const A = avatar, B = A.bones, root = A.root;
-    A.rest.forEach((q, b) => b.quaternion.copy(q));
-    if (A.pelvis){ A.pelvis.bone.position.copy(A.pelvis.pos); B.Hips.position.copy(A.hipsRest); }
+    toRest();
     root.rotation.y = j.yaw; root.position.set(j.hipC.x - A.center.x, 0, j.hipC.z * 0.5 - A.center.z); root.updateMatrixWorld(true);
     const d = (p, q) => q.clone().sub(p);
     if (B.Hips){ B.Hips.rotateY(-j.tw * 0.4); B.Hips.updateMatrixWorld(true); }          // hips turn against the shoulders
@@ -1405,6 +1621,14 @@ function makeCoach3D(canvas, opts={}){
   (window.__br = window.__br || {})[canvas.id] = () => { if (!avatar) return null; const B = avatar.bones, r = avatar.root, chest = B.Spine2 || B.Chest || B.Spine;
     const wp = b => b.getWorldPosition(new T.Vector3()).toArray(), hn = avatar.headNode || B.Head;
     return {head: hn.getWorldQuaternion(new T.Quaternion()).angleTo(chest.getWorldQuaternion(new T.Quaternion())) * 180 / Math.PI, l: wp(B.LeftFoot), r: wp(B.RightFoot), hips: wp(B.Hips), scale: r.scale.x, y: r.position.y}; };
+  // debug probe: pose one clip frame and report where hands, feet and head end up, in the dancer's own space
+  (window.__poseProbe = window.__poseProbe || {})[canvas.id] = (c, t) => {
+    if (!avatar) return null; const A = avatar;
+    toRest(); applyClip(c, t, 1); A.root.updateMatrixWorld(true);
+    const out = {}; for (const n of ['LeftHand','RightHand','LeftFoot','RightFoot','Head','LeftForeArm','RightForeArm','LeftLeg','RightLeg','LeftUpLeg','RightUpLeg','Hips']){ const b = A.bones[n]; if (b) out[n] = A.root.worldToLocal(b.getWorldPosition(new T.Vector3())).toArray().map(v => +v.toFixed(3)); }
+    out._n = A.mirrorN.toArray(); out._c = A.mirrorC.toArray();
+    return out;
+  };
   (window.__hairAng = window.__hairAng || {})[canvas.id] = () => avatar && avatar.hair ? [avatar.hair.ang.x, avatar.hair.ang.y, avatar.hair.vel.x, avatar.hair.lastT] : null;   // debug probe per coach instance
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
@@ -1454,6 +1678,7 @@ function makeCoach3D(canvas, opts={}){
       if (cp) poseAvatarClip(cp);
       else poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
       swingHair(o.time || performance.now());
+      if (avatar.face) avatar.face.update(performance.now());
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
@@ -1487,6 +1712,13 @@ function makeCoach3D(canvas, opts={}){
     camera.fov = vfov*180/Math.PI; camera.aspect = aspect; camera.updateProjectionMatrix();
     camera.position.set(Math.sin(orbit)*dist, cyT + 0.35, Math.cos(orbit)*dist);
     camera.lookAt(0, cyT, 0);
+    // debug: window.__faceCam = {yaw} frames the face close up, for checking it in automated tests
+    if (window.__faceCam && avatar && avatar.bones.Head){
+      if (window.__faceCam.rest){ avatar.rest.forEach((q, b) => b.quaternion.copy(q)); avatar.root.updateMatrixWorld(true); }
+      const hp = avatar.bones.Head.getWorldPosition(new T.Vector3()).add(new T.Vector3(0, 0.1, 0)), fy = window.__faceCam.yaw || 0;
+      camera.fov = 22; camera.aspect = aspect; camera.updateProjectionMatrix();
+      camera.position.set(hp.x + Math.sin(fy)*0.9, hp.y + 0.02, hp.z + Math.cos(fy)*0.9); camera.lookAt(hp);
+    }
     renderer.render(scene, camera);
     perfTick(o.time || performance.now());
   }
@@ -1990,7 +2222,7 @@ $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 
 function movesForPlan(plan){
   if (plan.type === 'mix' && !state.mix) state.mix = makeMix(plan.all);
-  if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases);
+  if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases).map(ph => Math.random() < 0.5 ? mirrorOf(ph) : ph);
   return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i);
 }
 
@@ -2518,6 +2750,7 @@ function loop(now){
 /* ---------- music choice + tap tempo ---------- */
 const MUSIC_KEY = 'bitrishon.music.v4';
 const musicPrefs = (() => { try { return Object.assign({mode:'own', bpm:90}, JSON.parse(localStorage.getItem(MUSIC_KEY))); } catch { return {mode:'own', bpm:90}; } })();
+musicPrefs.mode = 'own';   // music comes from Spotify only (the game's own songs stay in the code but are not offered)
 function saveMusic(){ try { localStorage.setItem(MUSIC_KEY, JSON.stringify(musicPrefs)); } catch {} }
 function renderMusic(){
   $('mAuto').checked = musicPrefs.mode !== 'own';
@@ -2585,7 +2818,7 @@ function cur(){
 function makeMix(all){
   const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (all || levelUnlocked(i)) pool.push(...lv.phrases); });
   const picked = []; const bag = pool.slice();
-  while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); picked.push(bag.splice(k, 1)[0]); }
+  while (picked.length < Math.min(6, pool.length)){ const k = Math.floor(Math.random()*bag.length); const ph = bag.splice(k, 1)[0]; picked.push(Math.random() < 0.5 ? mirrorOf(ph) : ph); }
   return picked;
 }
 function setStyle(id){
@@ -2750,6 +2983,8 @@ $('spotGo').addEventListener('click', () => { spot.kickedAt = performance.now();
 $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then(checkPaused).catch(()=>{}); });
 renderHome();
 requestAnimationFrame(loop);
+// test hook: lets automated browser tests reach the game's state (the script is a module, so nothing is global)
+Object.defineProperties(window.__br = window.__br || {}, Object.getOwnPropertyDescriptors({ ensureAudio, music, state, clips, begin, cur, get actx(){ return actx; }}));
 </script>
 </body>
 </html>
