@@ -1190,6 +1190,7 @@ function makeCoach3D(canvas, opts={}){
     hq.setFromEuler(new T.Euler(H.ang.x, 0, H.ang.y));
     H.node.quaternion.copy(hpq.clone().invert().multiply(hq).multiply(hpq).multiply(H.rest));
   }
+  (window.__hairAng = window.__hairAng || {})[canvas.id] = () => avatar && avatar.hair ? [avatar.hair.ang.x, avatar.hair.ang.y, avatar.hair.vel.x, avatar.hair.lastT] : null;   // debug probe per coach instance
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
     const w = canvas.clientWidth, h = canvas.clientHeight;
