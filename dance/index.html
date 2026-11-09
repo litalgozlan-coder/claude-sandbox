@@ -597,7 +597,6 @@ const uniquePoses = ph => ph.steps.map(x => x.pose).filter((p,i,arr) => arr.inde
 const MOCAP = {
   hiphop1: {file:'mocap/hiphop1.json', bpm:84.9, beats:10},
   hiphop2: {file:'mocap/hiphop2.json', bpm:107.5, beats:8},
-  hiphop3: {file:'mocap/hiphop3.json', bpm:98.4, beats:10},
   uprock: {file:'mocap/uprock.json', bpm:114.3, beats:8},
   freeze: {file:'mocap/freeze.json', bpm:116.1, beats:8},
   charleston: {file:'mocap/charleston.json', bpm:91.9, beats:16},
@@ -616,7 +615,6 @@ const MOCAP = {
   samba: {file:'mocap/samba.json', bpm:115.9, beats:36},
   rumba: {file:'mocap/rumba.json', bpm:126.8, beats:5},
   step: {file:'mocap/step.json', bpm:100.0, beats:13},
-  locking2: {file:'mocap/locking2.json', bpm:120.0, beats:34},
   // not dances: the avatar warms up before a round, and cheers or claps on the result screen
   stretch: {file:'mocap/stretch.json', bpm:0, beats:0, extra:true},
   cheer: {file:'mocap/cheer.json', bpm:0, beats:0, extra:true},
@@ -625,17 +623,25 @@ const MOCAP = {
 const clips = {};
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
-  return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; inPlace(j); clips[id] = j; return j; });
+  return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; j.hipsRaw = j.hips; inPlace(j); clips[id] = j; return j; });
 }
 // the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
 // metre back, a charleston drifts two metres sideways, and both snap home at the loop), keep the fast steps and bounce
 function inPlace(j){
   if (!j.bpm || !j.hips) return;
-  const n = j.frames, W = Math.max(3, Math.round(2 * 60 / j.bpm * j.fps)), half = Math.floor(W / 2), h = j.hips, out = h.slice();
+  const n = j.frames, h = j.hips, out = h.slice();
+  // 1) a dance that ends somewhere else than it began: take the steady travel out evenly, like a treadmill
+  // 2) what still wanders slowly (over more than eight counts) is taken out too; the steps themselves, and a
+  //    side-to-side groove of a few counts, stay whole, so a foot that stands on the floor stays where it stands
+  // 3) and the dancer never leaves the middle of the stage: untouched within 30 cm, a soft limit beyond
+  const W = Math.max(3, Math.round(8 * 60 / j.bpm * j.fps)), half = Math.min(Math.floor(W / 2), Math.floor((n - 1) / 2));
+  const soft = x => { const a = 0.3, L = 0.55, m = Math.abs(x); return m <= a ? x : Math.sign(x) * (a + (L - a) * Math.tanh((m - a) / (L - a))); };
   for (const ax of [0, 2]){
+    const d = new Float32Array(n), drift = h[(n - 1) * 3 + ax] - h[ax];
+    for (let i = 0; i < n; i++) d[i] = h[i * 3 + ax] - drift * i / (n - 1);
     for (let i = 0; i < n; i++){
-      let sum = 0; for (let k = -half; k <= half; k++){ sum += h[(((i + k) % n) + n) % n] * 0 + h[((((i + k) % n) + n) % n) * 3 + ax]; }
-      out[i * 3 + ax] = clamp(h[i * 3 + ax] - sum / (2 * half + 1), -0.35, 0.35);
+      let sum = 0; for (let k = -half; k <= half; k++) sum += d[(((i + k) % n) + n) % n];
+      out[i * 3 + ax] = soft(d[i] - sum / (2 * half + 1));
     }
   }
   j.hips = out;
@@ -750,7 +756,6 @@ async function ensureClips(){
 const MC = {
   hiphop1: mocapPhrase('hiphop1', 'היפ־הופ 1', 'HIP HOP DANCING', 'ריקוד שלם שנלכד מרקדן היפ־הופ מקצועי: סיבובים, העברות משקל וגרוב אמיתי. 10 ספירות.'),
   hiphop2: mocapPhrase('hiphop2', 'היפ־הופ 2', 'HIP HOP DANCING II', 'קטע שני של אותו רקדן, מהיר יותר. 8 ספירות.'),
-  hiphop3: mocapPhrase('hiphop3', 'היפ־הופ 3', 'HIP HOP DANCING III', 'קטע שלישי: גרוב רחב עם הרבה עבודת ידיים. 10 ספירות.'),
   runningman: mocapPhrase('runningman', 'ראנינג מן', 'RUNNING MAN', 'הראנינג מן כמו שרקדן אמיתי עושה אותו: החלקה אחורה עם הידיים. 10 ספירות.'),
   shuffle: mocapPhrase('shuffle', 'שאפל', 'SHUFFLING', 'צעדי שאפל מהירים: עקב־בוהן והחלפות משקל. 12 ספירות.'),
   shimmy: mocapPhrase('shimmy', 'שימי', 'HIP HOP SHIMMY', 'כתפיים רועדות עם גרוב בברכיים ומעברים. 22 ספירות.'),
@@ -760,7 +765,6 @@ const MC = {
   tut: mocapPhrase('tut', 'טאטינג', 'TUTTING', 'זוויות ישרות עם הידיים והמרפקים, כמו ציור מצרי. דיוק לפני מהירות. 34 ספירות.'),
   house: mocapPhrase('house', 'האוס', 'HOUSE DANCE', 'עבודת רגליים מהירה של ריקוד האוס, עם קפיצה בגוף העליון. 46 ספירות.'),
   step: mocapPhrase('step', 'סטפ היפ־הופ', 'STEP HIP HOP', 'צעד בסיסי של היפ־הופ: סטפ עם העברת משקל וידיים שמלוות. 13 ספירות.'),
-  locking2: mocapPhrase('locking2', 'לוקינג 2', 'LOCKING II', 'וריאציה שנייה של לוקינג: נעילות, הצבעות וסיבובי ידיים. 34 ספירות.'),
   uprock: mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
   freeze: mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!'),
   macarena: mocapPhrase('macarena', 'מקרנה', 'MACARENA', 'המקרנה המלאה, 16 ספירות: ידיים, כתפיים, ראש, מותניים וקפיצה.'),
@@ -772,8 +776,8 @@ const MC = {
   samba: mocapPhrase('samba', 'סמבה', 'SAMBA', 'הקפצה של הסמבה הברזילאית: שלושה צעדים על כל שתי ספירות. 36 ספירות.')
 };
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
-const HHL2 = [MC.hiphop2, MC.hiphop3, MC.wave, MC.robot];
-const HHL3 = [MC.locking, MC.locking2, MC.tut, MC.house, MC.uprock, MC.freeze];
+const HHL2 = [MC.hiphop2, MC.wave, MC.robot];
+const HHL3 = [MC.locking, MC.tut, MC.house, MC.uprock, MC.freeze];
 const ZBL1 = [MC.macarena, MC.chicken, MC.salsa1, MC.salsa2];
 const ZBL2 = [MC.charleston, MC.rumba, MC.samba];
 
@@ -914,7 +918,12 @@ function coachJoints(a){
   return J;
 }
 // Knees dip and the body bobs on every beat of the music, so the coach always moves with the song.
-function beatCount(){ return (music.on && actx) ? (actx.currentTime - music.t0)/music.bd : (performance.now()/1000)/0.6; }
+// The beat as the player hears it. A note the game schedules for audio time t leaves the speaker a little later
+// (tens of milliseconds on a phone, far more over Bluetooth), so the coach follows that later moment. When the
+// tempo comes from the microphone or from the player's taps, the grid is already in heard time.
+function outLag(){ if (!actx || (music.own && ear.locked)) return 0; const l = actx.outputLatency; return clamp(l > 0 ? l : (actx.baseLatency || 0), 0, 0.5); }
+const heardNow = () => actx.currentTime - outLag();
+function beatCount(){ return (music.on && actx) ? (heardNow() - music.t0)/music.bd : (performance.now()/1000)/0.6; }
 function beatPhase(){ return ((beatCount() % 1) + 1) % 1; }
 // Continuous groove on top of the poses: a knee dip on every beat, a small hop between beats,
 // hips swaying over two beats, shoulders and arms pumping, so the body never stands still.
@@ -1114,6 +1123,29 @@ function makeCoach3D(canvas, opts={}){
   const stepState = {last:null, t:0, v:0};
   // ---- optional avatar: a skinned GLB with Mixamo-style bone names, posed from the same dance data ----
   let avatar = null, avatarOn = false, avatarLoading = null;
+  // A file may be saved in the middle of a pose instead of in its bind pose (the personal avatar: mid-stride, turned
+  // 27 degrees, arms down). The dances are stored as turns away from the rest pose, so the skeleton must really
+  // rest in its bind pose, here and in the tool that prepares the dances.
+  function toBindPose(root){
+    const groups = new Map(), m = new T.Matrix4(), comp = (a, v, c) => c === 0 ? a.getX(v) : c === 1 ? a.getY(v) : c === 2 ? a.getZ(v) : a.getW(v);
+    root.traverse(o => { if (o.isSkinnedMesh){ if (!groups.has(o.skeleton)) groups.set(o.skeleton, []); groups.get(o.skeleton).push(o); } });
+    groups.forEach((meshes, sk) => {
+      const at = new Map(sk.bones.map((b, i) => [b, i])), used = new Uint8Array(sk.bones.length);
+      // only a bone that carries skin, or leads to one that does, has a bind matrix that means something: the end
+      // bones of fingers and toes often hold garbage there
+      for (const o of meshes){
+        const si = o.geometry.attributes.skinIndex, sw = o.geometry.attributes.skinWeight; if (!si || !sw) continue;
+        for (let v = 0; v < si.count; v++) for (let c = 0; c < 4; c++) if (comp(sw, v, c) > 0) used[comp(si, v, c)] = 1;
+      }
+      sk.bones.forEach((b, i) => { if (used[i]) for (let x = b.parent; x && at.has(x); x = x.parent) used[at.get(x)] = 1; });
+      const W = sk.boneInverses.map(bi => new T.Matrix4().copy(bi).invert());
+      const loc = sk.bones.map((b, i) => { const pi = at.get(b.parent); if (pi === undefined || !used[i]) return null; const L = {p: new T.Vector3(), q: new T.Quaternion(), s: new T.Vector3()}; m.copy(W[pi]).invert().multiply(W[i]).decompose(L.p, L.q, L.s); return L; });
+      // a file that already rests in its bind pose is left exactly as it is
+      if (!sk.bones.some((b, i) => loc[i] && b.quaternion.angleTo(loc[i].q) > 0.05)) return;
+      sk.bones.forEach((b, i) => { if (loc[i]){ b.position.copy(loc[i].p); b.quaternion.copy(loc[i].q); } });
+    });
+    root.updateMatrixWorld(true);
+  }
   function setAllParts(on){ for (const k in parts){ const v = parts[k]; if (v.cyl){ v.cyl.visible = v.a.visible = v.b.visible = on; } else v.visible = on; } if (on){ parts.cap.visible = parts.brim.visible = !PAL.headband; parts.band.visible = !!PAL.headband; } }
   function isDesc(c, b){ for (let x = c.parent; x; x = x.parent) if (x === b) return true; return false; }
   const ALIAS = {Abdomen:'Spine', UpperArmL:'LeftArm', LowerArmL:'LeftForeArm', WristL:'LeftHand', UpperArmR:'RightArm', LowerArmR:'RightForeArm', WristR:'RightHand',
@@ -1129,12 +1161,18 @@ function makeCoach3D(canvas, opts={}){
       const bones = {}; root.traverse(o => { if (o.isBone){ let n = o.name.replace('.', ''); if (/^mixamorig/.test(n)) n = n.replace(/^mixamorig:?/, '').replace(/_\d+$/, ''); bones[ALIAS[n] || n] = o; } });
       if (!bones.Hips || !bones.LeftArm || !bones.LeftUpLeg || !bones.LeftFoot) return res(false);
       root.updateMatrixWorld(true);
+      // the personal avatar's head and hair are separate meshes that arrive hanging on the chest: move them to the head
+      // bone, or the head stays frozen on the torso while the dance turns the neck and the head underneath it
+      let hairNode = null, headNode = null; root.traverse(o => { if (o.name === 'HairMesh') hairNode = o; if (o.name === 'HeadMesh') headNode = o; });
+      if (bones.Head) for (const n of [headNode, hairNode]) if (n && !n.isSkinnedMesh && n.parent !== bones.Head) bones.Head.attach(n);
+      toBindPose(root);
       const rest = new Map(); Object.values(bones).forEach(b => rest.set(b, b.quaternion.clone()));
       const footRest = {L: bones.LeftFoot.getWorldQuaternion(new T.Quaternion()), R: bones.RightFoot.getWorldQuaternion(new T.Quaternion())};
       const wy = b => b.getWorldPosition(new T.Vector3()).y;
       const toes = [bones.LeftToeBase || bones.LeftFoot, bones.RightToeBase || bones.RightFoot];
       const topB = bones.HeadTop_End || bones.Head;
       const height = (wy(topB) - Math.min(...toes.map(wy))) * (bones.HeadTop_End ? 1.03 : 1.16);
+      const hipsY0 = wy(bones.Hips), floorY0 = Math.min(...toes.map(wy)) - 0.03 * (hipsY0 - Math.min(...toes.map(wy)));
       const loose = {};
       for (const [leg, foot] of [['LeftLeg', 'LeftFoot'], ['RightLeg', 'RightFoot']]){
         const f = bones[foot], l = bones[leg];
@@ -1147,8 +1185,19 @@ function makeCoach3D(canvas, opts={}){
       const fingers = [];
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
-      let hairNode = null; root.traverse(o => { if (o.name === 'HairMesh') hairNode = o; });
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url,
+      // on some rigs the legs hang on the bone above the hips, not on the hips: there the hips' travel and turn
+      // must go to that bone, or the torso bounces and sways over legs that stay hung in the air and slide on the floor
+      let pelvis = null; const hp = bones.Hips.parent;
+      if (!isDesc(bones.LeftUpLeg, bones.Hips) && hp && hp.isBone && isDesc(bones.LeftUpLeg, hp) && bones.RightUpLeg)
+        pelvis = {bone: hp, rest: hp.quaternion.clone(), pos: hp.position.clone(), hipsRest: bones.Hips.quaternion.clone(), hipsInv: bones.Hips.quaternion.clone().invert(), legs: [bones.LeftUpLeg, bones.RightUpLeg],
+                  // the pelvis turns about a point a little above the line between the hip joints, as on the captured dancer
+                  pivot: bones.LeftUpLeg.position.clone().add(bones.RightUpLeg.position).multiplyScalar(0.5).add(new T.Vector3(0, PELVIS_PIVOT_UP, 0))};
+      // the clips store the hips' travel in the model's own world units and axes; the bone that carries it may sit under
+      // a scaled or turned parent (a Sketchfab export keeps its skeleton in centimetres under a 0.009 scale, where a
+      // 10 cm bounce added as "0.1" simply vanished), so convert the travel into that parent's space
+      const mover = pelvis ? pelvis.bone : bones.Hips;
+      const toLocal = new T.Matrix3().setFromMatrix4(new T.Matrix4().copy(mover.parent.matrixWorld).invert().multiply(root.matrixWorld));
+      avatar = {root, bones, rest, footRest, toes, wy, loose, pelvis, toLocal, su: hipsY0 - floorY0, locks: new Map(), fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [], center, url, headNode,
                 hair: hairNode ? {node: hairNode, rest: hairNode.quaternion.clone(), pos: new T.Vector3(), vel: new T.Vector3(), ang: new T.Vector2(), angV: new T.Vector2(), lastT: 0} : null};
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
@@ -1191,7 +1240,7 @@ function makeCoach3D(canvas, opts={}){
   const FINGER_RE = /Index|Middle|Ring|Pinky|Thumb/;
   let lastCp = null, fade = null;
   // apply one clip frame; with w < 1 it is blended over whatever the bones hold already
-  function applyClip(c, t, w){
+  function applyClip(c, t, w, hipsPath){
     const A = avatar, B = A.bones;
     const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
     for (const n in c.bones){
@@ -1201,33 +1250,104 @@ function makeCoach3D(canvas, opts={}){
       cqa.set(q[i0*4], q[i0*4+1], q[i0*4+2], q[i0*4+3]); cqb.set(q[i1*4], q[i1*4+1], q[i1*4+2], q[i1*4+3]); cqa.slerp(cqb, u);
       if (w >= 1) b.quaternion.copy(cqa); else b.quaternion.slerp(cqa, w);
     }
-    const h = c.hips;
+    const h = hipsPath || c.hips;
     // the coach dances in place: keep the bounce and a little sway, drop the clip's travel across the floor
     // (a running man slides a metre back and then snaps home at the loop, which reads as walking, not dancing)
-    hv.set(A.hipsRest.x + h[i0*3]*(1-u) + h[i1*3]*u, A.hipsRest.y + h[i0*3+1]*(1-u) + h[i1*3+1]*u, A.hipsRest.z + h[i0*3+2]*(1-u) + h[i1*3+2]*u);
+    hv.set(h[i0*3]*(1-u) + h[i1*3]*u, h[i0*3+1]*(1-u) + h[i1*3+1]*u, h[i0*3+2]*(1-u) + h[i1*3+2]*u).applyMatrix3(A.toLocal).add(A.hipsRest);
     if (w >= 1) B.Hips.position.copy(hv); else B.Hips.position.lerp(hv, w);
+  }
+  function pelvisFix(){
+    const A = avatar, B = A.bones, P = A.pelvis; if (!P) return;
+    cqa.copy(B.Hips.quaternion).multiply(P.hipsInv);                 // how far the clip turned the hips from rest
+    P.bone.quaternion.copy(P.rest).multiply(cqa);
+    P.bone.position.copy(P.pos).add(hv.copy(B.Hips.position).sub(A.hipsRest));
+    P.bone.position.add(hv.copy(P.pivot).applyQuaternion(cqa).negate().add(P.pivot).applyQuaternion(P.rest));
+    B.Hips.quaternion.copy(P.hipsRest); B.Hips.position.copy(A.hipsRest);
+    cqa.invert(); for (const leg of P.legs) leg.quaternion.premultiply(cqa);   // the legs keep the direction the clip gave them
+  }
+  // this rig's feet are not children of the legs: put each foot at the end of its shin, or the shoe stretches
+  const lz0 = new T.Vector3(), lz1 = new T.Vector3(), lzd = new T.Vector3(), lzq = new T.Quaternion();
+  function placeLoose(){
+    const A = avatar, B = A.bones; A.root.updateMatrixWorld(true);
+    for (const foot in A.loose){
+      const L = A.loose[foot], f = B[foot];
+      L.leg.getWorldPosition(lz0); lzd.set(0, 1, 0).applyQuaternion(L.leg.getWorldQuaternion(lzq)); lz1.copy(lz0).add(lzd);
+      f.parent.worldToLocal(lz0); f.parent.worldToLocal(lz1);
+      f.position.copy(lz0.add(lz1.sub(lz0).normalize().multiplyScalar(L.len))); f.updateMatrixWorld(true);
+    }
+  }
+  // ---- foot lock ----
+  // A foot that stands on the floor must stay where it stands. The clip is played once in the dark, with its full
+  // travel, to find when each ankle is down and still; for those stretches we store how far the ankle strays from
+  // its resting spot, and while dancing the thigh leans by that little (a few centimetres) to cancel it. Real slides
+  // (a running man, a shuffle) move too far to count as standing, and are left alone.
+  const num = (a, b) => a - b;
+  function buildLocks(c){
+    const A = avatar, B = A.bones, n = c.frames, P = [new Float32Array(n * 3), new Float32Array(n * 3)], feet = [B.LeftFoot, B.RightFoot];
+    for (let f = 0; f < n; f++){
+      A.rest.forEach((q, b) => b.quaternion.copy(q)); applyClip(c, f / c.fps, 1, c.hipsRaw || c.hips); pelvisFix(); placeLoose();
+      for (let k = 0; k < 2; k++){ feet[k].getWorldPosition(a1); A.root.worldToLocal(a1); P[k][f*3] = a1.x; P[k][f*3+1] = a1.y; P[k][f*3+2] = a1.z; }
+    }
+    const su = A.su, low = 0.06 * su, slow = 0.7 * su / c.fps, wide = 0.07 * su, R = 3, out = [new Float32Array(n * 2), new Float32Array(n * 2)];
+    for (let k = 0; k < 2; k++){
+      const p = P[k], on = new Uint8Array(n), wt = new Float32Array(n); let yMin = Infinity;
+      for (let f = 0; f < n; f++) yMin = Math.min(yMin, p[f*3+1]);
+      for (let f = 0; f < n; f++){ const a = Math.max(0, f - 1), b = Math.min(n - 1, f + 1); on[f] = p[f*3+1] < yMin + low && Math.hypot(p[b*3] - p[a*3], p[b*3+2] - p[a*3+2]) / (b - a) < slow ? 1 : 0; }
+      for (let f = 1; f < n - 2; f++) if (!on[f] && on[f-1] && (on[f+1] || on[f+2])) on[f] = 1;
+      for (let f = 0; f < n; f++){
+        if (!on[f]) continue;
+        let e = f; while (e + 1 < n && on[e+1]) e++;
+        if (e - f >= 3){
+          const xs = [], zs = []; for (let i = f; i <= e; i++){ xs.push(p[i*3]); zs.push(p[i*3+2]); } xs.sort(num); zs.sort(num);
+          const tx = xs[xs.length >> 1], tz = zs[zs.length >> 1];
+          if (xs[xs.length-1] - xs[0] < 2 * wide && zs[zs.length-1] - zs[0] < 2 * wide)
+            for (let i = f - R; i <= e + R; i++){
+              if (i < 0 || i >= n) continue;
+              const j = clamp(i, f, e), w = i < f ? (i - (f - R - 1)) / (R + 1) : i > e ? ((e + R + 1) - i) / (R + 1) : 1;
+              if (w <= wt[i]) continue;
+              wt[i] = w; out[k][i*2] = (tx - p[j*3]) * w; out[k][i*2+1] = (tz - p[j*3+2]) * w;
+            }
+        }
+        f = e;
+      }
+    }
+    return out;
+  }
+  const lv = new T.Vector3(), lm3 = new T.Matrix3();
+  function applyLocks(c, t, w){
+    const A = avatar, B = A.bones, lk = A.locks.get(c); if (!lk) return;
+    const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames, u = f - Math.floor(f);
+    let moved = false; lm3.setFromMatrix4(A.root.matrixWorld);
+    for (let k = 0; k < 2; k++){
+      const o = lk[k], dx = (o[i0*2] * (1 - u) + o[i1*2] * u) * w, dz = (o[i0*2+1] * (1 - u) + o[i1*2+1] * u) * w;
+      if (dx * dx + dz * dz < 1e-8) continue;
+      const thigh = k ? B.RightUpLeg : B.LeftUpLeg, foot = k ? B.RightFoot : B.LeftFoot;
+      thigh.getWorldPosition(a1); foot.getWorldPosition(a2).sub(a1);              // hip to ankle
+      lv.set(dx, 0, dz).applyMatrix3(lm3).add(a2);                                // and where the ankle should be
+      tq.setFromUnitVectors(a2.normalize(), lv.normalize());
+      thigh.getWorldQuaternion(wq); thigh.parent.getWorldQuaternion(pq);
+      thigh.quaternion.copy(pq.invert().multiply(tq.multiply(wq))); thigh.updateMatrixWorld(true); moved = true;
+    }
+    if (moved) placeLoose();
   }
   function poseAvatarClip(cp){
     const A = avatar, B = A.bones, root = A.root, c = cp.clip, nowT = performance.now();
+    if (FOOT_LOCK && c.bpm && !A.locks.has(c)) A.locks.set(c, buildLocks(c));
     // a new clip, or a jump in time (loop point, next dance): blend out of the old motion over a third of a second
     if (lastCp && (lastCp.clip !== c || Math.abs(cp.t - lastCp.t) > 0.4)) fade = {clip: lastCp.clip, t: lastCp.t, start: nowT};
     lastCp = {clip: c, t: cp.t};
     A.rest.forEach((q, b) => b.quaternion.copy(q));
+    let lockW = 1;
     if (fade){
       const k = (nowT - fade.start) / 340;
       if (k >= 1) fade = null;
-      else { applyClip(fade.clip, fade.t + (nowT - fade.start) / 1000, 1); applyClip(c, cp.t, ease(k)); }
+      else { applyClip(fade.clip, fade.t + (nowT - fade.start) / 1000, 1); applyClip(c, cp.t, ease(k)); lockW = ease(k); }
     }
     if (!fade) applyClip(c, cp.t, 1);
+    pelvisFix();
     if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * 0.4 * k);   // relaxed hands
-    // this rig's feet are not children of the legs: put each foot at the end of its shin, or the shoe stretches
-    root.updateMatrixWorld(true);
-    for (const [foot, L] of Object.entries(A.loose)){
-      const f = B[foot]; L.leg.updateMatrixWorld(true);
-      const start = L.leg.getWorldPosition(new T.Vector3()), dirW = new T.Vector3(0, 1, 0).applyQuaternion(L.leg.getWorldQuaternion(new T.Quaternion()));
-      const p0 = f.parent.worldToLocal(start.clone()), p1 = f.parent.worldToLocal(start.clone().add(dirW));
-      f.position.copy(p0.add(p1.sub(p0).normalize().multiplyScalar(L.len))); f.updateMatrixWorld(true);
-    }
+    placeLoose();
+    applyLocks(c, cp.t, lockW);
     root.rotation.y = 0; root.position.set(-A.center.x, 0, -A.center.z); root.updateMatrixWorld(true);
     const minToe = Math.min(...A.toes.map(A.wy), B.LeftHand ? A.wy(B.LeftHand) + 0.02 : 9, B.RightHand ? A.wy(B.RightHand) + 0.02 : 9);
     if (minToe < 0.03 || minToe > 0.14) root.position.y += 0.03 - minToe;     // feet (or hands, in a freeze) on the floor, real jumps may leave it
@@ -1236,6 +1356,7 @@ function makeCoach3D(canvas, opts={}){
   function poseAvatar(j){
     const A = avatar, B = A.bones, root = A.root;
     A.rest.forEach((q, b) => b.quaternion.copy(q));
+    if (A.pelvis){ A.pelvis.bone.position.copy(A.pelvis.pos); B.Hips.position.copy(A.hipsRest); }
     root.rotation.y = j.yaw; root.position.set(j.hipC.x - A.center.x, 0, j.hipC.z * 0.5 - A.center.z); root.updateMatrixWorld(true);
     const d = (p, q) => q.clone().sub(p);
     if (B.Hips){ B.Hips.rotateY(-j.tw * 0.4); B.Hips.updateMatrixWorld(true); }          // hips turn against the shoulders
@@ -1280,6 +1401,10 @@ function makeCoach3D(canvas, opts={}){
     hq.setFromEuler(new T.Euler(H.ang.x, 0, H.ang.y));
     H.node.quaternion.copy(hpq.clone().invert().multiply(hq).multiply(hpq).multiply(H.rest));
   }
+  // measurement probe per coach: how far the head is turned against the chest, and where the ankles are
+  (window.__br = window.__br || {})[canvas.id] = () => { if (!avatar) return null; const B = avatar.bones, r = avatar.root, chest = B.Spine2 || B.Chest || B.Spine;
+    const wp = b => b.getWorldPosition(new T.Vector3()).toArray(), hn = avatar.headNode || B.Head;
+    return {head: hn.getWorldQuaternion(new T.Quaternion()).angleTo(chest.getWorldQuaternion(new T.Quaternion())) * 180 / Math.PI, l: wp(B.LeftFoot), r: wp(B.RightFoot), hips: wp(B.Hips), scale: r.scale.x, y: r.position.y}; };
   (window.__hairAng = window.__hairAng || {})[canvas.id] = () => avatar && avatar.hair ? [avatar.hair.ang.x, avatar.hair.ang.y, avatar.hair.vel.x, avatar.hair.lastT] : null;   // debug probe per coach instance
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
@@ -1368,6 +1493,7 @@ function makeCoach3D(canvas, opts={}){
   return {draw, setAvatar};
 }
 let coach3 = null, demo3 = null, res3 = null;
+const PELVIS_PIVOT_UP = 0.05, FOOT_LOCK = true;
 const AVATAR_FIST_SIGN = -1;  // measured on the rig: negative X curls the fingers into the palm
 // the coaches: the personal avatar, and a professional dancer character; each has its own set of retargeted clips
 const AVATARS = {
@@ -1922,6 +2048,10 @@ const ear = {stream:null, an:null, a:null, b:null, t:[], v:[], vl:[], timer:null
 const MIC_LATENCY = 0.035;   // our capture pipeline: analyser frame plus sampling interval; the speaker-to-mic path is a few ms
 // steps per minute that feel like dancing: slow songs get two steps per beat, very fast ones one step per two beats
 function danceRate(raw){ let mult = 1; if (raw < 80) mult = 2; else if (raw > 160) mult = 0.5; return {bpm: raw*mult, mult}; }
+// the tempo whose beats the coach steps on: when a slow reading is danced double time, the beat must be found on
+// the double grid, or the comb can settle on the off-beat hi-hats and every step lands half a beat late
+const TEMPO_ALIAS = [2/3, 3/2, 3/4, 4/3];
+const gridBpm = () => ear.rawBpm * (ear.mult === 2 ? 2 : 1);
 function rateText(){ const r = Math.round(ear.rawBpm*ear.mult); return `קצב ${r}` + (ear.mult === 2 ? ' (×2)' : ear.mult === 0.5 ? ' (½)' : ''); }
 async function startEar(){
   if (ear.stream) return true;
@@ -2028,7 +2158,7 @@ function earSync(){
     if (!(ear.pending && Math.abs(ear.pending - est.bpm) < 3)){ ear.pending = est.bpm; setEarChip('מקשיבים…'); return; }
     ear.pending = 0;
     ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.locked = true;
-    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
+    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, gridBpm()) - MIC_LATENCY);
     setEarChip(rateText()); popText(rateText() + '!', '#1ed760');
     return;
   }
@@ -2039,7 +2169,7 @@ function earSync(){
     ear.misses = 0;
     ear.rawBpm = ear.rawBpm + 0.3*(e - ear.rawBpm);
     const bpm = ear.rawBpm*ear.mult;
-    const bt = beatTimeIn(pwin, ear.rawBpm) - MIC_LATENCY;
+    const bt = beatTimeIn(pwin, gridBpm()) - MIC_LATENCY;
     const k = Math.round((bt - music.t0)/music.bd);
     const err = bt - (music.t0 + k*music.bd);
     const hold = performance.now() < ear.holdUntil;        // after the player tapped the beat, trust the taps' phase
@@ -2049,9 +2179,11 @@ function earSync(){
     setMusicGrid(bpm, music.t0 + k*music.bd + (hold ? 0 : err*0.45));
     setEarChip(rateText());
   } else if (performance.now() < ear.holdUntil){ ear.misses = 0;   // the player's taps win while they are fresh
-  } else if (++ear.misses >= 2){                             // a new song with another tempo
+  } else if (++ear.misses >= (TEMPO_ALIAS.some(r => Math.abs(e / ear.rawBpm - r) < 0.035) ? 8 : 2)){   // a new song with another tempo
+    // (a reading at two thirds or three halves of the tempo we hold is usually the same song's syncopation, not a
+    // new song: it has to persist for eight seconds before we believe it)
     ear.rawBpm = Math.round(est.bpm*10)/10; ear.mult = danceRate(ear.rawBpm).mult; ear.misses = 0; ear.holdUntil = 0;
-    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, ear.rawBpm) - MIC_LATENCY);
+    setMusicGrid(ear.rawBpm*ear.mult, beatTimeIn(win, gridBpm()) - MIC_LATENCY);
     setEarChip(rateText()); popText('שיר חדש · ' + rateText(), '#1ed760');
   }
 }
@@ -2154,8 +2286,12 @@ function startRhythm(idxs, bpm, opts={}){
   const minBeats = Math.ceil(MIN_SECONDS/bd/8)*8;            // at least a minute of dancing
   const timeline = []; let beat = 0;
   // add an 8-count `times` times; scale 2 = half speed
+  // a captured dance far slower than the music is danced half time (one of its counts per two beats) instead of
+  // being raced through: at 140 a dance captured at 85 would run at 1.65 times its speed, half time it runs at 0.82
+  const fit = ph => { const c = ph.clip && clips[ph.clip]; return c && c.bpm && bpm / c.bpm > 1.41 ? 2 : 1; };
   const add = (ph, times, scale, section) => {
-    for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*scale, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*scale; }
+    const k = scale * fit(ph);
+    for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*k, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*k; }
   };
   const one = cur().phrases[idxs[0]];
   const captured = !!(one.clip || one.video);        // a captured dance at half speed looks lifeless: it was already learned slowly
@@ -2173,7 +2309,7 @@ function startRhythm(idxs, bpm, opts={}){
   }
   let t0, clock, base;
   if (music.on && actx){
-    clock = () => actx.currentTime;
+    clock = heardNow;
     base = queueCountIn();                            // count-in sits on the next bar of the running music
     t0 = music.t0 + (base - 4)*music.bd;
   } else {
@@ -2423,8 +2559,8 @@ const ZB_DANCE_PLAYLISTS = [{"name": "Zumba® Beats", "url": "https://open.spoti
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, dancePlaylists:HH_DANCE_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
     {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'סטפ, ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
-    {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
-    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: שני לוקינגים, טאטינג, האוס, אפרוק ופריז.'}]},
+    {name:'סטריט', en:'STREET', phrases:HHL2, desc:'ריקוד היפ־הופ שלם ומהיר, וייב ורובוט.'},
+    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
