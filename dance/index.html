@@ -612,7 +612,20 @@ const MOCAP = {
 const clips = {};
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
-  return fetch(MOCAP[id].file).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; clips[id] = j; return j; });
+  return fetch(MOCAP[id].file).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; inPlace(j); clips[id] = j; return j; });
+}
+// the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
+// metre back, a charleston drifts two metres sideways, and both snap home at the loop), keep the fast steps and bounce
+function inPlace(j){
+  if (!j.bpm || !j.hips) return;
+  const n = j.frames, W = Math.max(3, Math.round(2 * 60 / j.bpm * j.fps)), half = Math.floor(W / 2), h = j.hips, out = h.slice();
+  for (const ax of [0, 2]){
+    for (let i = 0; i < n; i++){
+      let sum = 0; for (let k = -half; k <= half; k++){ sum += h[(((i + k) % n) + n) % n] * 0 + h[((((i + k) % n) + n) % n) * 3 + ax]; }
+      out[i * 3 + ax] = clamp(h[i * 3 + ax] - sum / (2 * half + 1), -0.35, 0.35);
+    }
+  }
+  j.hips = out;
 }
 function clipAngles(c, t){
   const f = (((t % c.dur) + c.dur) % c.dur) * c.fps, i0 = Math.floor(f) % c.frames, i1 = (i0 + 1) % c.frames;
@@ -979,7 +992,18 @@ function makeCoach3D(canvas, opts={}){
   if (!T) return null;
   let renderer;
   try { renderer = new T.WebGLRenderer({canvas, antialias:true, alpha:true}); } catch { return null; }
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio || 1));
+  // adaptive quality: if frames take too long on this phone, drop resolution first and shadows second
+  const perf = {t: 0, n: 0, acc: 0, level: 0};
+  function perfTick(now){
+    if (perf.t){ perf.acc += now - perf.t; perf.n++; }
+    perf.t = now;
+    if (perf.n >= 60){
+      const avg = perf.acc / perf.n; perf.acc = 0; perf.n = 0;
+      if (avg > 34 && perf.level === 0){ perf.level = 1; renderer.setPixelRatio(1); w0 = -1; }
+      else if (avg > 34 && perf.level === 1){ perf.level = 2; renderer.shadowMap.enabled = false; key.castShadow = false; scene.traverse(o => { if (o.material) o.material.needsUpdate = true; }); }
+    }
+  }
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.outputEncoding = T.sRGBEncoding;
   renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
@@ -1118,6 +1142,8 @@ function makeCoach3D(canvas, opts={}){
       if (w >= 1) b.quaternion.copy(cqa); else b.quaternion.slerp(cqa, w);
     }
     const h = c.hips;
+    // the coach dances in place: keep the bounce and a little sway, drop the clip's travel across the floor
+    // (a running man slides a metre back and then snaps home at the loop, which reads as walking, not dancing)
     hv.set(A.hipsRest.x + h[i0*3]*(1-u) + h[i1*3]*u, A.hipsRest.y + h[i0*3+1]*(1-u) + h[i1*3+1]*u, A.hipsRest.z + h[i0*3+2]*(1-u) + h[i1*3+2]*u);
     if (w >= 1) B.Hips.position.copy(hv); else B.Hips.position.lerp(hv, w);
   }
@@ -1277,6 +1303,7 @@ function makeCoach3D(canvas, opts={}){
     camera.position.set(Math.sin(orbit)*dist, cyT + 0.35, Math.cos(orbit)*dist);
     camera.lookAt(0, cyT, 0);
     renderer.render(scene, camera);
+    perfTick(o.time || performance.now());
   }
   return {draw, setAvatar};
 }
