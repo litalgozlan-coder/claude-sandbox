@@ -607,6 +607,8 @@ const MOCAP = {
   salsa2: {file:'mocap/salsa2.json', bpm:105.9, beats:4},
   samba: {file:'mocap/samba.json', bpm:115.9, beats:36},
   rumba: {file:'mocap/rumba.json', bpm:126.8, beats:5},
+  step: {file:'mocap/step.json', bpm:100.0, beats:13},
+  locking2: {file:'mocap/locking2.json', bpm:120.0, beats:34},
   // not dances: the avatar warms up before a round, and cheers or claps on the result screen
   stretch: {file:'mocap/stretch.json', bpm:0, beats:0, extra:true},
   cheer: {file:'mocap/cheer.json', bpm:0, beats:0, extra:true},
@@ -749,6 +751,8 @@ const MC = {
   locking: mocapPhrase('locking', 'לוקינג', 'LOCKING', 'תנועות גדולות שננעלות בפתאומיות, עם הצבעות וסיבובי ידיים. 34 ספירות.'),
   tut: mocapPhrase('tut', 'טאטינג', 'TUTTING', 'זוויות ישרות עם הידיים והמרפקים, כמו ציור מצרי. דיוק לפני מהירות. 34 ספירות.'),
   house: mocapPhrase('house', 'האוס', 'HOUSE DANCE', 'עבודת רגליים מהירה של ריקוד האוס, עם קפיצה בגוף העליון. 46 ספירות.'),
+  step: mocapPhrase('step', 'סטפ היפ־הופ', 'STEP HIP HOP', 'צעד בסיסי של היפ־הופ: סטפ עם העברת משקל וידיים שמלוות. 13 ספירות.'),
+  locking2: mocapPhrase('locking2', 'לוקינג 2', 'LOCKING II', 'וריאציה שנייה של לוקינג: נעילות, הצבעות וסיבובי ידיים. 34 ספירות.'),
   uprock: mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
   freeze: mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!'),
   macarena: mocapPhrase('macarena', 'מקרנה', 'MACARENA', 'המקרנה המלאה, 16 ספירות: ידיים, כתפיים, ראש, מותניים וקפיצה.'),
@@ -759,9 +763,9 @@ const MC = {
   rumba: mocapPhrase('rumba', 'רומבה', 'RUMBA', 'צעדי רומבה איטיים ורכים עם מותניים. 5 ספירות שחוזרות.'),
   samba: mocapPhrase('samba', 'סמבה', 'SAMBA', 'הקפצה של הסמבה הברזילאית: שלושה צעדים על כל שתי ספירות. 36 ספירות.')
 };
-const HHL1 = [MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
+const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.hiphop3, MC.wave, MC.robot];
-const HHL3 = [MC.locking, MC.tut, MC.house, MC.uprock, MC.freeze];
+const HHL3 = [MC.locking, MC.locking2, MC.tut, MC.house, MC.uprock, MC.freeze];
 const ZBL1 = [MC.macarena, MC.chicken, MC.salsa1, MC.salsa2];
 const ZBL2 = [MC.charleston, MC.rumba, MC.samba];
 
@@ -2358,9 +2362,9 @@ const ZB_PLAYLISTS = [{"name": "זומבה פיטנס אימון קצבי", "url
 /* ---------- dance styles ---------- */
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
-    {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
+    {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'סטפ, ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'שני ריקודי היפ־הופ שלמים ומהירים, וייב ורובוט.'},
-    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
+    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: שני לוקינגים, טאטינג, האוס, אפרוק ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
