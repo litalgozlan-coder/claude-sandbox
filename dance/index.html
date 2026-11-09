@@ -1061,7 +1061,9 @@ function makeCoach3D(canvas, opts={}){
       const fingers = [];
       for (const side of ['L', 'R']) for (const fn of ['Index', 'Middle', 'Ring', 'Pinky']) for (const seg of [1, 2, 3]){ const b = bones[fn + seg + side]; if (b) fingers.push([b, seg === 1 ? 1.1 : 1.4]); }
       for (const side of ['L', 'R']) for (const seg of [1, 2]){ const b = bones['Thumb' + seg + side]; if (b) fingers.push([b, 0.5]); }
-      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: []};
+      let hairNode = null; root.traverse(o => { if (o.name === 'HairMesh') hairNode = o; });
+      avatar = {root, bones, rest, footRest, toes, wy, loose, fingers: fingers.length ? fingers : null, hipsRest: bones.Hips.position.clone(), hands: [],
+                hair: hairNode ? {node: hairNode, rest: hairNode.quaternion.clone(), pos: new T.Vector3(), vel: new T.Vector3(), ang: new T.Vector2(), angV: new T.Vector2(), lastT: 0} : null};
       if (opts.hands){
         // a soft glow on each hand, so the arms read at a glance even against the body
         const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
@@ -1170,6 +1172,25 @@ function makeCoach3D(canvas, opts={}){
     root.updateMatrixWorld(true);
     const minToe = Math.min(...A.toes.map(A.wy)); root.position.y += 0.03 - minToe + (j.bob||0); root.updateMatrixWorld(true);
   }
+  // hair: a small damped swing opposite to the head's acceleration, in world space, around the skull centre
+  const hq = new T.Quaternion(), hpq = new T.Quaternion(), hWorld = new T.Vector3();
+  function swingHair(nowMs){
+    const H = avatar && avatar.hair; if (!H) return;
+    const dt = Math.min(0.05, Math.max(0.008, (nowMs - (H.lastT || nowMs - 16)) / 1000)); H.lastT = nowMs;
+    H.node.getWorldPosition(hWorld);
+    const vx = (hWorld.x - H.pos.x) / dt, vy = (hWorld.y - H.pos.y) / dt, vz = (hWorld.z - H.pos.z) / dt;
+    const ax = (vx - H.vel.x) / dt, az = (vz - H.vel.z) / dt;
+    H.pos.copy(hWorld); H.vel.set(vx, vy, vz);
+    // target tilt: lag behind sideways motion (roll) and forward motion (pitch); clamp so the hairline never lifts
+    const tz = clamp(-vx * 0.35 - ax * 0.012, -0.28, 0.28), tx = clamp(vz * 0.35 + az * 0.012, -0.22, 0.22);
+    const k = 90, c = 11;           // spring stiffness and damping, per second
+    H.angV.x += ((tx - H.ang.x) * k - H.angV.x * c) * dt; H.angV.y += ((tz - H.ang.y) * k - H.angV.y * c) * dt;
+    H.ang.x += H.angV.x * dt; H.ang.y += H.angV.y * dt;
+    H.node.parent.getWorldQuaternion(hpq);
+    hq.setFromEuler(new T.Euler(H.ang.x, 0, H.ang.y));
+    H.node.quaternion.copy(hpq.clone().invert().multiply(hq).multiply(hpq).multiply(H.rest));
+  }
+  (window.__hairAng = window.__hairAng || {})[canvas.id] = () => avatar && avatar.hair ? [avatar.hair.ang.x, avatar.hair.ang.y, avatar.hair.vel.x, avatar.hair.lastT] : null;   // debug probe per coach instance
   let w0 = 0, h0 = 0, ringT = 0;
   function draw(a, o={}){
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -1217,6 +1238,7 @@ function makeCoach3D(canvas, opts={}){
       const cp = o.clip || (ui.screen === 'play' ? state.clipPlay : null);
       if (cp) poseAvatarClip(cp);
       else poseAvatar({rSh,lSh,rEl,lEl,rWr,lWr,rHip,lHip,rKn,lKn,rAn,lAn,shC,hipC,head,tw,yaw,bob:a.bob||0,look,fist:a.fist||0});
+      swingHair(o.time || performance.now());
     } else {
     place(parts.torso, V(hipC.x, hipC.y+0.04, hipC.z), V(shC.x, shC.y-0.06, shC.z), 1.32, 0.78);
     parts.torso.cyl.rotateY(tw*0.5);
