@@ -620,7 +620,6 @@ const MOCAP = {
   shuffle: {file:'mocap/shuffle.json', bpm:96.0, beats:12},
   shimmy: {file:'mocap/shimmy.json', bpm:110.3, beats:22},
   tut: {file:'mocap/tut.json', bpm:120.5, beats:34},
-  wave: {file:'mocap/wave.json', bpm:114.1, beats:32},
   locking: {file:'mocap/locking.json', bpm:120.0, beats:34},
   robot: {file:'mocap/robot.json', bpm:128.3, beats:33},
   house: {file:'mocap/house.json', bpm:105.5, beats:46},
@@ -792,7 +791,6 @@ const MC = {
   runningman: mocapPhrase('runningman', 'ראנינג מן', 'RUNNING MAN', 'הראנינג מן כמו שרקדן אמיתי עושה אותו: החלקה אחורה עם הידיים. 10 ספירות.'),
   shuffle: mocapPhrase('shuffle', 'שאפל', 'SHUFFLING', 'צעדי שאפל מהירים: עקב־בוהן והחלפות משקל. 12 ספירות.'),
   shimmy: mocapPhrase('shimmy', 'שימי', 'HIP HOP SHIMMY', 'כתפיים רועדות עם גרוב בברכיים ומעברים. 22 ספירות.'),
-  wave: mocapPhrase('wave', 'וייב', 'WAVING', 'גל שעובר מיד ליד דרך הכתפיים והחזה. 32 ספירות.'),
   robot: mocapPhrase('robot', 'רובוט', 'ROBOT', 'תנועות קצובות עם עצירות חדות, כולל הכפיפה הרובוטית. 33 ספירות.'),
   locking: mocapPhrase('locking', 'לוקינג', 'LOCKING', 'תנועות גדולות שננעלות בפתאומיות, עם הצבעות וסיבובי ידיים. 34 ספירות.'),
   tut: mocapPhrase('tut', 'טאטינג', 'TUTTING', 'זוויות ישרות עם הידיים והמרפקים, כמו ציור מצרי. דיוק לפני מהירות. 34 ספירות.'),
@@ -812,8 +810,8 @@ const MC = {
 const MCM = {}; for (const k in MC){ const o = MC[k]; MCM[k] = Object.assign(mocapPhrase(k + '_m', o.name + ' · צד שני', o.en + ' · MIRROR', o.desc + ' בתמונת מראה: מה שהיה ימין עכשיו שמאל.'), {mirror: true}); }
 const mirrorOf = ph => (ph.clip && MCM[ph.clip]) || ph;
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
-const HHL2 = [MC.hiphop2, MC.wave, MC.robot];
-const HHL3 = [MC.locking, MC.tut, MC.house, MC.uprock, MC.freeze];
+const HHL2 = [MC.hiphop2, MC.robot, MC.uprock];
+const HHL3 = [MC.locking, MC.tut, MC.house, MC.freeze];
 const ZBL1 = [MC.macarena, MC.chicken, MC.salsa1, MC.salsa2];
 const ZBL2 = [MC.charleston, MC.rumba, MC.samba];
 
@@ -2821,8 +2819,8 @@ const ZB_DANCE_PLAYLISTS = [{"name": "Zumba® Beats", "url": "https://open.spoti
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, dancePlaylists:HH_DANCE_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
     {name:'בסיס', en:'BASICS', phrases:HHL1, desc:'סטפ, ראנינג מן, שאפל, ריקוד היפ־הופ שלם ושימי. כל התנועות מרקדן אמיתי, בלכידת תנועה, על האווטאר שלך.'},
-    {name:'סטריט', en:'STREET', phrases:HHL2, desc:'ריקוד היפ־הופ שלם ומהיר, וייב ורובוט.'},
-    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס, אפרוק ופריז.'}]},
+    {name:'סטריט', en:'STREET', phrases:HHL2, desc:'ריקוד היפ־הופ שלם ומהיר, רובוט ואפרוק.'},
+    {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
