@@ -91,7 +91,29 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .seg label{display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;border-radius:9px;font-weight:700;font-size:15px;cursor:pointer;color:var(--muted)}
 .seg input{position:absolute;opacity:0;pointer-events:none}
 .seg label:has(input:checked){background:var(--coach);color:#1a0d05}
-.mode-seg{margin-bottom:10px}
+.mode-seg{margin-bottom:10px;grid-template-columns:1fr 1fr 1fr}
+.journal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px}
+.j-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.j-big{font-family:var(--display);font-size:44px;line-height:.9;font-weight:700}
+.j-big small{font-family:var(--body);font-size:15px;color:var(--muted);font-weight:700;margin-inline-start:6px}
+.j-stats{display:flex;gap:14px;color:var(--muted);font-size:14px;font-weight:700}
+.j-stats b{color:var(--fg);font-size:17px}
+.j-goal{height:10px;background:var(--bg);border-radius:6px;overflow:hidden}
+.j-goal i{display:block;height:100%;background:var(--good);border-radius:6px;transition:width .4s}
+.j-week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;align-items:end;height:92px}
+.j-day{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%;font-size:12px;color:var(--muted);font-weight:700}
+.j-day i{display:block;width:100%;max-width:26px;border-radius:5px 5px 2px 2px;background:var(--you);min-height:3px;opacity:.35}
+.j-day.has i{opacity:1}
+.j-day.today{color:var(--fg)}
+.j-day em{font-style:normal;font-size:11px;color:var(--fg);min-height:14px}
+.j-goal-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-weight:700}
+.j-goal-row button{background:var(--bg);border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 9px;font-weight:700;font-size:13px}
+.j-goal-row button.on{background:var(--good);border-color:var(--good);color:#06210f}
+.j-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.j-list li{display:flex;justify-content:space-between;gap:10px;font-size:14px;border-top:1px solid var(--line);padding-top:6px}
+.j-list li span:last-child{color:var(--muted);white-space:nowrap}
+.lesson.wk{background:var(--panel-2);border-color:var(--good)}
+.lesson.wk .num{color:var(--good);font-size:34px}
 .mode-seg label{font-size:17px;padding:11px 8px}
 .mode-seg label:has(input:checked){background:#1ed760;color:#06210f}
 .style-seg{background:var(--panel);padding:5px}
@@ -223,6 +245,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="seg mode-seg" role="radiogroup" aria-label="מצב">
       <label for="mode-learn"><input type="radio" name="mode" id="mode-learn" value="learn">📖 לימוד</label>
       <label for="mode-dance"><input type="radio" name="mode" id="mode-dance" value="dance">🎵 ריקוד</label>
+      <label for="mode-workout"><input type="radio" name="mode" id="mode-workout" value="workout">💪 אימון</label>
     </div>
     <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
       <label for="style-hiphop"><input type="radio" name="style" id="style-hiphop" value="hiphop">היפ־הופ</label>
@@ -819,11 +842,12 @@ function starsHtml(n, total=3){ let h=''; for(let i=0;i<total;i++) h+=starSvg(i<
 function renderHome(){
   buildDemo();
   for (const id in STYLES) { const r = $('style-' + id); if (r) r.checked = id === STYLE_ID; }
-  $('mode-learn').checked = MODE === 'learn'; $('mode-dance').checked = MODE === 'dance';
+  $('mode-learn').checked = MODE === 'learn'; $('mode-dance').checked = MODE === 'dance'; $('mode-workout').checked = MODE === 'workout';
   const st = loadStars();
   const list = $('lessonList');
   list.innerHTML = '';
   if (MODE === 'dance') return renderDanceHome(list, st);
+  if (MODE === 'workout') return renderWorkoutHome(list);
   const lvRow = document.createElement('div'); lvRow.className = 'levels';
   STYLES[STYLE_ID].levels.forEach((lv, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl' + (i === levelIdx() ? ' on' : '') + (levelUnlocked(i) ? '' : ' locked');
@@ -872,6 +896,89 @@ function renderHome(){
     <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
   mx.addEventListener('click', () => begin({type:'mix'}));
   list.appendChild(mx);
+}
+/* =========================================================
+   Workout journal: every session of a minute or more is logged on this phone (localStorage)
+   ========================================================= */
+const LOG_KEY = 'bitrishon.log.v1', GOAL_KEY = 'bitrishon.goal.v1';
+function loadLog(){ try { const a = JSON.parse(localStorage.getItem(LOG_KEY)); return Array.isArray(a) ? a : []; } catch { return []; } }
+function saveLog(a){ try { localStorage.setItem(LOG_KEY, JSON.stringify(a.slice(-800))); } catch {} }
+function weekGoal(){ try { return +localStorage.getItem(GOAL_KEY) || 90; } catch { return 90; } }
+const dayKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+function weekStart(d = new Date()){ const w = new Date(d.getFullYear(), d.getMonth(), d.getDate()); w.setDate(w.getDate() - w.getDay()); return w; }   // weeks start on Sunday
+function minutesByDay(log){ const m = {}; for (const e of log){ const k = dayKey(new Date(e.ts)); m[k] = (m[k] || 0) + e.min; } return m; }
+function streakDays(log){
+  const m = minutesByDay(log), d = new Date(); let n = 0;
+  if (!m[dayKey(d)]) d.setDate(d.getDate() - 1);          // a streak still counts until today is over
+  while (m[dayKey(d)]){ n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function weekSummary(log = loadLog()){
+  const ws = weekStart(), m = minutesByDay(log), days = [];
+  for (let i = 0; i < 7; i++){ const d = new Date(ws); d.setDate(ws.getDate() + i); days.push({d, min: m[dayKey(d)] || 0}); }
+  const inWeek = log.filter(e => e.ts >= ws.getTime());
+  return {days, min: Math.round(days.reduce((s, x) => s + x.min, 0)*10)/10, sessions: inWeek.length, streak: streakDays(log)};
+}
+// what is being danced right now, for the log; closed by finishRhythm, by leaving, or by closing the app
+let session = null;
+function sessionLabel(plan){
+  if (plan.type === 'workout') return `אימון ${plan.min} דק׳`;
+  if (plan.type === 'lesson') return cur().phrases[plan.index]?.name || 'שיעור';
+  return {flow: 'שיעור · ' + cur().routine, full: 'ריקוד · ' + cur().routine, mix: 'מיקס', marathon: 'מרתון'}[plan.type] || 'ריקוד';
+}
+function sessionStart(plan){ session = {ts: Date.now(), t0: performance.now(), label: sessionLabel(plan), style: STYLE_ID, plan: plan.type}; }
+function sessionEnd(done, acc){
+  if (!session) return 0;
+  const min = Math.round((performance.now() - session.t0) / 6000) / 10; const s = session; session = null;
+  if (min < 1) return 0;
+  const log = loadLog(); log.push({ts: s.ts, min, label: s.label, style: s.style, plan: s.plan, done: !!done, acc: acc === undefined || acc === null ? null : Math.round(acc*100)}); saveLog(log);
+  return min;
+}
+addEventListener('pagehide', () => { if (session && state.phase && state.phase.kind !== 'done') sessionEnd(false); });
+const HE_DAYS = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+const fmtMin = m => m >= 10 ? String(Math.round(m)) : String(Math.round(m*10)/10);
+function journalCard(){
+  const log = loadLog(), w = weekSummary(log), goal = weekGoal(), today = dayKey(new Date());
+  const box = document.createElement('div'); box.className = 'journal';
+  const maxDay = Math.max(30, ...w.days.map(x => x.min));
+  box.innerHTML = `<div class="j-top"><div class="j-big">${fmtMin(w.min)}<small>מתוך ${goal} דקות השבוע</small></div>
+      <div class="j-stats"><span><b>${w.sessions}</b> אימונים</span><span><b>${w.streak}</b> ${w.streak === 1 ? 'יום' : 'ימים'} ברצף</span></div></div>
+    <div class="j-goal" role="progressbar" aria-valuemin="0" aria-valuemax="${goal}" aria-valuenow="${Math.round(w.min)}"><i style="width:${Math.min(100, w.min/goal*100)}%"></i></div>
+    <div class="j-week">${w.days.map(x => `<div class="j-day${x.min ? ' has' : ''}${dayKey(x.d) === today ? ' today' : ''}"><em>${x.min ? fmtMin(x.min) : ''}</em><i style="height:${Math.max(3, x.min/maxDay*64)}px"></i>${HE_DAYS[x.d.getDay()]}</div>`).join('')}</div>
+    <div class="j-goal-row">יעד שבועי:${[60, 90, 120, 150, 200].map(g => `<button type="button" data-g="${g}" class="${g === goal ? 'on' : ''}">${g}</button>`).join('')}דקות</div>`;
+  box.querySelectorAll('[data-g]').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem(GOAL_KEY, b.dataset.g); } catch {} renderHome(); }));
+  const recent = log.slice(-5).reverse();
+  if (recent.length){
+    const ul = document.createElement('ul'); ul.className = 'j-list';
+    for (const e of recent){
+      const d = new Date(e.ts), li = document.createElement('li');
+      const when = dayKey(d) === today ? 'היום' : `${HE_DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;
+      li.innerHTML = '<span></span><span></span>';
+      li.firstChild.textContent = `${e.label} · ${STYLES[e.style]?.name || ''}`;
+      li.lastChild.textContent = `${when} · ${fmtMin(e.min)} דק׳${e.acc !== null ? ` · ${e.acc}%` : ''}`;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+  return box;
+}
+// workout mode home: the week so far, then ready-made workouts that build up and come back down
+const WORKOUTS = [
+  {min: 15, name: 'אימון קצר', en: 'QUICK BURN', desc: '2 דקות חימום, 11 דקות של קצב עולה ושיא, 2 דקות שחרור.'},
+  {min: 25, name: 'אימון בינוני', en: 'CARDIO DANCE', desc: '3 דקות חימום, 8 דקות עלייה, 10 דקות שיא, 4 דקות שחרור.'},
+  {min: 40, name: 'אימון ארוך', en: 'FULL SESSION', desc: '5 דקות חימום, 12 דקות עלייה, 17 דקות שיא, 6 דקות שחרור.'}
+];
+function renderWorkoutHome(list){
+  list.appendChild(journalCard());
+  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = `אימון ${STYLES[STYLE_ID].name}: ריקודים ברצף בלי לעצור, מחימום קל עד שיא ובחזרה`;
+  list.appendChild(lbl);
+  for (const w of WORKOUTS){
+    const b = document.createElement('button'); b.className = 'lesson wk';
+    b.innerHTML = `<span class="num">${w.min}′</span>
+      <span><span class="title"><span class="name">${w.name}</span><span class="en">${w.en}</span></span><div class="desc">${w.desc}</div></span><span></span>`;
+    b.addEventListener('click', () => begin({type:'workout', min: w.min}));
+    list.appendChild(b);
+  }
 }
 // dance mode home: every level as a whole dance, a shuffle of everything, and a marathon of the whole style
 function renderDanceHome(list, st){
@@ -2086,10 +2193,38 @@ $('setupBack').addEventListener('click', () => { stopCamera(); goHome(); });
 function movesForPlan(plan){
   if (plan.type === 'mix' && !state.mix) state.mix = makeMix(plan.all);
   if (plan.type === 'marathon' && !state.mix) state.mix = STYLES[STYLE_ID].levels.flatMap(lv => lv.phrases).map(ph => Math.random() < 0.5 ? mirrorOf(ph) : ph);
+  if (plan.type === 'workout' && !state.mix) state.mix = workoutPools().warm.slice();   // the real order is drawn in startRhythm, once the tempo is known
   return plan.type==='lesson' ? [plan.index] : cur().phrases.map((_,i)=>i);
 }
 
+// workout: easy dances to warm up and cool down, the harder levels for the peak; each dance on either side
+function workoutPools(){
+  const L = STYLES[STYLE_ID].levels, both = phs => phs.flatMap(ph => { const m = mirrorOf(ph); return m === ph ? [ph] : [ph, m]; });
+  const lv = (a, b) => both(L.slice(a, b).flatMap(l => l.phrases));
+  const half = Math.ceil(L.length/2);
+  return {warm: lv(0, 1), build: lv(0, Math.max(2, half)), peak: lv(Math.max(0, L.length - Math.max(2, half)), L.length), cool: lv(0, 1)};
+}
+const WK_SECTIONS = [['חימום', 0.13, 'warm'], ['עולים בקצב', 0.32, 'build'], ['שיא 🔥', 0.4, 'peak'], ['שחרור', 0.15, 'cool']];
+function workoutTimeline(add, bd, minutes){
+  const pools = workoutPools(), used = new Set(); let last = null, beats = 0;
+  const beatsOf = ph => ph.steps.reduce((s, x) => s + x.d, 0);
+  for (const [name, share, pool] of WK_SECTIONS){
+    const goal = minutes*60*share/bd; let n = 0;
+    while (n < goal){
+      // prefer a dance not danced yet in this workout, never the same one twice in a row
+      let cands = pools[pool].filter(ph => ph !== last && !used.has(ph.id));
+      if (!cands.length) cands = pools[pool].filter(ph => ph !== last);
+      if (!cands.length) cands = pools[pool];
+      const ph = cands[Math.floor(Math.random()*cands.length)]; used.add(ph.id); last = ph;
+      const reps = Math.max(1, Math.round(32 / beatsOf(ph)));   // each dance for about four 8-counts, like a fitness class, so there is time to get into it
+      add(ph, reps, 1, `${name} · אימון ${minutes} דק׳`); n += beatsOf(ph)*reps;
+    }
+    beats += n;
+  }
+  return beats;
+}
 function startPlay(){
+  sessionStart(state.plan);
   show('play');
   keepAwake();
   const idxs = movesForPlan(state.plan);
@@ -2389,6 +2524,8 @@ function startRhythm(idxs, bpm, opts={}){
     let reps = 0; while (beat < minBeats || reps < 2){ add(one, 1, 1, captured ? 'שלב 2 · בקצב' : 'שלב 3 · בקצב'); reps++; }
   } else if (state.plan.type === 'marathon'){
     idxs.forEach((i, n) => add(cur().phrases[i], 1, 1, `מרתון · ${n+1} מתוך ${idxs.length}`));
+  } else if (state.plan.type === 'workout'){
+    workoutTimeline(add, bd, state.plan.min);
   } else {
     for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · כל הריקוד` : `${cur().routine} · סיבוב ${r+1}`);
   }
@@ -2401,7 +2538,7 @@ function startRhythm(idxs, bpm, opts={}){
     clock = () => performance.now()/1000;
     t0 = clock() + 0.35;
   }
-  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd, t0, clock, base, idx:-1, hits:0, streak:0, idxs, final: !!opts.fast};
+  state.phase = {kind:'rhythm', timeline, total:beat, bpm, bd, t0, clock, base, idx:-1, hits:0, streak:0, idxs, final: !!opts.fast, secShown: timeline[0].section};
   $('phaseChip').textContent = timeline[0].section;
   $('countBig').style.fontSize = '';
 }
@@ -2450,6 +2587,12 @@ function updateRhythm(now){
     $('countBig').textContent = (bPos % 1) >= 0.5 && ph.timeline.some(e => e.dur < 1 && bPos >= e.t0 && bPos < e.t0 + e.dur) ? 'ו' : String((Math.floor(bPos) % 8) + 1);
   }
   $('topBar').style.width = (clamp(bPos/ph.total,0,1)*100)+'%';
+  // workouts: the section and the minutes left
+  if (state.plan.type === 'workout' && bPos >= 0 && ph.secShown){
+    const left = Math.max(1, Math.ceil((ph.total - bPos)*ph.bd/60)), txt = `${ph.secShown.split(' · ')[0]} · עוד ${left} דק׳`;
+    if ($('phaseChip').textContent !== txt) $('phaseChip').textContent = txt;
+    if (left === 1 && !ph.saidLast){ ph.saidLast = true; say('דקה אחרונה!', {force: true}); }
+  }
   const coachA = rhythmCoach(ph, bPos);
   // which entry is live
   const idx = ph.timeline.findIndex(e => bPos >= e.t0 && bPos < e.t0+e.dur);
@@ -2457,7 +2600,14 @@ function updateRhythm(now){
     ph.idx = idx;
     const e = ph.timeline[idx];
     if (e.move.name !== $('moveName').textContent) setMoveHud(e.move);
-    if (e.section !== $('phaseChip').textContent){ $('phaseChip').textContent = e.section; if (idx > 0 && e.section.includes('מלא') && ph.idxs.length===1) popText('קצב מלא!', '#ff7a3d'); }
+    if (e.section !== (ph.secShown ?? $('phaseChip').textContent)){
+      const prevSec = ph.secShown ?? $('phaseChip').textContent; ph.secShown = e.section; $('phaseChip').textContent = e.section;
+      if (idx > 0 && e.section.includes('מלא') && ph.idxs.length===1) popText('קצב מלא!', '#ff7a3d');
+      if (state.plan.type === 'workout'){
+        const sec = e.section.split(' · ')[0];
+        if (idx > 0 && prevSec.split(' · ')[0] !== sec){ popText(sec, sec.startsWith('שיא') ? '#ff7a3d' : '#5fe08a'); say({'עולים בקצב': 'עולים בקצב', 'שחרור': 'מורידים הילוך. שחרור', 'חימום': 'חימום'}[sec] || 'שיא! תני הכול', {force: true}); }
+      }
+    }
     $('poseLabel').textContent = e.pose.label;
     $('poseCue').textContent = e.pose.cue;
   }
@@ -2524,8 +2674,10 @@ function finishRhythm(){
   let stars = 0;
   if (!state.noCam){ stars = acc >= 0.85 ? 3 : acc >= 0.65 ? 2 : acc >= 0.4 ? 1 : 0; }
   const id = state.plan.type==='lesson' ? cur().phrases[state.plan.index].id : starKey(state.plan.type);
-  if (state.plan.type === 'marathon' || state.plan.type === 'mix') state.mix = null;
-  if (!state.noCam && stars>0) saveStar(id, stars);
+  if (state.plan.type === 'marathon' || state.plan.type === 'mix' || state.plan.type === 'workout') state.mix = null;
+  if (!state.noCam && stars>0 && state.plan.type !== 'workout') saveStar(id, stars);
+  const danced = sessionEnd(true, state.noCam ? null : acc), wk = weekSummary();
+  const weekLine = danced ? ` ${fmtMin(danced)} דקות ריקוד. השבוע: ${fmtMin(wk.min)} מתוך ${weekGoal()} דקות${wk.min >= weekGoal() ? ', היעד הושג! 🎉' : '.'}` : '';
   // finishing a level's class or full routine opens the next level
   let unlockedMsg = '';
   if ((state.plan.type === 'flow' || state.plan.type === 'full') && (state.noCam || acc >= 0.4)){
@@ -2533,12 +2685,13 @@ function finishRhythm(){
     if (markDone(li) && li + 1 < STYLES[STYLE_ID].levels.length) unlockedMsg = ` נפתח שלב ${li+2}: ${STYLES[STYLE_ID].levels[li+1].name}!`;
   }
   state.cheer = {clip: (state.noCam || stars >= 2) ? 'cheer' : 'clap', t0: performance.now()};
-  $('resTitle').textContent = state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
+  $('resTitle').textContent = state.plan.type === 'workout' ? 'אימון הושלם!' : state.noCam ? 'סיימנו!' : stars===3 ? 'אש!' : stars===2 ? 'כל הכבוד!' : stars===1 ? 'יפה, מתקדמים' : 'עוד ניסיון';
   $('resStars').innerHTML = state.noCam ? '' : starsHtml(stars);
   $('resPct').textContent = state.noCam ? '' : Math.round(acc*100)+'%';
   $('resDetail').textContent = (state.noCam
     ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
-    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`) + unlockedMsg;
+    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${state.plan.type === 'workout' ? '' : stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`) + unlockedMsg + weekLine
+    + (state.plan.type === 'workout' ? ' לסיום כדאי דקה של מתיחות: ירכיים, שוקיים וכתפיים, ולשתות מים.' : '');
   const nextIdx = state.plan.type==='lesson' && state.plan.index < cur().phrases.length-1 ? state.plan.index+1 : null;
   $('resNext').hidden = !(state.plan.type==='lesson' || state.plan.type==='mix');
   $('resNext').textContent = state.plan.type==='mix' ? 'מיקס חדש' : nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
@@ -2548,7 +2701,7 @@ function finishRhythm(){
 $('resAgain').addEventListener('click', () => begin(state.plan));
 $('resHome').addEventListener('click', goHome);
 $('exitBtn').addEventListener('click', goHome);
-function goHome(){ stopMusic(); stopEar(); spotPause(); state.phase = null; state.vplay = null; vcoachHide(); state.mix = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
+function goHome(){ if (session && state.phase && state.phase.kind !== 'done') sessionEnd(false); stopMusic(); stopEar(); spotPause(); state.phase = null; state.vplay = null; vcoachHide(); state.mix = null; $('banner').hidden = true; $('topBar').style.width='0'; try{ wakeLock?.release(); }catch{} renderHome(); show('home'); }
 
 /* ---------- main loop ---------- */
 let lastNow = performance.now();
@@ -2615,7 +2768,7 @@ function renderMusic(){
 }
 function setBpm(v){ musicPrefs.bpm = Math.round(clamp(v,60,140)); saveMusic(); renderMusic(); }
 for (const id of ['mAuto','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
-for (const [id, m] of [['mode-learn', 'learn'], ['mode-dance', 'dance']]) $(id).addEventListener('change', () => setMode(m));
+for (const [id, m] of [['mode-learn', 'learn'], ['mode-dance', 'dance'], ['mode-workout', 'workout']]) $(id).addEventListener('change', () => setMode(m));
 $('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
 const taps = [];
 $('tapBtn').addEventListener('pointerdown', e => {
@@ -2653,7 +2806,7 @@ const STYLES = {
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 // learn mode teaches each part first; dance mode just dances whole levels and mixes, with a wider music pool
-let MODE = (() => { try { return localStorage.getItem('bitrishon.mode') === 'dance' ? 'dance' : 'learn'; } catch { return 'learn'; } })();
+let MODE = (() => { try { const m = localStorage.getItem('bitrishon.mode'); return m === 'dance' || m === 'workout' ? m : 'learn'; } catch { return 'learn'; } })();
 function setMode(m){ MODE = m; try { localStorage.setItem('bitrishon.mode', m); } catch {} renderHome(); }
 if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
 // which level is selected per style, and how far the player has got (highest level finished)
@@ -2665,8 +2818,8 @@ function setLevel(i){ if (!levelUnlocked(i)) return; LEVEL_SEL[STYLE_ID] = i; tr
 function markDone(i){ if ((DONE[STYLE_ID] ?? -1) < i){ DONE[STYLE_ID] = i; try { localStorage.setItem('bitrishon.done', JSON.stringify(DONE)); } catch {} return true; } return false; }
 function cur(){
   const st = STYLES[STYLE_ID], lv = st.levels[levelIdx()];
-  const mix = state.plan && (state.plan.type === 'mix' || state.plan.type === 'marathon') && state.mix;
-  return Object.assign({}, st, {routine: mix ? (state.plan.type === 'marathon' ? 'מרתון' : 'מיקס') : lv.name, phrases: mix ? state.mix : lv.phrases, flowDesc: lv.desc, level: levelIdx()});
+  const mix = state.plan && (state.plan.type === 'mix' || state.plan.type === 'marathon' || state.plan.type === 'workout') && state.mix;
+  return Object.assign({}, st, {routine: mix ? ({marathon: 'מרתון', workout: 'אימון'}[state.plan.type] || 'מיקס') : lv.name, phrases: mix ? state.mix : lv.phrases, flowDesc: lv.desc, level: levelIdx()});
 }
 function makeMix(all){
   const pool = []; STYLES[STYLE_ID].levels.forEach((lv, i) => { if (all || levelUnlocked(i)) pool.push(...lv.phrases); });
@@ -2685,7 +2838,7 @@ const starKey = k => { const L = levelIdx() ? `-L${levelIdx()+1}` : ''; return (
 let lastPick = -1;
 const spot = {api:null, loading:null, ctrl:null, ready:false, playing:false, buffering:false, state:'', preview:false, uri:null, checkTimer:null, kickedAt:0, started:false, pos:null, heardAt:0, retries:0, bad:new Set()};
 function pickPlaylist(){
-  const PLAYLISTS = MODE === 'dance' ? cur().playlists.concat(cur().dancePlaylists || []) : cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID + (MODE === 'dance' ? '.dance' : '');
+  const PLAYLISTS = MODE !== 'learn' ? cur().playlists.concat(cur().dancePlaylists || []) : cur().playlists, key = 'bitrishon.recentpl.' + STYLE_ID + (MODE !== 'learn' ? '.dance' : '');
   let recent = []; try { recent = JSON.parse(localStorage.getItem(key)) || []; } catch {}
   const ok = PLAYLISTS.map((_, i) => i).filter(i => !spot.bad.has(toUri(PLAYLISTS[i].url)));
   const all = ok.length ? ok : PLAYLISTS.map((_, k) => k), pool = all.filter(i => !recent.includes(i));
@@ -2837,7 +2990,7 @@ $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then
 renderHome();
 requestAnimationFrame(loop);
 // test hook: lets automated browser tests reach the game's state (the script is a module, so nothing is global)
-window.__br = { ensureAudio, music, state, clips, begin, cur, get actx(){ return actx; }};
+window.__br = {finishRhythm, goHome, loadLog, weekSummary, workoutPools, get session(){ return session; },  ensureAudio, music, state, clips, begin, cur, get actx(){ return actx; }};
 </script>
 </body>
 </html>
