@@ -94,6 +94,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .mode-seg{margin-bottom:10px}
 .mode-seg label{font-size:17px;padding:11px 8px}
 .mode-seg label:has(input:checked){background:#1ed760;color:#06210f}
+.diff-box{margin:10px 0 12px}
+.diff-box .eyebrow{margin:0 0 6px}
+.diff-seg{grid-template-columns:1fr 1fr 1fr;background:var(--panel)}
+.diff-box .foot{margin:6px 2px 0}
 .style-seg{background:var(--panel);padding:5px}
 .style-seg label{font-family:var(--display);font-size:30px;font-weight:700;padding:6px 8px}
 .avatar-seg label{font-size:26px}
@@ -227,6 +231,16 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
     <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
       <label for="style-hiphop"><input type="radio" name="style" id="style-hiphop" value="hiphop">היפ־הופ</label>
       <label for="style-zumba"><input type="radio" name="style" id="style-zumba" value="zumba">זומבה</label>
+    </div>
+
+    <div class="diff-box">
+      <p class="eyebrow">רמת קושי</p>
+      <div class="seg diff-seg" role="radiogroup" aria-label="רמת קושי">
+        <label for="diff-easy"><input type="radio" name="diff" id="diff-easy" value="easy">קל</label>
+        <label for="diff-normal"><input type="radio" name="diff" id="diff-normal" value="normal">רגיל</label>
+        <label for="diff-hard"><input type="radio" name="diff" id="diff-hard" value="hard">מאתגר</label>
+      </div>
+      <p class="foot" id="diffNote"></p>
     </div>
 
     <p class="foot" id="homeNote" hidden></p>
@@ -804,7 +818,19 @@ const ZBL1 = [MC.macarena, MC.chicken, MC.salsa1, MC.salsa2];
 const ZBL2 = [MC.charleston, MC.rumba, MC.samba];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
-const MATCH = 0.72;
+// Difficulty. What makes a dance hard is mostly its speed, so each level caps how fast the captured dance may be
+// played against the dancer's own speed: above the cap the dance goes half time (one count per two beats of the
+// song), which keeps every step on the beat. The level also sets how close a pose must be to count, and for how
+// long it must be held while learning.
+const DIFFS = {
+  easy:   {name:'קל',     maxSpeed:1.1,  match:0.62, hold:0.4, note:'המאמן רוקד בערך בקצב המקורי של הריקוד או לאט יותר, אף פעם לא מהר. כשהשיר מהיר, צעד אחד על כל שתי פעמות, עדיין בדיוק על הקצב. הציון סלחני יותר.'},
+  normal: {name:'רגיל',   maxSpeed:1.41, match:0.72, hold:0.6, note:'בקצב השיר. רק כשהשיר מהיר בהרבה מהריקוד, צעד אחד על כל שתי פעמות.'},
+  hard:   {name:'מאתגר', maxSpeed:1.8,  match:0.80, hold:0.6, note:'תמיד בקצב המלא של השיר, גם כשהוא מהיר, והציון דורש דיוק.'}
+};
+let DIFF_ID = (() => { try { const v = localStorage.getItem('bitrishon.diff'); return DIFFS[v] ? v : 'easy'; } catch { return 'easy'; } })();
+const diff = () => DIFFS[DIFF_ID];
+function setDiff(id){ if (!DIFFS[id]) return; DIFF_ID = id; try { localStorage.setItem('bitrishon.diff', id); } catch {} renderDiff(); }
+function renderDiff(){ for (const id in DIFFS) $('diff-' + id).checked = id === DIFF_ID; $('diffNote').textContent = diff().note; }
 
 /* ---------- storage (per-viewer convenience only) ---------- */
 const STORE_KEY = 'bitrishon.stars.v1';
@@ -824,6 +850,7 @@ function renderHome(){
   buildDemo();
   for (const id in STYLES) { const r = $('style-' + id); if (r) r.checked = id === STYLE_ID; }
   $('mode-learn').checked = MODE === 'learn'; $('mode-dance').checked = MODE === 'dance';
+  renderDiff();
   const st = loadStars();
   const list = $('lessonList');
   list.innerHTML = '';
@@ -2476,13 +2503,13 @@ function updateLearn(now, dt){
   let res = null;
   if (!state.noCam){
     res = scorePose(cam.lm, p.a);
-    const ok = res && res.armsSeen && res.score >= MATCH;
+    const ok = res && res.armsSeen && res.score >= diff().match;
     ph.hold = ok ? ph.hold + dt : Math.max(0, ph.hold - dt*0.6);
-    $('meterFill').style.width = (clamp(ph.hold/0.6,0,1)*100)+'%';
-    $('meterFill').classList.toggle('full', ph.hold >= 0.6);
+    $('meterFill').style.width = (clamp(ph.hold/diff().hold,0,1)*100)+'%';
+    $('meterFill').classList.toggle('full', ph.hold >= diff().hold);
     $('hint').textContent = ok ? 'בול! להחזיק ככה…' : (hintFor(res, p.a) || 'כמעט… להעתיק את המאמן');
     $('legWarn').hidden = !res || res.legsSeen;
-    if (ph.hold >= 0.6) return learnNext(true);
+    if (ph.hold >= diff().hold) return learnNext(true);
     if (now - ph.stepStart > 9000) { popText('ממשיכים!', '#ffd23f'); return learnNext(false); }   // never wait forever on one pose
     if (now - ph.stepStart > 5000) $('hint').textContent = (hintFor(res, p.a) || 'כמעט…') + ' · עוד רגע ממשיכים';
   } else {
@@ -2518,11 +2545,12 @@ function startRhythm(idxs, bpm, opts={}){
   const minBeats = Math.ceil(MIN_SECONDS/bd/8)*8;            // at least a minute of dancing
   const timeline = []; let beat = 0;
   // add an 8-count `times` times; scale 2 = half speed
-  // a captured dance far slower than the music is danced half time (one of its counts per two beats) instead of
-  // being raced through: at 140 a dance captured at 85 would run at 1.65 times its speed, half time it runs at 0.82
-  const fit = ph => { const c = ph.clip && clips[ph.clip]; return c && c.bpm && bpm / c.bpm > 1.41 ? 2 : 1; };
+  // a captured dance that the music would play faster than the difficulty level allows is danced half time (one of
+  // its counts per two beats) instead of being raced through: at 140 a dance captured at 85 would run at 1.65 times
+  // its speed, half time it runs at 0.82. On the easy level nothing ever runs faster than the dancer danced it.
+  const fit = ph => { const c = ph.clip && clips[ph.clip]; return c && c.bpm && bpm / c.bpm > diff().maxSpeed ? 2 : 1; };
   const add = (ph, times, scale, section) => {
-    const k = scale * fit(ph);
+    const k = scale * fit(ph); if (fit(ph) > 1) section += ' · חצי קצב';
     for (let r=0; r<times; r++) for (const x of ph.steps){ timeline.push({t0:beat, dur:x.d*k, pose:x.pose, move:ph, section, best:0, done:false}); beat += x.d*k; }
   };
   const one = cur().phrases[idxs[0]];
@@ -2620,9 +2648,9 @@ function updateRhythm(now){
       const sp = scorePose(cam.lm, prev.pose.a); if (sp?.armsSeen && sp.score > prev.best) prev.best = sp.score;
     }
     $('meterFill').style.width = (s*100)+'%';
-    $('meterFill').classList.toggle('full', s >= MATCH);
+    $('meterFill').classList.toggle('full', s >= diff().match);
     $('legWarn').hidden = !res || res.legsSeen;
-    if (bPos >= 0) $('hint').textContent = s >= MATCH ? '' : hintFor(res, live.pose.a);
+    if (bPos >= 0) $('hint').textContent = s >= diff().match ? '' : hintFor(res, live.pose.a);
   } else if (state.noCam){
     $('meterFill').style.width = '0'; $('hint').textContent = bPos>=0 ? 'לזוז עם המאמן על כל ביט' : $('hint').textContent;
   }
@@ -2633,7 +2661,7 @@ function updateRhythm(now){
       if (!state.noCam){
         const say = e.dur >= 1;                     // quick "and" moves count, but only longer ones get a word on screen
         if (e.best >= 0.78){ ph.hits++; ph.streak++; if (say) popText(ph.streak>=6 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
-        else if (e.best >= MATCH){ ph.hits++; ph.streak++; if (say) popText('טוב!', '#5fe08a'); }
+        else if (e.best >= diff().match){ ph.hits++; ph.streak++; if (say) popText('טוב!', '#5fe08a'); }
         else { ph.streak = 0; popText('כמעט', '#ff5a6a'); }
       }
     }
@@ -2763,6 +2791,7 @@ function renderMusic(){
 function setBpm(v){ musicPrefs.bpm = Math.round(clamp(v,60,140)); saveMusic(); renderMusic(); }
 for (const id of ['mAuto','mOwn']) $(id).addEventListener('change', e => { musicPrefs.mode = e.target.value; saveMusic(); renderMusic(); });
 for (const [id, m] of [['mode-learn', 'learn'], ['mode-dance', 'dance']]) $(id).addEventListener('change', () => setMode(m));
+for (const id in DIFFS) $('diff-' + id).addEventListener('change', () => setDiff(id));
 $('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
 const taps = [];
 $('tapBtn').addEventListener('pointerdown', e => {
