@@ -626,6 +626,12 @@ const MOCAP = {
   samba: {file:'mocap/samba.json', bpm:115.9, beats:36},
   rumba: {file:'mocap/rumba.json', bpm:126.8, beats:5},
   step: {file:'mocap/step.json', bpm:100.0, beats:13},
+  // `per`: clip beats in one counted step. The sambas bounce twice for every step, so the tempo is the bounce's
+  // (that is what the music's beat matches) while each counted step lasts two beats.
+  salsa3: {file:'mocap/salsa3.json', bpm:101.9, beats:32},
+  afoxe: {file:'mocap/afoxe.json', bpm:145.5, beats:48, per:2},
+  defile: {file:'mocap/defile.json', bpm:133.7, beats:24, per:2},
+  enredo: {file:'mocap/enredo.json', bpm:130.7, beats:52, per:2},
   // not dances: the avatar warms up before a round, and cheers or claps on the result screen
   stretch: {file:'mocap/stretch.json', bpm:0, beats:0, extra:true},
   cheer: {file:'mocap/cheer.json', bpm:0, beats:0, extra:true},
@@ -653,7 +659,7 @@ function mirrorClip(base, id){ return Object.assign({}, base, {id, mirror: true,
 function loadClip(id){
   if (clips[id]) return Promise.resolve(clips[id]);
   if (MOCAP[id]?.mirrorOf) return loadClip(MOCAP[id].mirrorOf).then(b => (clips[id] = mirrorClip(b, id)));
-  return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.dur = j.frames / j.fps; j.hipsRaw = j.hips; inPlace(j); clips[id] = j; return j; });
+  return fetch(avatarMocapDir() + MOCAP[id].file.replace(/^mocap\//, '')).then(r => r.json()).then(j => { j.id = id; j.bpm = MOCAP[id].bpm; j.beats = MOCAP[id].beats; j.per = MOCAP[id].per || 1; j.dur = j.frames / j.fps; j.hipsRaw = j.hips; inPlace(j); clips[id] = j; return j; });
 }
 // the coach dances in place: remove the slow travel across the floor from the hips path (a running man slides a
 // metre back, a charleston drifts two metres sideways, and both snap home at the loop), keep the fast steps and bounce
@@ -725,8 +731,8 @@ function buildVideoSteps(ph){
 }
 const VIDEO_PHRASES = [];
 // describe what happens during a count (motion over the beat), not only the frozen frame at its start
-function describeCount(c, beat){
-  const spb = 60 / c.bpm, f0 = Math.round((beat - 0.5) * spb * c.fps), f1 = Math.round((beat + 0.5) * spb * c.fps);
+function describeCount(c, beat, span = 1){
+  const spb = 60 / c.bpm, f0 = Math.round((beat - 0.5) * spb * c.fps), f1 = Math.round((beat + span - 0.5) * spb * c.fps);
   const at = f => c.poses[((f % c.frames) + c.frames) % c.frames];
   const a0 = at(f0), a1 = at(f1), mid = at(Math.round(beat * spb * c.fps));
   if (!a0.h || !a1.h) return describePose(mid);
@@ -762,9 +768,10 @@ const mocapPhrase = (id, name, en, desc) => ({id:'mc-' + id, name, en, desc, cli
 function buildMocapSteps(ph){
   const c = clips[ph.clip]; if (!c || ph.steps.length) return;
   const spb = 60 / c.bpm;
-  for (let b = 0; b < c.beats; b++){
+  const per = c.per || 1;
+  for (let b = 0, i = 0; b < c.beats; b += per, i++){
     const a = Object.assign({}, c.poses[Math.round(b * spb * c.fps) % c.frames]);
-    ph.steps.push({pose:{label:`${ph.name} · ספירה ${b % 8 + 1}`, cue:describeCount(c, b), a, clipBeat:b}, d:1});
+    ph.steps.push({pose:{label:`${ph.name} · ספירה ${i % 8 + 1}`, cue:describeCount(c, b, per), a, clipBeat:b, span:per}, d:per});
   }
 }
 async function ensureClips(){
@@ -797,6 +804,10 @@ const MC = {
   uprock: mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
   freeze: mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!'),
   salsa1: mocapPhrase('salsa1', 'סלסה מצד לצד', 'SALSA SIDE TO SIDE', 'צעד הבסיס של הסלסה לצדדים, עם מותניים וידיים. 4 ספירות שחוזרות.'),
+  salsa3: mocapPhrase('salsa3', 'סלסה בזוג', 'PARTNER SALSA', 'הצעדים של בן הזוג בסלסה: בסיס, סיבובים והובלה בידיים. 32 ספירות.'),
+  afoxe: mocapPhrase('afoxe', 'אפושה', 'AFOXÉ SAMBA REGGAE', 'סמבה־רגאיי מבאהיה: צעדים קטנים במקום, עם ידיים שנפתחות ונסגרות מול הגוף. 24 ספירות.'),
+  defile: mocapPhrase('defile', 'מצעד סמבה', 'SAMBA PARADE', 'הליכת המצעד של הקרנבל: צעדים קדימה עם ידיים פתוחות לצדדים. 12 ספירות.'),
+  enredo: mocapPhrase('enredo', 'סמבה מהירה', 'FAST SAMBA ENREDO', 'סמבה של קרנבל בקצב מהיר: עמידה רחבה, סיבובים וידיים שעולות. 26 ספירות.'),
   salsa2: mocapPhrase('salsa2', 'סלסה: סיבוב ומחיאה', 'SALSA TWIRL & CLAP', 'סיבוב מלא ומחיאת כף על הספירה. 4 ספירות.'),
   charleston: mocapPhrase('charleston', 'צ׳רלסטון', 'SWING CHARLESTON', 'סווינג צ׳רלסטון מרקדן אמיתי: ברכיים, בעיטות וידיים. 16 ספירות.'),
   rumba: mocapPhrase('rumba', 'רומבה', 'RUMBA', 'צעדי רומבה איטיים ורכים עם מותניים. 5 ספירות שחוזרות.'),
@@ -809,7 +820,8 @@ const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.robot, MC.uprock];
 const HHL3 = [MC.locking, MC.tut, MC.house, MC.freeze];
 const ZBL1 = [MC.salsa1, MC.salsa2, MC.rumba];
-const ZBL2 = [MC.charleston, MC.samba];
+const ZBL2 = [MC.salsa3, MC.charleston, MC.samba];
+const ZBL3 = [MC.defile, MC.afoxe, MC.enredo];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
 // Difficulty. What makes a dance hard is mostly its speed, so each level caps how fast the captured dance may be
@@ -2591,7 +2603,7 @@ function rhythmCoach(ph, bPos){
   state.vplay = null;
   if (live && live.pose.clipBeat !== undefined && bPos >= 0 && bPos < ph.total && clips[live.move.clip]){
     const c = clips[live.move.clip];
-    const t = (live.pose.clipBeat + (bPos - live.t0) / live.dur) * (60 / c.bpm);   // one clip beat per step, so slow phases play in slow motion
+    const t = (live.pose.clipBeat + (bPos - live.t0) / live.dur * (live.pose.span || 1)) * (60 / c.bpm);   // the step's own clip beats per step, so slow phases play in slow motion
     state.clipPlay = {clip: c, t};
     return clipAngles(c, t);
   }
@@ -2749,7 +2761,7 @@ function loop(now){
     if (lp && lp.clipBeat !== undefined && clips[ph.move.clip]){     // show the captured motion itself, swinging slowly around this count
       // slow loop of the two counts leading into this one and the count itself (3 beats at 0.6 speed), so the
       // move is seen in context rather than as a twitch; the ring lights up at the exact moment of the count
-      const c = clips[ph.move.clip], spb = 60 / c.bpm, from = Math.max(0, lp.clipBeat - 2), seg = (lp.clipBeat - from + 1) * spb;
+      const c = clips[ph.move.clip], spb = 60 / c.bpm, from = Math.max(0, lp.clipBeat - 2), seg = (lp.clipBeat - from + (lp.span || 1)) * spb;
       const u = (((now - ph.stepStart) / 1000) * 0.6) % seg, t = from * spb + u;
       if (t >= lp.clipBeat * spb && t < lp.clipBeat * spb + 0.25) glow = glow || '#ffd23f';
       coachA = clipAngles(c, t); clipO = {clip: c, t};
@@ -2819,7 +2831,8 @@ const STYLES = {
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'בסיס', en:'BASICS', phrases:ZBL1, desc:'שני צעדי סלסה ורומבה: צעדים קצרים שחוזרים, מרקדנים אמיתיים בלכידת תנועה.'},
-    {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון וסמבה מרקדנים אמיתיים: ריקודים ארוכים ומלאים.'}]}
+    {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'סלסה בזוג, צ׳רלסטון וסמבה מרקדנים אמיתיים: ריקודים ארוכים ומלאים.'},
+    {name:'קרנבל', en:'CARNIVAL', phrases:ZBL3, desc:'שלוש סמבות של קרנבל: מצעד, אפושה וסמבה מהירה.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 // learn mode teaches each part first; dance mode just dances whole levels and mixes, with a wider music pool
