@@ -614,7 +614,6 @@ const MOCAP = {
   uprock: {file:'mocap/uprock.json', bpm:114.3, beats:8},
   freeze: {file:'mocap/freeze.json', bpm:116.1, beats:8},
   charleston: {file:'mocap/charleston.json', bpm:91.9, beats:16},
-  macarena: {file:'mocap/macarena.json', bpm:116.6, beats:16},
   chicken: {file:'mocap/chicken.json', bpm:100.7, beats:8},
   runningman: {file:'mocap/runningman.json', bpm:98.4, beats:10},
   shuffle: {file:'mocap/shuffle.json', bpm:96.0, beats:12},
@@ -798,7 +797,6 @@ const MC = {
   step: mocapPhrase('step', 'סטפ היפ־הופ', 'STEP HIP HOP', 'צעד בסיסי של היפ־הופ: סטפ עם העברת משקל וידיים שמלוות. 13 ספירות.'),
   uprock: mocapPhrase('uprock', 'אפרוק', 'BREAKDANCE UPROCK', 'צעדי ברייקדאנס בעמידה: קפיצות עם זרועות, מהיר. 8 ספירות.'),
   freeze: mocapPhrase('freeze', 'פריז על יד אחת', 'HANDSTAND FREEZE', 'הפריז של הברייקדאנס: עמידת יד אחת. לצפייה והשראה, לא חובה לנסות!'),
-  macarena: mocapPhrase('macarena', 'מקרנה', 'MACARENA', 'המקרנה המלאה, 16 ספירות: ידיים, כתפיים, ראש, מותניים וקפיצה.'),
   chicken: mocapPhrase('chicken', 'ריקוד התרנגולת', 'CHICKEN DANCE', 'מקור, כנפיים, זנב ומחיאות. 8 ספירות של צחוק.'),
   salsa1: mocapPhrase('salsa1', 'סלסה מצד לצד', 'SALSA SIDE TO SIDE', 'צעד הבסיס של הסלסה לצדדים, עם מותניים וידיים. 4 ספירות שחוזרות.'),
   salsa2: mocapPhrase('salsa2', 'סלסה: סיבוב ומחיאה', 'SALSA TWIRL & CLAP', 'סיבוב מלא ומחיאת כף על הספירה. 4 ספירות.'),
@@ -812,7 +810,7 @@ const mirrorOf = ph => (ph.clip && MCM[ph.clip]) || ph;
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.robot, MC.uprock];
 const HHL3 = [MC.locking, MC.tut, MC.house, MC.freeze];
-const ZBL1 = [MC.macarena, MC.chicken, MC.salsa1, MC.salsa2];
+const ZBL1 = [MC.chicken, MC.salsa1, MC.salsa2];
 const ZBL2 = [MC.charleston, MC.rumba, MC.samba];
 
 const MIN_SECONDS = 60, SLOW_BEATS = 16;
@@ -2822,7 +2820,7 @@ const STYLES = {
     {name:'סטריט', en:'STREET', phrases:HHL2, desc:'ריקוד היפ־הופ שלם ומהיר, רובוט ואפרוק.'},
     {name:'סטייל', en:'STYLES', phrases:HHL3, desc:'סגנונות הרחוב: לוקינג, טאטינג, האוס ופריז.'}]},
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
-    {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'מקרנה, ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
+    {name:'מסיבה', en:'PARTY', phrases:ZBL1, desc:'ריקוד התרנגולת ושני צעדי סלסה. ריקודי מסיבה אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'צ׳רלסטון, רומבה וסמבה מרקדנים אמיתיים.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
