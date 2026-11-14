@@ -119,6 +119,9 @@ const { chromium } = require('playwright'); const fs = require('fs');
       // 2D pose for scoring and the capsule coach: screen x = world x, y up
       const a = {};
       for (const [k2, [s0, s1]] of Object.entries(SEGS)){ const A = wp(s0), B = wp(s1); a[k2] = +(Math.atan2(B.y - A.y, B.x - A.x) * 180 / Math.PI).toFixed(1); }
+      // how long each limb looks from the front, against its true length (1 = across the picture, 0 = straight at the
+      // camera): an arm that punches at the camera shrinks to a stub on screen, whatever its flat angle says
+      a.fs = Object.values(SEGS).map(([s0, s1]) => { const A = wp(s0), B = wp(s1); return +(Math.hypot(B.x - A.x, B.y - A.y) / (A.distanceTo(B) || 1)).toFixed(2); });
       const hc = wp(N_('UpperLegL')).add(wp(N_('UpperLegR'))).multiplyScalar(0.5), sc = wp(N_('UpperArmL')).add(wp(N_('UpperArmR'))).multiplyScalar(0.5);
       a.lean = +((90 - Math.atan2(sc.y - hc.y, sc.x - hc.x) * 180 / Math.PI)).toFixed(1);
       a.sx = +hc.x.toFixed(3);
