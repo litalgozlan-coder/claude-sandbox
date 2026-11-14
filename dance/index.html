@@ -103,6 +103,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 .avatar-seg label{font-size:26px}
 :root[data-style="zumba"] .style-seg label:has(input:checked){background:#22c3a6;color:#04261f}
 :root[data-style="zumba"] .brand{text-shadow:5px 5px 0 #22c3a6}
+:root[data-style="kickbox"] .brand{text-shadow:5px 5px 0 #e5383b}
+:root[data-style="kickbox"] .mode-seg label:has(input:checked){background:#e5383b;color:#fff}
+.game-link{display:inline-block;margin-top:10px;padding:8px 14px;border:1.5px solid var(--line);border-radius:999px;color:var(--fg);text-decoration:none;font-weight:600;font-size:16px}
+.game-link:hover{border-color:var(--coach)}
 .own{display:flex;flex-direction:column;gap:10px}
 .own ol{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:4px}
 .tap-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -212,8 +216,9 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
   <div class="home-inner pad">
     <div class="hero">
       <div>
-        <h1 class="brand">ביט<br>ראשון</h1>
-        <p class="tagline">היפ־הופ וזומבה למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
+        <h1 class="brand" id="brand">ביט<br>ראשון</h1>
+        <p class="tagline" id="tagline">היפ־הופ וזומבה למתחילים. המצלמה של הנייד רואה את התנועה ואומרת מה לתקן.</p>
+        <a class="game-link" id="gameLink" href="../kickbox/">🥊 חדש: קיקבוקס בקצב</a>
       </div>
       <div class="demo-box"><canvas id="demoCanvas" width="264" height="340" aria-label="מאמן מונפש מדגים צעדים"></canvas><canvas id="demo3d" hidden aria-label="מאמן תלת־ממדי מדגים צעדים"></canvas></div>
     </div>
@@ -226,9 +231,9 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 
     <div class="seg mode-seg" role="radiogroup" aria-label="מצב">
       <label for="mode-learn"><input type="radio" name="mode" id="mode-learn" value="learn">📖 לימוד</label>
-      <label for="mode-dance"><input type="radio" name="mode" id="mode-dance" value="dance">🎵 ריקוד</label>
+      <label for="mode-dance"><input type="radio" name="mode" id="mode-dance" value="dance"><span id="modeDanceTxt">🎵 ריקוד</span></label>
     </div>
-    <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד">
+    <div class="seg style-seg" role="radiogroup" aria-label="סגנון ריקוד" id="styleSeg">
       <label for="style-hiphop"><input type="radio" name="style" id="style-hiphop" value="hiphop">היפ־הופ</label>
       <label for="style-zumba"><input type="radio" name="style" id="style-zumba" value="zumba">זומבה</label>
     </div>
@@ -255,8 +260,8 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       <p class="foot" id="autoNote" hidden>בכל שיעור המשחק בוחר לבד אחד מ־5 שירים מקוריים, והמאמן רוקד בדיוק בקצב שלהם. אין צורך לעשות כלום.</p>
       <div class="own" id="ownBox">
         <ol>
-          <li>בוחרים שיעור. המשחק בוחר לבד פלייליסט היפ־הופ ומנגן אותו כאן, בתוך המשחק.</li>
-          <li>המשחק מקשיב דרך המיקרופון, מזהה לבד את הקצב, והמאמן רוקד עליו.</li>
+          <li>בוחרים שיעור. המשחק בוחר לבד פלייליסט שמתאים לסגנון ומנגן אותו כאן, בתוך המשחק.</li>
+          <li>המשחק מקשיב דרך המיקרופון, מזהה לבד את הקצב, והמאמן זז עליו.</li>
         </ol>
         <p class="foot">הדפדפן יבקש אישור למיקרופון. השמע משמש רק לזיהוי הקצב, בתוך הנייד, ולא נשמר.</p>
         <p class="foot">כדי לשמוע שירים שלמים צריך להיות מחוברים לספוטיפיי בדפדפן הזה. בלי חיבור, ספוטיפיי מנגן 30 שניות מכל שיר.</p>
@@ -280,6 +285,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
       </div>
       <ol>
         <li>להעמיד את הנייד לאורך, נשען על קיר או ספרים, בערך בגובה המותניים.</li>
+        <li id="kbStanceTip" hidden>עמידת קרב: רגל שמאל קדימה, ברכיים רכות, ידיים סגורות מול הפנים. מכים באוויר, ושומרים מרחק מרהיטים ומהנייד.</li>
         <li>להתרחק 2–3 מטרים, כך שרואים את כל הגוף מהראש ועד הרגליים.</li>
         <li>להגביר את הווליום. המוזיקה והספירה עוזרות להיכנס לקצב.</li>
       </ol>
@@ -288,7 +294,7 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
 
     <label class="toggle" for="voiceOn">
       <input type="checkbox" id="voiceOn" checked>
-      המאמנת מדברת: מסבירה כל תנועה וסופרת 5, 6, 7, 8
+      <span id="voiceTxt">המאמנת מדברת: מסבירה כל תנועה וסופרת 5, 6, 7, 8</span>
     </label>
     <label class="toggle" for="noCam">
       <input type="checkbox" id="noCam">
@@ -381,6 +387,10 @@ button:focus-visible,label:focus-within{outline:3px solid var(--gold);outline-of
    0 = pointing to screen right, 90 = up, -90 = down.
    "r" limbs are the dancer's right side, shown on screen right.
    ========================================================= */
+// Two games share this engine: the dance game, and kickboxing (dance/?game=kickbox, which kickbox/ forwards to).
+const GAME = (() => { try { return new URLSearchParams(location.search).get('game') === 'kickbox' ? 'kickbox' : 'dance'; } catch { return 'dance'; } })();
+const KB = GAME === 'kickbox';
+const TX = (dance, kick) => KB ? kick : dance;
 const SEG = {
   rUpper:[12,14], rFore:[14,16], lUpper:[11,13], lFore:[13,15],
   rThigh:[24,26], rShin:[26,28], lThigh:[23,25], lShin:[25,27]
@@ -632,6 +642,21 @@ const MOCAP = {
   afoxe: {file:'mocap/afoxe.json', bpm:145.5, beats:48, per:2},
   defile: {file:'mocap/defile.json', bpm:133.7, beats:24, per:2},
   enredo: {file:'mocap/enredo.json', bpm:130.7, beats:52, per:2},
+  // kickboxing: 8-count combos built from captured strikes by tools/compose_kickbox.js, every impact on a count.
+  // `counts` in the file names the strike on each count. Captured in an orthodox stance (left side forward); the
+  // game shows the mirrored clip first, which the player copies like a mirror with the left hand and leg forward.
+  kb_jab: {file:'mocap/kb_jab.json', bpm:100, beats:8},
+  kb_onetwo: {file:'mocap/kb_onetwo.json', bpm:100, beats:8},
+  kb_hook: {file:'mocap/kb_hook.json', bpm:100, beats:8},
+  kb_body: {file:'mocap/kb_body.json', bpm:100, beats:8},
+  kb_front: {file:'mocap/kb_front.json', bpm:100, beats:8},
+  kb_knee: {file:'mocap/kb_knee.json', bpm:100, beats:8},
+  kb_round: {file:'mocap/kb_round.json', bpm:100, beats:8},
+  kb_lead: {file:'mocap/kb_lead.json', bpm:100, beats:8},
+  kb_combo1: {file:'mocap/kb_combo1.json', bpm:100, beats:8},
+  kb_combo2: {file:'mocap/kb_combo2.json', bpm:100, beats:8},
+  kb_combo3: {file:'mocap/kb_combo3.json', bpm:100, beats:8},
+  kb_combo4: {file:'mocap/kb_combo4.json', bpm:100, beats:16},
   // not dances: the avatar warms up before a round, and cheers or claps on the result screen
   stretch: {file:'mocap/stretch.json', bpm:0, beats:0, extra:true},
   cheer: {file:'mocap/cheer.json', bpm:0, beats:0, extra:true},
@@ -651,6 +676,7 @@ function mirrorPose(a){
   if (a.sx !== undefined) m.sx = -a.sx;
   if (a.h) m.h = [-a.h[3], a.h[4], a.h[5], -a.h[0], a.h[1], a.h[2]];
   if (a.kl) m.kl = [a.kl[1], a.kl[0]];
+  if (a.fs) m.fs = [a.fs[2], a.fs[3], a.fs[0], a.fs[1], a.fs[6], a.fs[7], a.fs[4], a.fs[5]];
   return m;
 }
 // the 3D coach mirrors the bones at play time (it needs the avatar's own body plane); the 2D poses used for
@@ -771,11 +797,28 @@ function buildMocapSteps(ph){
   const per = c.per || 1;
   for (let b = 0, i = 0; b < c.beats; b += per, i++){
     const a = Object.assign({}, c.poses[Math.round(b * spb * c.fps) % c.frames]);
+    if (c.counts){ const label = kbLabel(c.counts[b % c.counts.length], c.mirror); ph.steps.push({pose:{label, cue:kbTip(label), a, clipBeat:b, span:per, strike: !/גארד/.test(label)}, d:per}); continue; }
     ph.steps.push({pose:{label:`${ph.name} · ספירה ${i % 8 + 1}`, cue:describeCount(c, b, per), a, clipBeat:b, span:per}, d:per});
   }
 }
+// {L} and {R} in a combo's count names are the captured fighter's own left and right. The player copies the coach
+// like a mirror, so the fighter's left is the player's right; in the mirrored clip it is the player's left.
+const kbLabel = (s, mirror) => s.replace('{L}', mirror ? 'שמאל' : 'ימין').replace('{R}', mirror ? 'ימין' : 'שמאל');
+const KB_TIPS = {
+  'ג׳אב': 'אגרוף ישר וקצר ביד הקדמית, ומיד חוזרים להגן על הפנים',
+  'קרוס': 'אגרוף ישר ביד האחורית: מסובבים את הכתף והאגן קדימה',
+  'הוק': 'מרפק בגובה הכתף, האגרוף מסתובב בקשת אל הצד של הפנים',
+  'ג׳אב לגוף': 'מתכופפים קצת בברכיים, ג׳אב ישר לגובה הבטן',
+  'קרוס לגוף': 'מתכופפים בברכיים, קרוס לגובה הבטן',
+  'בעיטה קדמית': 'מרימים ברך ודוחפים את כף הרגל קדימה, הידיים נשארות בגארד',
+  'בעיטה סיבובית': 'מסובבים את רגל העמידה, והשוק מכה בקשת מהצד',
+  'ברך': 'מושכים את הידיים למטה ומרימים ברך חזק קדימה',
+  'גארד': 'ידיים מול הפנים, מרפקים צמודים, קופצים קלות על כפות הרגליים',
+  'חוזרים לגארד': 'הרגל חוזרת למקום, ידיים מול הפנים'
+};
+const kbTip = label => KB_TIPS[label.split(' · ')[0]] || '';
 async function ensureClips(){
-  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]){ ids.add(ph.clip); if (MOCAP[ph.clip + '_m']) ids.add(ph.clip + '_m'); } }));
+  const ids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && MOCAP[ph.clip]){ ids.add(ph.clip); const m = mirrorOf(ph); if (m.clip && MOCAP[m.clip]) ids.add(m.clip); } }));
   for (const id in MOCAP) if (MOCAP[id].extra) ids.add(id);
   const vids = new Set(); STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.video && VIDEOS[ph.video]) vids.add(ph.video); }));
   await Promise.all([...vids].map(id => loadVideoPose(id).catch(() => null)));
@@ -784,7 +827,7 @@ async function ensureClips(){
   const firstVid = cur().phrases.find(ph => ph.video && VIDEOS[ph.video]);
   if (firstVid && vcoach.id !== firstVid.video){ vcoach.id = firstVid.video; vcoach.el.src = VIDEOS[firstVid.video].file; vcoach.el.load(); vcoach.zoom = {s: 1, x: 0, y: 0}; if (vcoach.el.readyState < 2) popHome('טוענים את הסרטון…'); }
   const missing = [...ids].filter(id => !clips[id]);
-  if (missing.length) popHome('טוענים את הריקודים המקצועיים…');
+  if (missing.length) popHome(TX('טוענים את הריקודים המקצועיים…', 'טוענים את המכות…'));
   await Promise.all([...ids].map(id => loadClip(id).catch(() => null)));
   STYLES[STYLE_ID].levels.forEach(lv => lv.phrases.forEach(ph => { if (ph.clip && clips[ph.clip]) buildMocapSteps(ph); const m = mirrorOf(ph); if (m !== ph && clips[m.clip]) buildMocapSteps(m); }));
   buildDemo();
@@ -815,7 +858,30 @@ const MC = {
 };
 // the same dances, mirrored: used in mixes and marathons so each routine works both sides
 const MCM = {}; for (const k in MC){ const o = MC[k]; MCM[k] = Object.assign(mocapPhrase(k + '_m', o.name + ' · צד שני', o.en + ' · MIRROR', o.desc + ' בתמונת מראה: מה שהיה ימין עכשיו שמאל.'), {mirror: true}); }
-const mirrorOf = ph => (ph.clip && MCM[ph.clip]) || ph;
+const mirrorOf = ph => ph.mirrorPh || (ph.clip && MCM[ph.clip]) || ph;
+// kickboxing: the mirrored clip comes first (the player stands left side forward); its own mirror is the other stance
+function kbPhrase(id, name, en, desc){
+  const p = Object.assign(mocapPhrase(id + '_m', name, en, desc), {kb: true});
+  p.mirrorPh = Object.assign(mocapPhrase(id, name + ' · עמידה הפוכה', en + ' · SOUTHPAW', desc + ' בעמידה ההפוכה: רגל ימין מקדימה.'), {kb: true, mirror: true, mirrorPh: p});
+  return p;
+}
+const KBP = {
+  jab: kbPhrase('kb_jab', 'ג׳אב', 'JAB', 'המכה הראשונה של כל מתאגרף: אגרוף ישר ביד הקדמית. שלוש פעמים, ונשימה בגארד.'),
+  onetwo: kbPhrase('kb_onetwo', 'ג׳אב־קרוס', 'ONE-TWO', 'אחת־שתיים: ג׳אב ביד הקדמית, קרוס ביד האחורית, שוב ושוב בקצב.'),
+  hook: kbPhrase('kb_hook', 'הוקים', 'HOOKS', 'ג׳אב, קרוס והוק: אגרוף בקשת מהצד, עם המרפק בגובה הכתף.'),
+  body: kbPhrase('kb_body', 'מכות לגוף', 'BODY SHOTS', 'יורדים בברכיים לג׳אב וקרוס לגוף, ועולים לג׳אב וקרוס לפנים.'),
+  front: kbPhrase('kb_front', 'בעיטה קדמית', 'FRONT KICK', 'בעיטה ישרה קדימה ברגל האחורית, ובין הבעיטות ג׳אב או קרוס.'),
+  knee: kbPhrase('kb_knee', 'ברכיים', 'KNEES', 'מכות ברך: פעמיים ברגל האחורית ופעמיים ברגל הקדמית.'),
+  round: kbPhrase('kb_round', 'בעיטה סיבובית', 'ROUNDHOUSE KICK', 'ג׳אב, קרוס ובעיטה סיבובית ברגל האחורית: הבעיטה המוכרת של הקיקבוקס.'),
+  lead: kbPhrase('kb_lead', 'בעיטה ברגל הקדמית', 'LEAD ROUNDHOUSE', 'בעיטה סיבובית מהירה ברגל הקדמית, ואחריה ג׳אב־קרוס.'),
+  combo1: kbPhrase('kb_combo1', 'אחת־שתיים ובעיטה', '1-2 + KICK', 'ג׳אב, קרוס ובעיטה סיבובית, פעם ברגל האחורית ופעם ברגל הקדמית.'),
+  combo2: kbPhrase('kb_combo2', 'הוקים וברך', 'HOOKS + KNEE', 'שני הוקים ומכת ברך, פעמיים.'),
+  combo3: kbPhrase('kb_combo3', 'גוף, פנים ובעיטה', 'BODY, HEAD, KICK', 'שתי מכות לגוף, ג׳אב־קרוס, הוק וקרוס, ובעיטה סיבובית לסיום.'),
+  combo4: kbPhrase('kb_combo4', 'הקומבינציה הגדולה', 'THE BIG COMBO', 'רצף של 16 ספירות: אגרופים, בעיטה קדמית, ברך, מכות לגוף ושתי בעיטות סיבוביות.')
+};
+const KBL1 = [KBP.jab, KBP.onetwo, KBP.hook, KBP.body];
+const KBL2 = [KBP.front, KBP.knee, KBP.round, KBP.lead];
+const KBL3 = [KBP.combo1, KBP.combo2, KBP.combo3, KBP.combo4];
 const HHL1 = [MC.step, MC.runningman, MC.shuffle, MC.hiphop1, MC.shimmy];
 const HHL2 = [MC.hiphop2, MC.robot, MC.uprock];
 const HHL3 = [MC.locking, MC.tut, MC.house, MC.freeze];
@@ -836,7 +902,8 @@ const DIFFS = {
 let DIFF_ID = (() => { try { const v = localStorage.getItem('bitrishon.diff'); return DIFFS[v] ? v : 'easy'; } catch { return 'easy'; } })();
 const diff = () => DIFFS[DIFF_ID];
 function setDiff(id){ if (!DIFFS[id]) return; DIFF_ID = id; try { localStorage.setItem('bitrishon.diff', id); } catch {} renderDiff(); }
-function renderDiff(){ for (const id in DIFFS) $('diff-' + id).checked = id === DIFF_ID; $('diffNote').textContent = diff().note; }
+const KB_DIFF_NOTES = {easy: 'מכה אחת בכל שתי פעמות כשהשיר מהיר, בערך במהירות של לוחם אמיתי. הציון סלחני יותר.', normal: 'מכה על כל פעמה של השיר. רק כשהשיר מהיר מאוד, מכה על כל שתי פעמות.', hard: 'תמיד מכה על כל פעמה, גם בשיר מהיר, והציון דורש מכות מלאות ומדויקות.'};
+function renderDiff(){ for (const id in DIFFS) $('diff-' + id).checked = id === DIFF_ID; $('diffNote').textContent = KB ? KB_DIFF_NOTES[DIFF_ID] : diff().note; }
 
 /* ---------- storage (per-viewer convenience only) ---------- */
 const STORE_KEY = 'bitrishon.stars.v1';
@@ -866,7 +933,7 @@ function renderHome(){
     const b = document.createElement('button'); b.type = 'button'; b.className = 'lvl' + (i === levelIdx() ? ' on' : '') + (levelUnlocked(i) ? '' : ' locked');
     b.innerHTML = `<small>שלב ${i+1}</small><b></b>`; b.querySelector('b').textContent = levelUnlocked(i) ? lv.name : '🔒 ' + lv.name;
     b.title = levelUnlocked(i) ? lv.name : `נפתח אחרי שמסיימים את שלב ${i}`;
-    b.addEventListener('click', () => { if (levelUnlocked(i)) setLevel(i); else popHome(`שלב ${i+1} נפתח אחרי שמסיימים את הריקוד המלא של שלב ${i}`); });
+    b.addEventListener('click', () => { if (levelUnlocked(i)) setLevel(i); else popHome(`שלב ${i+1} נפתח אחרי שמסיימים את ${TX('הריקוד המלא', 'האימון המלא')} של שלב ${i}`); });
     lvRow.appendChild(b);
   });
   list.appendChild(lvRow);
@@ -895,8 +962,8 @@ function renderHome(){
   const f = document.createElement('button');
   f.className = 'lesson full';
   f.innerHTML = `<span class="num">★</span>
-    <span><span class="title"><span class="name">רק לרקוד</span><span class="en">JUST DANCE</span></span>
-    <div class="desc">כל הריקוד פעמיים ברצף, בלי שלב הלימוד. למי שכבר יודעת את הצעדים.</div></span>
+    <span><span class="title"><span class="name">${TX('רק לרקוד', 'רק להתאמן')}</span><span class="en">${TX('JUST DANCE', 'JUST FIGHT')}</span></span>
+    <div class="desc">${TX('כל הריקוד פעמיים ברצף, בלי שלב הלימוד. למי שכבר יודעת את הצעדים.', 'כל הקומבינציות של השלב פעמיים ברצף, בלי שלב הלימוד. למי שכבר יודעת את המכות.')}</div></span>
     <span class="stars" aria-label="${st[starKey('full')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('full')]||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
   list.appendChild(f);
@@ -905,14 +972,14 @@ function renderHome(){
   const nPool = STYLES[STYLE_ID].levels.filter((_, i) => levelUnlocked(i)).reduce((n, lv) => n + lv.phrases.length, 0);
   mx.innerHTML = `<span class="num">⚡</span>
     <span><span class="title"><span class="name">מיקס אקראי</span><span class="en">SHUFFLE</span></span>
-    <div class="desc">ריקוד אחר בכל פעם: 6 קטעים שמוגרלים מתוך ${nPool} הקטעים שנפתחו עד עכשיו, פעמיים ברצף.</div></span>
+    <div class="desc">${TX('ריקוד אחר', 'אימון אחר')} בכל פעם: 6 קטעים שמוגרלים מתוך ${nPool} הקטעים שנפתחו עד עכשיו, פעמיים ברצף${TX('', ', ולפעמים בעמידה ההפוכה')}.</div></span>
     <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
   mx.addEventListener('click', () => begin({type:'mix'}));
   list.appendChild(mx);
 }
 // dance mode home: every level as a whole dance, a shuffle of everything, and a marathon of the whole style
 function renderDanceHome(list, st){
-  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = 'בוחרים ריקוד, המוזיקה מתחילה, ורוקדים. בלי שלב לימוד.';
+  const lbl = document.createElement('p'); lbl.className = 'eyebrow list-label'; lbl.textContent = TX('בוחרים ריקוד, המוזיקה מתחילה, ורוקדים. בלי שלב לימוד.', 'בוחרים אימון, המוזיקה מתחילה, ומכים בקצב. בלי שלב לימוד.');
   list.appendChild(lbl);
   const lvRow = document.createElement('div'); lvRow.className = 'levels';
   STYLES[STYLE_ID].levels.forEach((lv, i) => {
@@ -925,7 +992,7 @@ function renderDanceHome(list, st){
   const f = document.createElement('button');
   f.className = 'lesson full';
   f.innerHTML = `<span class="num">▶</span>
-    <span><span class="title"><span class="name">לרקוד את שלב ${levelIdx()+1}: ${cur().routine}</span><span class="en">${STYLES[STYLE_ID].levels[levelIdx()].en}</span></span>
+    <span><span class="title"><span class="name">${TX('לרקוד', 'להתאמן על')} שלב ${levelIdx()+1}: ${cur().routine}</span><span class="en">${STYLES[STYLE_ID].levels[levelIdx()].en}</span></span>
     <div class="desc">${cur().phrases.map(p => p.name).join(' · ')}. פעמיים ברצף, עם המוזיקה מההתחלה.</div></span>
     <span class="stars" aria-label="${st[starKey('full')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('full')]||0)}</span>`;
   f.addEventListener('click', () => begin({type:'full'}));
@@ -935,7 +1002,7 @@ function renderDanceHome(list, st){
   const nAll = STYLES[STYLE_ID].levels.reduce((n, lv) => n + lv.phrases.length, 0);
   mx.innerHTML = `<span class="num">⚡</span>
     <span><span class="title"><span class="name">מיקס מכל השלבים</span><span class="en">SHUFFLE ALL</span></span>
-    <div class="desc">6 קטעים שמוגרלים מתוך כל ${nAll} הריקודים של הסגנון, פעמיים ברצף.</div></span>
+    <div class="desc">6 קטעים שמוגרלים מתוך כל ${nAll} ${TX('הריקודים של הסגנון', 'הקומבינציות')}, פעמיים ברצף.</div></span>
     <span class="stars" aria-label="${st[starKey('mix')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('mix')]||0)}</span>`;
   mx.addEventListener('click', () => begin({type:'mix', all:true}));
   list.appendChild(mx);
@@ -943,7 +1010,7 @@ function renderDanceHome(list, st){
   ma.className = 'lesson flow';
   ma.innerHTML = `<span class="num">∞</span>
     <span><span class="title"><span class="name">מרתון</span><span class="en">MARATHON</span></span>
-    <div class="desc">כל ${nAll} הריקודים של הסגנון בזה אחר זה, מהקל לקשה. בערך ${Math.round(nAll * 0.7)} דקות.</div></span>
+    <div class="desc">כל ${nAll} ${TX('הריקודים של הסגנון', 'הקומבינציות')} בזה אחר זה, מהקל לקשה. בערך ${Math.round(nAll * 0.7)} דקות.</div></span>
     <span class="stars" aria-label="${st[starKey('marathon')]||0} כוכבים מתוך 3">${starsHtml(st[starKey('marathon')]||0)}</span>`;
   ma.addEventListener('click', () => begin({type:'marathon'}));
   list.appendChild(ma);
@@ -1595,7 +1662,7 @@ function makeCoach3D(canvas, opts={}){
     }
     if (!fade) applyClip(c, cp.t, 1);
     pelvisFix();
-    if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * 0.4 * k);   // relaxed hands
+    if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * (c.counts ? 1 : 0.4) * k);   // relaxed hands; fists for kickboxing
     placeLoose();
     applyLocks(c, cp.t, lockW);
     root.rotation.y = 0; root.position.set(-A.center.x, 0, -A.center.z); root.updateMatrixWorld(true);
@@ -2095,6 +2162,16 @@ function detect(now){
   const vw = video.videoWidth, vh = video.videoHeight;
   // mirrored video-pixel space, y down
   cam.lm = raw.map(p => ({X:(1-p.x)*vw, Y:p.y*vh, v:p.visibility ?? 1, onScreen: p.x>-0.02 && p.x<1.02 && p.y>-0.02 && p.y<1.02}));
+  const w3 = r?.worldLandmarks?.[0];
+  cam.wl = w3 ? w3.map(p => ({x:-p.x, y:-p.y, z:-p.z})) : null;
+  // how high each knee is lifted (0 hanging, 1 thigh level), kept for a moment: on a kick the pose model flickers
+  // between readings from one frame to the next, so the game looks at the highest one of the last third of a second
+  if (cam.wl){
+    const W = cam.wl, lift = (h, k) => { const d = Math.hypot(W[k].x - W[h].x, W[k].y - W[h].y, W[k].z - W[h].z) || 0.4; return (W[k].y - W[h].y) / d + 1; };
+    const ok = i => cam.lm[i].v > 0.5 && cam.lm[i].onScreen;
+    (cam.lifts = cam.lifts || []).push({t: now, r: ok(24) && ok(26) ? lift(24, 26) : null, l: ok(23) && ok(25) ? lift(23, 25) : null});
+    while (cam.lifts.length && cam.lifts[0].t < now - 350) cam.lifts.shift();
+  }
 }
 const visible = (lm,i) => lm[i].v > 0.5 && lm[i].onScreen;
 function segAngle(lm,a,b){ return Math.atan2(-(lm[b].Y-lm[a].Y), lm[b].X-lm[a].X)/D2R; }
@@ -2109,10 +2186,10 @@ function scorePose(lm, target){
     const ang = segAngle(lm,a,b);
     const diff = angDiff(ang, target[k]);
     const s = clamp(1 - (diff-18)/55, 0, 1);
-    const w = isLeg(k) ? 0.7 : 1;
+    const w = (isLeg(k) ? 0.7 : 1) * (KB ? kbFlat(k, target) : 1);
     per[k] = {s, ang};
     tot += s*w; wsum += w;
-    if (diff > worstDiff){ worstDiff = diff; worst = k; }
+    if (diff > worstDiff && w >= 0.5){ worstDiff = diff; worst = k; }
   }
   // the body: hips-to-shoulders line, so leans count
   if ([11,12,23,24].every(i => visible(lm,i))){
@@ -2122,14 +2199,60 @@ function scorePose(lm, target){
     per.torso = {s: sc, ang}; tot += sc*w; wsum += w;
     if (diff > 14 && diff*2.2 > worstDiff){ worstDiff = Math.max(worstDiff, 40); worst = 'torso'; }
   }
-  const armsSeen = per.rUpper && per.lUpper;
+  let armsSeen = per.rUpper && per.lUpper, kbWorst = null;
+  if (KB && target.h){
+    // strikes go at the camera, where flat limb angles say little. What the camera does see is foreshortening: an
+    // arm punching at it shrinks to a stub, a guard arm hangs at full length. Each segment's length on screen, against
+    // the length it would have across the picture (from the torso, by usual body proportions), is compared with the
+    // same ratio on the coach. Depth from the pose model was tried and could not tell a jab from the guard.
+    const W3 = cam.wl, d3 = (a, b) => Math.hypot(W3[a].x - W3[b].x, W3[a].y - W3[b].y, W3[a].z - W3[b].z);
+    const d2 = (a, b) => Math.hypot(lm[a].X - lm[b].X, lm[a].Y - lm[b].Y);
+    let low = 1;
+    const kick = target.kl && Math.max(...target.kl) > 0.6;      // in a kick the arms only swing for balance
+    const torso = [11, 12, 23, 24].every(i => visible(lm, i)) ? Math.hypot((lm[11].X + lm[12].X - lm[23].X - lm[24].X) / 2, (lm[11].Y + lm[12].Y - lm[23].Y - lm[24].Y) / 2) : 0;
+    if (torso && target.fs) for (const [side, sh, el, wr, o, f] of [['r', 12, 14, 16, 0, 0], ['l', 11, 13, 15, 3, 2]]){
+      if (!visible(lm, sh) || !visible(lm, el) || !visible(lm, wr)) continue;
+      const pu = Math.min(1.1, d2(sh, el) / (0.6 * torso)), pf = Math.min(1.1, d2(el, wr) / (0.52 * torso));
+      const e = Math.abs(pu - target.fs[f]) + 0.6 * Math.abs(pf - target.fs[f + 1]), strike = !kick && Math.hypot(...target.h.slice(o, o + 3)) > 0.8;
+      const sc = clamp(1 - (e - 0.2)/0.5, 0, 1), w = strike ? 3 : kick ? 0.3 : 0.6;
+      per['h' + side] = {s: sc, strike, short: pu > target.fs[f] + 0.25};
+      tot += sc*w; wsum += w;
+      if (strike && sc < 0.5 && sc < low){ low = sc; kbWorst = 'h' + side; }
+    }
+    // knees: how high each one is lifted (0 hanging, 1 thigh level, more above), from the vertical in 3D, which the
+    // pose model gets right. In a kick the body turns side-on and the model often swaps the legs, so the kicking
+    // knee may be found on either leg (the other one counts a little less).
+    const peak = side => { let m = null; for (const e of cam.lifts || []) if (e[side] !== null && (m === null || e[side] > m)) m = e[side]; return m; };
+    const L = W3 ? {r: peak('r'), l: peak('l')} : {r: null, l: null};
+    const ksc = (v, t) => v === null ? 0 : clamp(1 - (Math.abs(v - t) - 0.2)/0.5, 0, 1);
+    if (target.kl) for (const [side, o] of [['r', 0], ['l', 1]]){
+      const t = target.kl[o], other = side === 'r' ? 'l' : 'r';
+      if (kick && t <= 0.6) continue;
+      if (L[side] === null && !(kick && L[other] !== null)) continue;
+      const sc = kick ? Math.max(ksc(L[side], t), 0.85 * ksc(L[other], t)) : ksc(L[side], t), w = kick ? 3 : 0.4;
+      per['k' + side] = {s: sc, up: kick, low: Math.max(L[side] ?? 0, kick ? L[other] ?? 0 : 0) < t};
+      tot += sc*w; wsum += w;
+      if (kick && sc < 0.5 && sc < low){ low = sc; kbWorst = 'k' + side; }
+      if (kick) armsSeen = true;            // a kick counts on the legs even when the arms swing out of sight
+    }
+  }
   if (!armsSeen || wsum === 0) return {score:0, per, worst:null, legsSeen, armsSeen:false};
-  return {score: tot/wsum, per, worst: worstDiff > 32 ? worst : null, legsSeen, armsSeen:true};
+  return {score: tot/wsum, per, worst: kbWorst || (worstDiff > 32 ? worst : null), legsSeen, armsSeen:true};
+}
+// kickboxing: how much a limb's flat angle can be trusted. An arm punching at the camera is foreshortened to a stub
+// whose angle on screen is noise, and in a punch the legs only need to stand (no one lunges across a living room).
+function kbFlat(k, target){
+  if (isLeg(k)) return target.kl && Math.max(...target.kl) > 0.6 ? 0.3 : 0.4;   // in a kick the knee lift decides (the model may swap the legs)
+  if (!target.h) return 1;
+  const o = k[0] === 'r' ? 0 : 3, x = target.h[o], y = target.h[o+1], z = target.h[o+2];
+  return clamp(Math.hypot(x, y) / Math.max(0.25, Math.hypot(x, y, z)), 0.2, 1);
 }
 function hintFor(res, target){
   if (!res) return 'לא רואים אותך. לעמוד מול המצלמה';
   if (!res.armsSeen) return 'לא רואים את הידיים. להתרחק קצת אחורה';
   const k = res.worst; if (!k) return '';
+  if (k[0] === 'h' && res.per[k]){ const hand = k[1] === 'r' ? 'יד ימין' : 'יד שמאל'; return res.per[k].short ? `${hand}: אגרוף עד הסוף` : `${hand}: לכוון כמו המאמנת`; }
+  if (k[0] === 'k' && res.per[k]){ const leg = k[1] === 'r' ? 'רגל ימין' : 'רגל שמאל'; return res.per[k].low ? `${leg}: ברך גבוה יותר ↑` : `${leg}: לכוון כמו המאמנת`; }
   if (k === 'torso'){ const want = 90 - (target.lean||0), d = norm(want - res.per.torso.ang); return d < 0 ? 'הגוף: להישען ימינה' : 'הגוף: להישען שמאלה'; }
   const t = target[k]*D2R, c = res.per[k].ang*D2R;
   const dx = Math.cos(t)-Math.cos(c), dy = Math.sin(t)-Math.sin(c);
@@ -2178,7 +2301,10 @@ function drawCam(canvas, ctx, res, target){
     if (!visible(lm,a) || !visible(lm,b)) continue;
     const seg = BONE_SEG[`${a}-${b}`];
     let col = '#46d3e8';
-    if (seg && res?.per?.[seg]) col = res.per[seg].s >= 0.7 ? '#5fe08a' : (res.per[seg].s >= 0.35 ? '#ffd23f' : '#ff5a6a');
+    let sv = seg && res?.per?.[seg] ? res.per[seg].s : null;
+    const k3 = KB && seg ? res?.per?.[(isLeg(seg) ? 'k' : 'h') + seg[0]] : null;
+    if (k3 && (k3.strike || k3.up)) sv = Math.min(sv ?? 1, k3.s);
+    if (sv !== null) col = sv >= 0.7 ? '#5fe08a' : (sv >= 0.35 ? '#ffd23f' : '#ff5a6a');
     ctx.strokeStyle = col; ctx.lineWidth = 7*dpr;
     ctx.beginPath(); ctx.moveTo(SX(lm[a]),SY(lm[a])); ctx.lineTo(SX(lm[b]),SY(lm[b])); ctx.stroke();
   }
@@ -2485,7 +2611,8 @@ function waitForLock(maxMs){
 /* ---- phase 1: learn slowly, hold each pose ---- */
 function startLearn(m){
   state.clipPlay = null;
-  const list = (m.clip || m.video) ? m.steps.filter((_, i) => i % Math.max(2, Math.round(m.steps.length / 6)) === 0).map(x => x.pose) : uniquePoses(m);
+  const list = m.kb ? m.steps.filter((x, i, arr) => x.pose.strike && arr.findIndex(y => y.pose.label === x.pose.label) === i).map(x => x.pose)
+    : (m.clip || m.video) ? m.steps.filter((_, i) => i % Math.max(2, Math.round(m.steps.length / 6)) === 0).map(x => x.pose) : uniquePoses(m);
   state.phase = {kind:'learn', move:m, list, step:0, hold:0, stepStart:performance.now(), flashUntil:0};
   setMoveHud(m);
   $('phaseChip').textContent = flowPrefix() + 'לומדים לאט';
@@ -2497,7 +2624,7 @@ function showLearnStep(){
   const ph = state.phase, p = ph.list[ph.step];
   $('poseLabel').textContent = p.label;
   $('poseCue').textContent = p.cue;
-  say(`ספירה ${ph.step + 1}. ${p.cue}`, {force: true});
+  say(ph.move.kb ? `${p.label}. ${p.cue}` : `ספירה ${ph.step + 1}. ${p.cue}`, {force: true});
   $('countBig').textContent = `${ph.step+1}/${ph.list.length}`;
   $('countBig').style.fontSize = '54px';
   setCoachTarget(p.a);
@@ -2571,7 +2698,7 @@ function startRhythm(idxs, bpm, opts={}){
   } else if (state.plan.type === 'marathon'){
     idxs.forEach((i, n) => add(cur().phrases[i], 1, 1, `מרתון · ${n+1} מתוך ${idxs.length}`));
   } else {
-    for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · כל הריקוד` : `${cur().routine} · סיבוב ${r+1}`);
+    for (let r=0; r<2; r++) for (const i of idxs) add(cur().phrases[i], 1, 1, opts.fast ? `${cur().routine} · ${TX('כל הריקוד', 'כל האימון')}` : `${cur().routine} · סיבוב ${r+1}`);
   }
   let t0, clock, base;
   if (music.on && actx){
@@ -2666,7 +2793,7 @@ function updateRhythm(now){
       e.done = true;
       if (!state.noCam){
         const say = e.dur >= 1;                     // quick "and" moves count, but only longer ones get a word on screen
-        if (e.best >= 0.78){ ph.hits++; ph.streak++; if (say) popText(ph.streak>=6 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
+        if (e.best >= 0.78){ ph.hits++; ph.streak++; if (say) popText(KB && e.pose.strike ? (ph.streak>=6 ? `קומבו ×${ph.streak}` : 'בום! 💥') : ph.streak>=6 ? `מעולה ×${ph.streak}` : 'מעולה!', '#ffd23f'); }
         else if (e.best >= diff().match){ ph.hits++; ph.streak++; if (say) popText('טוב!', '#5fe08a'); }
         else { ph.streak = 0; popText('כמעט', '#ff5a6a'); }
       }
@@ -2689,7 +2816,7 @@ function flowNext(ph){
     // speed up the game's own song a little for the finale (a Spotify song keeps its tempo; the moves get faster)
     let bpm = 60/music.bd;
     if (music.on && music.song){ const now = (actx.currentTime - music.t0)/music.bd; bpm = Math.round(bpm*1.08); setMusicGrid(bpm, music.t0 + Math.ceil(now + 0.5)*music.bd); setNow(`${music.song.name} · קצב ${bpm}`); }
-    banner('כל הריקוד!', `${cur().routine} מההתחלה ועד הסוף, פעמיים, ויותר מהר.`, 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
+    banner(TX('כל הריקוד!', 'כל האימון!'), `${cur().routine} מההתחלה ועד הסוף, פעמיים, ויותר מהר.`, 2600).then(() => { if (ui.screen==='play') startRhythm(f.idxs, music.on ? 60/music.bd : bpm, {fast:true}); });
     return true;
   }
   return false;
@@ -2719,10 +2846,10 @@ function finishRhythm(){
   $('resPct').textContent = state.noCam ? '' : Math.round(acc*100)+'%';
   $('resDetail').textContent = (state.noCam
     ? 'בלי מצלמה אין ניקוד. אפשר לבטל את הסימון "בלי מצלמה" בתפריט כדי לקבל משוב.'
-    : `${ph.hits} מתוך ${tl.length} תנועות בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`) + unlockedMsg;
+    : `${ph.hits} מתוך ${tl.length} ${TX('תנועות', 'מכות')} בזמן. ${stars<3 ? 'הטיפ: להסתכל על הקווים המקווקווים במצלמה, הם מראים לאן לשים את הידיים והרגליים.' : 'מוכנים לשלב הבא.'}`) + unlockedMsg;
   const nextIdx = state.plan.type==='lesson' && state.plan.index < cur().phrases.length-1 ? state.plan.index+1 : null;
   $('resNext').hidden = !(state.plan.type==='lesson' || state.plan.type==='mix');
-  $('resNext').textContent = state.plan.type==='mix' ? 'מיקס חדש' : nextIdx===null ? 'לרקוד את כל הריקוד' : 'לחלק הבא';
+  $('resNext').textContent = state.plan.type==='mix' ? 'מיקס חדש' : nextIdx===null ? TX('לרקוד את כל הריקוד', 'כל האימון ברצף') : 'לחלק הבא';
   $('resNext').onclick = () => { if (state.plan.type==='mix'){ state.mix = null; begin({type:'mix', all: state.plan.all}); } else begin(nextIdx===null ? {type:'full'} : {type:'lesson', index:nextIdx}); };
   show('result');
 }
@@ -2761,10 +2888,10 @@ function loop(now){
     if (lp && lp.clipBeat !== undefined && clips[ph.move.clip]){     // show the captured motion itself, swinging slowly around this count
       // slow loop of the two counts leading into this one and the count itself (3 beats at 0.6 speed), so the
       // move is seen in context rather than as a twitch; the ring lights up at the exact moment of the count
-      const c = clips[ph.move.clip], spb = 60 / c.bpm, from = Math.max(0, lp.clipBeat - 2), seg = (lp.clipBeat - from + (lp.span || 1)) * spb;
+      const c = clips[ph.move.clip], spb = 60 / c.bpm, from = ph.move.kb ? lp.clipBeat - 0.7 : Math.max(0, lp.clipBeat - 2), seg = (lp.clipBeat - from + (ph.move.kb ? 0.6 : lp.span || 1)) * spb;
       const u = (((now - ph.stepStart) / 1000) * 0.6) % seg, t = from * spb + u;
       if (t >= lp.clipBeat * spb && t < lp.clipBeat * spb + 0.25) glow = glow || '#ffd23f';
-      coachA = clipAngles(c, t); clipO = {clip: c, t};
+      coachA = clipAngles(c, t); clipO = {clip: c, t: ((t % c.dur) + c.dur) % c.dur};
     }
     res = updateLearn(now, dt);
     if (state.phase === ph && ph.flashUntil > now) glow = '#5fe08a';
@@ -2776,7 +2903,7 @@ function loop(now){
   if (state.vplay){ vcoachShow(state.vplay.id); vcoachDrive(state.vplay.t, state.vplay.rate); vcoachFrame(); }
   else {
     vcoachHide();
-    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 52, bottomPad: 50, clip: clipO, yaw: ph?.kind === 'learn' ? 0.55 : 0.32});
+    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 52, bottomPad: 50, clip: clipO, yaw: KB && clipO?.clip?.counts ? (clipO.clip.mirror ? 1 : -1) * (ph?.kind === 'learn' ? 1.25 : 1.1) : ph?.kind === 'learn' ? 0.55 : 0.32});
     else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   }
   drawCam(camCanvas, camCtx, res, target);
@@ -2827,6 +2954,10 @@ const ZB_PLAYLISTS = [{"name": "Zumba Fitness", "url": "https://open.spotify.com
 const HH_DANCE_PLAYLISTS = [{"name": "Kids Clean Hip Hop Class", "url": "https://open.spotify.com/playlist/46PK3Yoi52ATIOVRMVKEip"}, {"name": "Kids Hip Hop Dance Class", "url": "https://open.spotify.com/playlist/72lmd5GAwU8xHLcwTzmE3I"}, {"name": "Kids Hip Hop Dance", "url": "https://open.spotify.com/playlist/0yejUOyHmZbiAnHXHGj4vU"}];
 const ZB_DANCE_PLAYLISTS = [{"name": "Brazil Carnival Samba", "url": "https://open.spotify.com/playlist/1mpj56eFDm7wtXnC9vRQ2a"}, {"name": "Brazilian Samba Carnaval", "url": "https://open.spotify.com/playlist/0ELwzNDt40yJZhg2JNK8Eh"}, {"name": "Samba Batucada", "url": "https://open.spotify.com/playlist/5zf8173wxBOKoSpP8HHIuX"}, {"name": "מוזיקה לטינית קצבית", "url": "https://open.spotify.com/playlist/3fyFG3LVLEqPPP6KNxUb1J"}];
 
+// kickboxing: workout mixes with a steady, driving beat (same checks as above, see check_playlists.py)
+const KB_PLAYLISTS = [{"name": "Gym Hits", "url": "https://open.spotify.com/playlist/37i9dQZF1DXdxcBWuJkbcy"}, {"name": "Power Hour", "url": "https://open.spotify.com/playlist/37i9dQZF1DX32NsLKyzScr"}, {"name": "Main Stage", "url": "https://open.spotify.com/playlist/37i9dQZF1DX7ZUug1ANKRP"}, {"name": "Cardio", "url": "https://open.spotify.com/playlist/37i9dQZF1DWSJHnPb1f0X3"}];
+const KB_DANCE_PLAYLISTS = [{"name": "Night Rider", "url": "https://open.spotify.com/playlist/37i9dQZF1DX6GJXiuZRisr"}, {"name": "Lowkey Tech", "url": "https://open.spotify.com/playlist/37i9dQZF1DX0r3x8OtiwEM"}];
+
 /* ---------- dance styles ---------- */
 const STYLES = {
   hiphop: {id:'hiphop', name:'היפ־הופ', songs:HH_SONGS, playlists:HH_PLAYLISTS, dancePlaylists:HH_DANCE_PLAYLISTS, top:['#ffb385','#ff7a3d','#b8461a'], headband:null, levels:[
@@ -2836,13 +2967,19 @@ const STYLES = {
   zumba:  {id:'zumba', name:'זומבה', songs:ZB_SONGS, playlists:ZB_PLAYLISTS, dancePlaylists:ZB_DANCE_PLAYLISTS, top:['#8ff3df','#22c3a6','#0f7564'], headband:['#ffe08a','#ffc83d','#b8860b'], levels:[
     {name:'בסיס', en:'BASICS', phrases:ZBL1, desc:'שני צעדי סלסה ורומבה: צעדים קצרים שחוזרים, מרקדנים אמיתיים בלכידת תנועה.'},
     {name:'לטיני', en:'LATIN', phrases:ZBL2, desc:'סלסה בזוג, צ׳רלסטון וסמבה מרקדנים אמיתיים: ריקודים ארוכים ומלאים.'},
-    {name:'קרנבל', en:'CARNIVAL', phrases:ZBL3, desc:'שלוש סמבות של קרנבל: מצעד, אפושה וסמבה מהירה.'}]}
+    {name:'קרנבל', en:'CARNIVAL', phrases:ZBL3, desc:'שלוש סמבות של קרנבל: מצעד, אפושה וסמבה מהירה.'}]},
+  // the kickboxing game (dance/?game=kickbox) has this style only, and the dance game does not show it
+  kickbox: {id:'kickbox', name:'קיקבוקס', songs:HH_SONGS, playlists:KB_PLAYLISTS, dancePlaylists:KB_DANCE_PLAYLISTS, top:['#ff8a8a','#e5383b','#8b1e20'], headband:['#ff8a8a','#e5383b','#8b1e20'], levels:[
+    {name:'אגרופים', en:'PUNCHES', phrases:KBL1, desc:'ג׳אב, קרוס, הוקים ומכות לגוף. כל מכה בדיוק על הביט, מלוחם אמיתי בלכידת תנועה.'},
+    {name:'בעיטות', en:'KICKS', phrases:KBL2, desc:'בעיטה קדמית, ברכיים ובעיטות סיבוביות בשתי הרגליים, עם אגרופים ביניהן.'},
+    {name:'קומבינציות', en:'COMBOS', phrases:KBL3, desc:'הכול ביחד: רצפים של אגרופים, ברכיים ובעיטות, עד הקומבינציה הגדולה של 16 ספירות.'}]}
 };
 let STYLE_ID = (() => { try { return localStorage.getItem('bitrishon.style') || 'hiphop'; } catch { return 'hiphop'; } })();
 // learn mode teaches each part first; dance mode just dances whole levels and mixes, with a wider music pool
 let MODE = (() => { try { return localStorage.getItem('bitrishon.mode') === 'dance' ? 'dance' : 'learn'; } catch { return 'learn'; } })();
 function setMode(m){ MODE = m; try { localStorage.setItem('bitrishon.mode', m); } catch {} renderHome(); }
-if (!STYLES[STYLE_ID]) STYLE_ID = 'hiphop';
+if (!STYLES[STYLE_ID] || STYLE_ID === 'kickbox') STYLE_ID = 'hiphop';
+if (KB) STYLE_ID = 'kickbox';
 // which level is selected per style, and how far the player has got (highest level finished)
 const LEVEL_SEL = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.level') || '{}'); } catch { return {}; } })();
 const DONE = (() => { try { return JSON.parse(localStorage.getItem('bitrishon.done') || '{}'); } catch { return {}; } })();
@@ -2999,7 +3136,17 @@ $('soundBtn').addEventListener('click', () => {
   chordPad(t, 57, 'm', bd*8);
   setTimeout(chime, 2600);
 });
-for (const id in STYLES) $('style-' + id).addEventListener('change', () => setStyle(id));
+for (const id in STYLES) $('style-' + id)?.addEventListener('change', () => setStyle(id));
+if (KB){
+  document.title = 'קיקבוקס בקצב';
+  $('brand').innerHTML = 'קיק<br>בוקס';
+  $('tagline').textContent = 'אימון קיקבוקס בקצב של השיר: ג׳אב, קרוס, הוקים, ברכיים ובעיטות. המצלמה של הנייד רואה כל מכה ואומרת מה לתקן.';
+  $('gameLink').href = './'; $('gameLink').textContent = '💃 למשחק הריקוד';
+  $('styleSeg').hidden = true; $('kbStanceTip').hidden = false;
+  $('modeDanceTxt').textContent = '🥊 אימון';
+  $('voiceTxt').textContent = 'המאמנת מדברת: מסבירה כל מכה וסופרת 5, 6, 7, 8';
+  $('demo3d').setAttribute('aria-label', 'מאמנת קיקבוקס תלת־ממדית מדגימה מכות');
+}
 for (const [id, who] of [['av-me', 'me'], ['av-alfred', 'alfred'], ['av-coach', 'coach']]) $(id).addEventListener('change', () => switchAvatar(who));
 try { init3D(); } catch { coach3 = demo3 = res3 = null; }
 $('result3d').parentElement.hidden = !res3;
@@ -3024,7 +3171,7 @@ $('pauseOverlay').addEventListener('click', () => { if (actx) actx.resume().then
 renderHome();
 requestAnimationFrame(loop);
 // test hook: lets automated browser tests reach the game's state (the script is a module, so nothing is global)
-Object.defineProperties(window.__br = window.__br || {}, Object.getOwnPropertyDescriptors({ ensureAudio, music, state, clips, begin, cur, get actx(){ return actx; }}));
+Object.defineProperties(window.__br = window.__br || {}, Object.getOwnPropertyDescriptors({ ensureAudio, music, state, clips, begin, cur, loadClip, scorePose, cam, get actx(){ return actx; }, get coach3(){ return coach3; }}));
 </script>
 </body>
 </html>

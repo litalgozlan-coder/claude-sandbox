@@ -11,7 +11,7 @@ usage: python3 dance/tools/check_playlists.py [path/to/index.html]     exit code
 import json, re, subprocess, sys
 
 UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36"
-TABLES = ["HH_PLAYLISTS", "ZB_PLAYLISTS", "HH_DANCE_PLAYLISTS", "ZB_DANCE_PLAYLISTS"]
+TABLES = ["HH_PLAYLISTS", "ZB_PLAYLISTS", "HH_DANCE_PLAYLISTS", "ZB_DANCE_PLAYLISTS", "KB_PLAYLISTS", "KB_DANCE_PLAYLISTS"]
 
 
 HEBREW = re.compile(r"[\u0590-\u05FF]")
