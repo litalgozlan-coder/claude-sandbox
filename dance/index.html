@@ -1462,6 +1462,27 @@ function makeCoach3D(canvas, opts={}){
           const sp = new T.Sprite(new T.SpriteMaterial({map: tex, transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending}));
           sp.scale.set(0.2, 0.2, 1); sp.position.set(0, 0.07, 0); sp.renderOrder = 5; hb.add(sp); avatar.hands.push(sp);
         }
+        if (KB){
+          // kickboxing: each hand's and foot's glow flares up when it lands a strike (sized in metres, whatever the rig's units)
+          root.updateMatrixWorld(true); avatar.glow = {};
+          for (const hn of ['LeftHand', 'RightHand', 'LeftFoot', 'RightFoot', 'LeftLeg', 'RightLeg']){
+            const hb = bones[hn]; if (!hb) continue;
+            const ws = hb.getWorldScale(new T.Vector3()).x || 1, foot = /Foot|Leg/.test(hn);
+            let sp = !foot && avatar.hands.find(x => x.parent === hb);
+            if (!sp){ sp = new T.Sprite(new T.SpriteMaterial({map: tex, transparent: true, depthWrite: false, depthTest: false, blending: T.AdditiveBlending})); sp.renderOrder = 5; hb.add(sp); }
+            sp.userData.s0 = (foot ? 0.26 : 0.2) / ws; sp.scale.set(sp.userData.s0, sp.userData.s0, 1); sp.position.set(0, (/Leg/.test(hn) ? 0 : foot ? 0.1 : 0.07) / ws, 0); sp.visible = false;
+            avatar.glow[hn] = sp;
+          }
+        }
+      }
+      if (KB){
+        // kickboxing: red boxing gloves, so the fists read at a glance against the body
+        root.updateMatrixWorld(true); const gm = new T.MeshStandardMaterial({color: 0xa50d18, emissive: 0x3a0004, roughness: 0.38, metalness: 0.05}), gg = new T.SphereGeometry(1, 22, 16);
+        for (const hn of ['LeftHand', 'RightHand']){
+          const hb = bones[hn]; if (!hb) continue;
+          const ws = hb.getWorldScale(new T.Vector3()).x || 1, m = new T.Mesh(gg, gm);
+          m.scale.set(0.068 / ws, 0.08 / ws, 0.07 / ws); m.position.set(0, 0.07 / ws, 0); m.castShadow = true; hb.add(m);
+        }
       }
       scene.add(root); root.visible = avatarOn; if (avatarOn) setAllParts(false);
       res(true);
@@ -1638,6 +1659,32 @@ function makeCoach3D(canvas, opts={}){
     }
     if (moved) placeLoose();
   }
+  // kickboxing: make each strike plain to see. Around the moment a straight punch lands, the arm reaches out fully
+  // straight along the line from the shoulder to the fist (in the capture the guard already holds the fists forward,
+  // so a punch only adds a little reach), and the glow of the hand or foot that strikes flares up.
+  const kv1 = new T.Vector3(), kv2 = new T.Vector3();
+  function kbHit(c, t){
+    const A = avatar, B = A.bones, dur = c.dur;
+    t = ((t % dur) + dur) % dur;
+    let hit = null, dt = 9;
+    for (const h of c.hits){ let d = t - h.t; d -= Math.round(d / dur) * dur; if (Math.abs(d) < Math.abs(dt)){ dt = d; hit = h; } }
+    for (const n in A.glow || {}) A.glow[n].visible = false;          // only the striking hand or foot glows, so the red gloves show
+    if (!hit) return;
+    const limb = c.mirror ? swapSide(hit.limb) : hit.limb, k = Math.max(0, 1 - Math.abs(dt) / 0.22), w = k * k * (3 - 2 * k);
+    if (!k) return;
+    if (hit.kind === 'straight'){
+      const side = limb.startsWith('Left') ? 'Left' : 'Right', S = B[side + 'Arm'], E = B[side + 'ForeArm'], H = B[side + 'Hand'];
+      if (S && E && H){
+        A.root.updateMatrixWorld(true);
+        const dir = H.getWorldPosition(kv1).clone().sub(S.getWorldPosition(kv2)), q0 = S.quaternion.clone(), q1 = E.quaternion.clone();
+        aim(S, E, dir); aim(E, H, dir);
+        const qs = S.quaternion.clone(), qe = E.quaternion.clone();
+        S.quaternion.copy(q0).slerp(qs, w); E.quaternion.copy(q1).slerp(qe, w); S.updateMatrixWorld(true);
+      }
+    }
+    const g = A.glow && A.glow[hit.kind === 'knee' ? limb.replace('Foot', 'Leg') : limb];     // a knee strike lights the knee
+    if (g){ g.visible = true; const sc = g.userData.s0 * (0.8 + 2.4 * w); g.scale.set(sc, sc, 1); g.material.color.setRGB(1, 0.62 - 0.3 * w, 0.3 - 0.25 * w); }
+  }
   function poseAvatarClip(cp){
     const A = avatar, B = A.bones, root = A.root, c = cp.clip, nowT = performance.now();
     if (FOOT_LOCK && c.bpm && !A.locks.has(c)){
@@ -1663,6 +1710,7 @@ function makeCoach3D(canvas, opts={}){
     if (!fade) applyClip(c, cp.t, 1);
     pelvisFix();
     if (A.fingers) for (const [bone, k] of A.fingers) bone.rotateX(AVATAR_FIST_SIGN * (c.counts ? 1 : 0.4) * k);   // relaxed hands; fists for kickboxing
+    if (c.hits) kbHit(c, cp.t);
     placeLoose();
     applyLocks(c, cp.t, lockW);
     root.rotation.y = 0; root.position.set(-A.center.x, 0, -A.center.z); root.updateMatrixWorld(true);
@@ -1804,7 +1852,7 @@ function makeCoach3D(canvas, opts={}){
     const aspect = w/h, padFrac = (o.bottomPad||0)/h, topFrac = (o.topPad||0)/h;
     const needH = 2.05/(1 - padFrac - topFrac), dist = 5.6;      // the dancer fills most of the free height
     let vfov = 2*Math.atan(needH/2/dist);
-    const needW = 1.55; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
+    const needW = KB ? 2.3 : 1.55; if (2*Math.atan(needW/2/dist/aspect) > vfov) vfov = 2*Math.atan(needW/2/dist/aspect);
     const visH = 2*dist*Math.tan(vfov/2);
     const cyT = 1.22 - visH*(padFrac - topFrac)/2;
     // a three-quarter view (o.yaw) so arms that point at the camera stay readable, plus a gentle sway
@@ -1937,7 +1985,7 @@ function drawDemo(now){
     const per = segs.reduce((s, e) => s + e.d, 0); let x = u % per, i = 0;
     while (x >= segs[i].d){ x -= segs[i].d; i++; }
     const c = segs[i].c, a = clipAngles(c, x);
-    if (demo3) demo3.draw(a, {clip: {clip: c, t: x}, time: now, topPad: 4, bottomPad: 22, yaw: 0.4}); else drawCoach(demo.ctx, 264, 340, a);
+    if (demo3) demo3.draw(a, {clip: {clip: c, t: x}, time: now, topPad: 4, bottomPad: 22, yaw: KB && c.counts ? (c.mirror ? 1.45 : -1.45) : 0.4}); else drawCoach(demo.ctx, 264, 340, a);
     return;
   }
   const beats = u * 100 / 60, a = groove(STAND, beats);
@@ -2903,7 +2951,7 @@ function loop(now){
   if (state.vplay){ vcoachShow(state.vplay.id); vcoachDrive(state.vplay.t, state.vplay.rate); vcoachFrame(); }
   else {
     vcoachHide();
-    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 52, bottomPad: 50, clip: clipO, yaw: KB && clipO?.clip?.counts ? (clipO.clip.mirror ? 1 : -1) * (ph?.kind === 'learn' ? 1.25 : 1.1) : ph?.kind === 'learn' ? 0.55 : 0.32});
+    if (coach3) coach3.draw(clipO ? coachA : groove(coachA, bc), {phase: ph3, glow, time: now, topPad: 52, bottomPad: 50, clip: clipO, yaw: KB && clipO?.clip?.counts ? (clipO.clip.mirror ? 1 : -1) * 1.45 : ph?.kind === 'learn' ? 0.55 : 0.32});
     else drawCoach(coachCtx, coachCanvas.width, coachCanvas.height, groove(coachA, bc), {glow, topPad: 8*dpr, bottomPad: 58*dpr});
   }
   drawCam(camCanvas, camCtx, res, target);

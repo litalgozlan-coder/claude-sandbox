@@ -19,17 +19,17 @@ const SOURCES = {punch_combo: 'Punch Combo', quad_punch: 'Quad Punch', hook_lead
 // strikes: source clip, frames of the guard before (a), the impact (i) and the guard after (b), measured from the
 // hand or foot reach curves of each clip; label as spoken to the player
 const STRIKES = {
-  jab:       {src: 'punch_combo', a: 13, i: 19, b: 27, label: 'ג׳אב', side: 'L'},
-  cross:     {src: 'punch_combo', a: 20, i: 26, b: 35, label: 'קרוס', side: 'R'},
-  bodyjab:   {src: 'quad_punch',  a: 10, i: 16, b: 24, label: 'ג׳אב לגוף', side: 'L'},
-  bodycross: {src: 'quad_punch',  a: 16, i: 22, b: 30, label: 'קרוס לגוף', side: 'R'},
-  hookL:     {src: 'hook_lead',   a: 6,  i: 14, b: 24, label: 'הוק', side: 'L'},
-  hookR:     {src: 'hook_rear',   a: 7,  i: 13, b: 24, label: 'הוק', side: 'R'},
-  front:     {src: 'front_kick',  a: 9,  i: 28, b: 44, label: 'בעיטה קדמית', side: 'R', leg: true},
-  roundR:    {src: 'round_rear',  a: 9,  i: 28, b: 46, label: 'בעיטה סיבובית', side: 'R', leg: true},
-  roundL:    {src: 'round_lead',  a: 7,  i: 18, b: 34, label: 'בעיטה סיבובית', side: 'L', leg: true},
-  kneeR:     {src: 'knee_rear',   a: 8,  i: 23, b: 39, label: 'ברך', side: 'R', leg: true},
-  kneeL:     {src: 'knee_lead',   a: 14, i: 27, b: 44, label: 'ברך', side: 'L', leg: true}
+  jab:       {src: 'punch_combo', a: 13, i: 19, b: 27, label: 'ג׳אב', side: 'L', kind: 'straight'},
+  cross:     {src: 'punch_combo', a: 20, i: 26, b: 35, label: 'קרוס', side: 'R', kind: 'straight'},
+  bodyjab:   {src: 'quad_punch',  a: 10, i: 16, b: 24, label: 'ג׳אב לגוף', side: 'L', kind: 'straight'},
+  bodycross: {src: 'quad_punch',  a: 16, i: 22, b: 30, label: 'קרוס לגוף', side: 'R', kind: 'straight'},
+  hookL:     {src: 'hook_lead',   a: 6,  i: 14, b: 24, label: 'הוק', side: 'L', kind: 'hook'},
+  hookR:     {src: 'hook_rear',   a: 7,  i: 13, b: 24, label: 'הוק', side: 'R', kind: 'hook'},
+  front:     {src: 'front_kick',  a: 9,  i: 28, b: 44, label: 'בעיטה קדמית', side: 'R', leg: true, kind: 'kick'},
+  roundR:    {src: 'round_rear',  a: 9,  i: 28, b: 46, label: 'בעיטה סיבובית', side: 'R', leg: true, kind: 'kick'},
+  roundL:    {src: 'round_lead',  a: 7,  i: 18, b: 34, label: 'בעיטה סיבובית', side: 'L', leg: true, kind: 'kick'},
+  kneeR:     {src: 'knee_rear',   a: 8,  i: 23, b: 39, label: 'ברך', side: 'R', leg: true, kind: 'knee'},
+  kneeL:     {src: 'knee_lead',   a: 14, i: 27, b: 44, label: 'ברך', side: 'L', leg: true, kind: 'knee'}
 };
 // the combos: [strike, counts it takes]; 'guard' is a count of bouncing in the guard
 const COMBOS = {
@@ -136,9 +136,11 @@ function build(id, items){
   }
   // per count: the strike that lands on it, or guard
   const labels = []; for (const [s, k] of items){ const S = STRIKES[s]; labels.push(S ? S.label + (S.leg ? ' · רגל {' + S.side + '}' : ' · יד {' + S.side + '}') : 'גארד'); for (let j = 1; j < k; j++) labels.push(S && S.leg ? 'חוזרים לגארד' : 'גארד'); }
+  // the hits, so the game can make each one plain to see: when it lands, which hand or foot, and what kind of strike
+  const hits = list.filter(e => e.s !== 'guard').map(e => { const S = STRIKES[e.s]; return {t: +e.at.toFixed(3), limb: (S.side === 'L' ? 'Left' : 'Right') + (S.leg ? 'Foot' : 'Hand'), kind: S.kind}; });
   return {name: id, duration: total, fps: FPS, frames: N, bpm: BPM, beats: counts, mapped: src.guard.mapped,
     source: [...new Set(items.map(([s]) => s === 'guard' ? 'guard' : STRIKES[s].src))].map(k => 'Mixamo: ' + SOURCES[k]),
-    counts: labels, bones: out.bones, hips: out.hips, poses: out.poses};
+    counts: labels, hits, bones: out.bones, hips: out.hips, poses: out.poses};
 }
 fs.mkdirSync(OUT, {recursive: true});
 for (const id in COMBOS){
